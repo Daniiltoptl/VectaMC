@@ -46,14 +46,19 @@ impl ItemCooldowns {
         if duration <= 0 {
             return None;
         }
+        let group = self.add_for_stack(stack, duration);
+        Some((group, duration))
+    }
+
+    fn add_for_stack(&mut self, stack: &ItemStack, duration: i32) -> Identifier {
         let group = cooldown_group(stack);
         self.cooldowns.insert(
             group.clone(),
             CooldownInstance {
-                end_time: self.tick_count + duration,
+                end_time: self.tick_count.wrapping_add(duration),
             },
         );
-        Some((group, duration))
+        group
     }
 }
 
@@ -65,6 +70,15 @@ fn cooldown_group(stack: &ItemStack) -> Identifier {
 }
 
 impl Player {
+    /// Starts an explicit duration in the stack's vanilla cooldown group.
+    pub fn add_item_cooldown(&self, stack: &ItemStack, duration: i32) {
+        let cooldown_group = self.item_cooldowns.lock().add_for_stack(stack, duration);
+        self.send_packet(CCooldown {
+            cooldown_group,
+            duration,
+        });
+    }
+
     /// Returns whether the stack's vanilla cooldown group is currently active.
     pub fn is_item_on_cooldown(&self, stack: &ItemStack) -> bool {
         self.item_cooldowns.lock().is_on_cooldown(stack)
@@ -148,5 +162,23 @@ mod tests {
         assert!(cooldowns.is_on_cooldown(&stack));
         assert!(cooldowns.is_on_cooldown(&other));
         assert!(!cooldowns.is_on_cooldown(&unrelated));
+    }
+
+    #[test]
+    fn explicit_duration_replaces_component_duration_and_existing_cooldown() {
+        init_vanilla_registry();
+        let mut stack = ItemStack::new(&vanilla_items::GOAT_HORN);
+        let group = vecta_utils::Identifier::vanilla_static("shared_instrument");
+        stack.set(USE_COOLDOWN, UseCooldown::new(30.0, Some(group.clone())));
+        let mut cooldowns = ItemCooldowns::default();
+        assert_eq!(cooldowns.add_for_stack(&stack, 40), group);
+        for _ in 0..3 {
+            assert_eq!(cooldowns.tick(), Vec::<vecta_utils::Identifier>::new());
+        }
+        cooldowns.add_for_stack(&stack, 2);
+        assert_eq!(cooldowns.tick(), Vec::<vecta_utils::Identifier>::new());
+        assert!(cooldowns.is_on_cooldown(&stack));
+        assert_eq!(cooldowns.tick(), vec![group]);
+        assert!(!cooldowns.is_on_cooldown(&stack));
     }
 }

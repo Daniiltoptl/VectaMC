@@ -17,6 +17,22 @@ use super::{
     POST_IMPULSE_GRACE_TICKS,
 };
 
+#[test]
+fn zero_duration_use_stays_active_until_stopped_and_cannot_be_overwritten() {
+    init_vanilla_registry();
+    let base = LivingEntityBase::new(&vanilla_entities::PLAYER);
+    let horn = ItemStack::new(&vanilla_items::GOAT_HORN);
+    assert!(base.start_using_item(InteractionHand::OffHand, &horn, 0));
+    assert!(!base.start_using_item(InteractionHand::MainHand, &horn, 140));
+    let active = base.decrement_active_item_use().expect("active horn");
+    assert_eq!(active.remaining_ticks(), -1);
+    assert_eq!(active.hand(), InteractionHand::OffHand);
+    assert!(base.is_using_item());
+    assert_eq!(base.stop_using_item(), Some(active));
+    assert!(!base.is_using_item());
+    assert!(!base.start_using_item(InteractionHand::MainHand, &ItemStack::empty(), 0));
+}
+
 /// An infinite-duration effect never "ends within" anything, and the bound is inclusive.
 #[test]
 fn ends_within_treats_infinite_duration_as_never_ending() {

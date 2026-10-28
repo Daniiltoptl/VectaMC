@@ -95,11 +95,7 @@ pub trait ItemBehavior: Send + Sync {
             if !can_eat {
                 return InteractionResult::Fail;
             }
-            // Mirrors vanilla `Consumable.startConsuming`: an item with no
-            // consume duration is consumed immediately instead of entering
-            // the timed-use state — `start_using_item` rejects a duration of
-            // 0 outright, so going through it here would silently never
-            // finish and never run the item's effects.
+            // Consumable.startConsuming finishes zero-duration food immediately.
             if consume_ticks > 0 {
                 context.player.start_using_item(context.hand);
             } else {

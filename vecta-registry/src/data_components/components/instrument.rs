@@ -125,6 +125,7 @@ mod tests {
             },
             3.5,
             48.0,
+            2,
             TextComponent::plain("Custom horn"),
         )
         .expect("inline instrument should be valid");
@@ -159,6 +160,9 @@ mod tests {
             .write(&mut network)
             .expect("duration should encode");
         16.0_f32.write(&mut network).expect("range should encode");
+        VarInt(0)
+            .write(&mut network)
+            .expect("durability damage should encode");
         TextComponent::plain("Invalid horn")
             .write(&mut network)
             .expect("description should encode");
@@ -177,5 +181,78 @@ mod tests {
                 .and_then(|component| component.instrument().as_reference()),
             Some(&vanilla_instruments::PONDER_GOAT_HORN)
         );
+    }
+
+    #[test]
+    fn zero_duration_defaults_damage_in_nbt_but_writes_it_on_the_wire() {
+        init_vanilla_registry();
+        let sound = SoundEventHolder::registry(&sound_events::ITEM_GOAT_HORN_SOUND_0);
+        let description = TextComponent::plain("Instant horn");
+        let value = InstrumentValue::new(sound.clone(), 0.0, 16.0, 0, description.clone())
+            .expect("zero duration is valid in 26.3");
+        let component = InstrumentComponent::new(RegistryHolder::direct(value));
+        let nbt = component.clone().to_nbt_tag();
+        let simdnbt::owned::NbtTag::Compound(compound) = &nbt else {
+            panic!("inline instrument compound");
+        };
+        assert!(compound.get("durability_damage").is_none());
+        assert_eq!(parse_component(nbt.clone()), Some(component.clone()));
+        assert_eq!(component.compute_hash(), nbt.compute_hash());
+
+        let mut bytes = Vec::new();
+        component.write(&mut bytes).expect("encode instant horn");
+        let mut cursor = Cursor::new(bytes.as_slice());
+        assert_eq!(
+            VarInt::read(&mut cursor).expect("holder discriminator").0,
+            0
+        );
+        assert_eq!(
+            SoundEventHolder::read(&mut cursor).expect("sound holder"),
+            sound
+        );
+        assert_eq!(f32::read(&mut cursor).expect("use duration"), 0.0);
+        assert_eq!(f32::read(&mut cursor).expect("instrument range"), 16.0);
+        assert_eq!(VarInt::read(&mut cursor).expect("durability damage").0, 0);
+        assert_eq!(
+            TextComponent::read(&mut cursor).expect("description"),
+            description
+        );
+        assert_eq!(cursor.position() as usize, bytes.len());
+    }
+
+    #[test]
+    fn instrument_damage_rejects_negative_values_in_both_codecs() {
+        init_vanilla_registry();
+        let value = InstrumentValue::new(
+            SoundEventHolder::registry(&sound_events::ITEM_GOAT_HORN_SOUND_0),
+            1.0,
+            16.0,
+            1,
+            TextComponent::plain("Damaging horn"),
+        )
+        .expect("valid instrument before damage is corrupted");
+        let mut nbt = value.to_nbt_tag();
+        let simdnbt::owned::NbtTag::Compound(compound) = &mut nbt else {
+            panic!("inline instrument compound");
+        };
+        *compound
+            .get_mut("durability_damage")
+            .expect("encoded nonzero damage") = simdnbt::owned::NbtTag::Int(-1);
+        assert!(parse_component(nbt).is_none());
+
+        let mut bytes = Vec::new();
+        VarInt(0)
+            .write(&mut bytes)
+            .expect("encode holder discriminator");
+        SoundEventHolder::registry(&sound_events::ITEM_GOAT_HORN_SOUND_0)
+            .write(&mut bytes)
+            .expect("encode sound holder");
+        1.0_f32.write(&mut bytes).expect("encode duration");
+        16.0_f32.write(&mut bytes).expect("encode range");
+        VarInt(-1).write(&mut bytes).expect("encode invalid damage");
+        TextComponent::plain("Damaging horn")
+            .write(&mut bytes)
+            .expect("encode description");
+        assert!(InstrumentComponent::read(&mut Cursor::new(bytes.as_slice())).is_err());
     }
 }

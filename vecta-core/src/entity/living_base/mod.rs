@@ -857,7 +857,7 @@ impl LivingEntityBase {
 
     /// Starts vanilla active item use.
     pub fn start_using_item(&self, hand: InteractionHand, item: &ItemStack, duration: i32) -> bool {
-        if item.is_empty() || duration <= 0 {
+        if item.is_empty() {
             return false;
         }
 
@@ -878,7 +878,7 @@ impl LivingEntityBase {
     pub fn decrement_active_item_use(&self) -> Option<ActiveItemUseState> {
         let mut state = self.state.lock();
         let active = state.active_item_use.as_mut()?;
-        active.remaining_ticks -= 1;
+        active.remaining_ticks = active.remaining_ticks.wrapping_sub(1);
         Some(*active)
     }
 
