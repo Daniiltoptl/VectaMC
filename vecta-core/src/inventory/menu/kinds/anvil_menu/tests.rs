@@ -156,7 +156,8 @@ fn rename_only_result_preserves_unused_second_input() {
             button: MouseButton::Left,
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     let input = input_container.lock();
     assert!(input.get_item(0).is_empty());
@@ -274,7 +275,8 @@ fn full_inputs_do_not_fallback_to_the_hotbar() {
         .lock()
         .set_item(9, ItemStack::with_count(&vanilla_items::DIRT, 5));
 
-    menu.clicked(Click::QuickMove { slot: 3 }, &player);
+    menu.clicked(Click::QuickMove { slot: 3 }, &player)
+        .expect("menu operation should succeed");
 
     let inventory = player.inventory.lock();
     assert_eq!(inventory.get_item(9).count(), 5);
@@ -322,7 +324,8 @@ fn partial_result_overflow_is_discarded() {
         inventory.set_item(8, matching);
     }
 
-    menu.clicked(Click::QuickMove { slot: 2 }, &player);
+    menu.clicked(Click::QuickMove { slot: 2 }, &player)
+        .expect("menu operation should succeed");
 
     assert!(input_container.lock().get_item(0).is_empty());
     assert!(result_container.lock().get_item(0).is_empty());

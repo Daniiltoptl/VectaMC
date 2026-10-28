@@ -20,6 +20,7 @@ use vecta_utils::{Downcast as _, DowncastType, DowncastTypeKey};
 
 use crate::entity::damage::DamageSource;
 
+use crate::behavior::ITEM_BEHAVIORS;
 use crate::entity::{
     DEFAULT_AIR_DRAG, Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntitySyncedData,
     RemovalReason,
@@ -704,8 +705,10 @@ impl Entity for ItemEntity {
             state.health
         };
         if new_health <= 0 {
-            // TODO: Call item.onDestroyed() when implemented
-            self.set_removed(RemovalReason::Killed);
+            ITEM_BEHAVIORS
+                .get_behavior(self.get_item().item())
+                .on_destroyed(self);
+            self.set_removed(RemovalReason::Discarded);
         }
         true
     }

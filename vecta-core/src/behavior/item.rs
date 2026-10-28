@@ -1,7 +1,7 @@
 //! Item behavior trait and registry.
 
-use crate::behavior::items::BundleItem;
 use crate::player::player_inventory::Prediction;
+use std::io::Result;
 use std::sync::Arc;
 
 use std::borrow::Cow;
@@ -24,11 +24,37 @@ use crate::behavior::{InteractionResult, InventoryTickContext, UseItemContext, U
 use crate::block_entity::entities::{SignBlockEntity, SignText};
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::DamageSource;
+use crate::entity::entities::ItemEntity;
 use crate::entity::{Entity, LivingEntity, LivingEntityRef, SharedEntity};
+use crate::inventory::{click::MouseButton, lock::ContainerLockGuard, slots::Slot};
 use crate::player::{Player, player_inventory::EquipmentSwapResult};
 use crate::world::World;
 
 pub use vecta_registry::data_components::vanilla_components::ItemUseAnimation;
+
+/// Item-specific click overrides, evaluated before ordinary menu operations.
+pub trait ItemClickBehavior: Send + Sync {
+    /// Handles a click with this stack on the cursor before ordinary slot actions.
+    fn override_stacked_on_other(
+        &self,
+        stack: &mut ItemStack,
+        slot: &dyn Slot,
+        guard: &mut ContainerLockGuard,
+        player: &Player,
+        button: MouseButton,
+    ) -> Result<bool>;
+
+    /// Handles a click on this stack after the carried item's override declines.
+    fn override_other_stacked_on_me(
+        &self,
+        stack: &mut ItemStack,
+        other: &mut ItemStack,
+        slot: &dyn Slot,
+        guard: &mut ContainerLockGuard,
+        player: &Player,
+        button: MouseButton,
+    ) -> Result<bool>;
+}
 
 /// Item capability applied by a sign before its editor fallback.
 pub trait SignApplicator: Send + Sync {
@@ -277,10 +303,13 @@ pub trait ItemBehavior: Send + Sync {
         None
     }
 
-    /// Returns this item behavior as a `BundleItem`.
-    fn as_bundle(&self) -> Option<&BundleItem> {
+    /// Returns the capability for item-specific menu clicks.
+    fn as_item_click_behavior(&self) -> Option<&dyn ItemClickBehavior> {
         None
     }
+
+    /// Called before a dropped item is removed by damage.
+    fn on_destroyed(&self, _entity: &ItemEntity) {}
 
     /// Returns the capability used by sign block interactions.
     fn as_sign_applicator(&self) -> Option<&dyn SignApplicator> {

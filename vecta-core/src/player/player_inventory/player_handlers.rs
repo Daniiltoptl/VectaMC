@@ -262,13 +262,21 @@ impl Player {
     pub fn handle_select_bundle_item(&self, packet: SSelectBundleItem) {
         match self.take_open_menu_for_callback(None) {
             Ok(mut menu) => {
-                menu.set_selected_bundle_item_index(packet.slot_id, packet.selected_item_index);
+                if let Err(error) =
+                    menu.set_selected_bundle_item_index(packet.slot_id, packet.selected_item_index)
+                {
+                    log::error!("Failed to handle bundle selection packet: {error}");
+                }
                 self.finish_open_menu_callback(menu);
             }
             Err(OpenMenuUnavailable::Closed) => {
-                self.inventory_menu
+                let result = self
+                    .inventory_menu
                     .lock()
                     .set_selected_bundle_item_index(packet.slot_id, packet.selected_item_index);
+                if let Err(error) = result {
+                    log::error!("Failed to handle bundle selection packet: {error}");
+                }
             }
             Err(OpenMenuUnavailable::Unavailable) => {}
         }
@@ -361,8 +369,13 @@ impl Player {
 
         menu.behavior_mut().suppress_remote_updates();
 
-        if let Some(click) = click {
-            menu.clicked(click, self);
+        if let Some(click) = click
+            && let Err(error) = menu.clicked(click, self)
+        {
+            // ServerPacketListener.onPacketError logs and suppresses a
+            // failed click before its client prediction hashes are applied.
+            log::error!("Failed to handle container click packet: {error}");
+            return;
         }
 
         for (slot, hash) in packet.changed_slots {

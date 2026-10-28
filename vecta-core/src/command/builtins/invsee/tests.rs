@@ -224,13 +224,15 @@ fn readonly_target_slots_reject_pickup_and_creative_clone() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     menu.clicked(
         Click::Clone {
             slot: TARGET_HOTBAR_START,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert_eq!(target.inventory.lock().get_item(0).count(), 5);
     assert!(menu.behavior().carried().is_empty());
@@ -249,7 +251,8 @@ fn modify_view_edits_armor_slots_within_equipment_rules() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     assert!(
         target.inventory.lock().get_item(39).is_empty(),
         "a non-equippable item must not enter the head slot"
@@ -263,7 +266,8 @@ fn modify_view_edits_armor_slots_within_equipment_rules() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert!(
         target
@@ -292,7 +296,8 @@ fn modify_view_synchronizes_target_armor_without_inventory_locks() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert!(
         target
@@ -331,7 +336,8 @@ fn self_invsee_synchronizes_own_armor_slot() {
             button: MouseButton::Left,
         },
         &recording.player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     recording.player.tick();
     assert_eq!(
@@ -362,7 +368,8 @@ fn modify_view_synchronizes_empty_offhand_after_removal() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert!(target.player.inventory.lock().get_item(40).is_empty());
     target.player.tick();
@@ -385,7 +392,8 @@ fn modify_view_synchronizes_target_hotbar_slot() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     target.player.tick();
 
     assert_eq!(
@@ -407,7 +415,8 @@ fn modify_view_coalesces_to_latest_target_inventory_value() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     *menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::DIAMOND_HELMET);
     menu.clicked(
         Click::Pickup {
@@ -415,7 +424,8 @@ fn modify_view_coalesces_to_latest_target_inventory_value() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
 
     target.player.tick();
 
@@ -444,7 +454,8 @@ fn modify_view_drag_queues_each_changed_target_slot() {
         },
         QuickCraft::End,
     ] {
-        menu.clicked(Click::QuickCraft(action), &source);
+        menu.clicked(Click::QuickCraft(action), &source)
+            .expect("menu operation should succeed");
     }
     target.player.tick();
 
@@ -581,7 +592,8 @@ fn modify_view_moves_inventory_items_in_both_directions() {
             slot: TARGET_HOTBAR_START,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     assert!(target.inventory.lock().get_item(0).is_empty());
     assert_eq!(source.inventory.lock().get_item(8).count(), 5);
 
@@ -590,7 +602,8 @@ fn modify_view_moves_inventory_items_in_both_directions() {
             slot: VIEWER_INVENTORY_START + 35,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     assert!(source.inventory.lock().get_item(8).is_empty());
     assert_eq!(target.inventory.lock().get_item(9).count(), 5);
 }
@@ -622,7 +635,8 @@ fn modify_view_extracts_but_cannot_insert_crafting_items() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     assert!(handler.crafting_container().lock().get_item(0).is_empty());
     {
         let guard = menu.behavior().lock_all_containers();
@@ -639,7 +653,8 @@ fn modify_view_extracts_but_cannot_insert_crafting_items() {
             button: MouseButton::Left,
         },
         &source,
-    );
+    )
+    .expect("menu operation should succeed");
     assert!(handler.crafting_container().lock().get_item(0).is_empty());
     assert!(menu.behavior().carried().is(&vanilla_items::OAK_LOG));
 }
@@ -658,13 +673,15 @@ fn self_invsee_quick_move_does_not_rearrange_the_aliased_inventory() {
             slot: TARGET_HOTBAR_START,
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
     menu.clicked(
         Click::QuickMove {
             slot: VIEWER_INVENTORY_START + TARGET_HOTBAR_START,
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     let inventory = player.inventory.lock();
     assert_eq!(inventory.get_item(0).count(), 5);

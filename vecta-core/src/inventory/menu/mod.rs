@@ -8,6 +8,7 @@ pub mod kinds;
 mod layout;
 
 use crate::player::player_inventory::Prediction;
+use std::io::Result;
 use std::sync::Arc;
 
 use crate::inventory::container::Container as _;
@@ -31,7 +32,7 @@ use vecta_utils::{Downcast as _, types::GameType};
 use crate::inventory::container::CraftingContainer;
 use crate::inventory::menu::kinds::InventoryKind;
 use crate::{
-    behavior::{ITEM_BEHAVIORS, items::BundleItem},
+    behavior::items::BundleItem,
     inventory::lock::{ContainerId, ContainerLockGuard, ContainerRef},
     player::{Player, PlayerConnection},
 };
@@ -178,26 +179,24 @@ impl Menu {
     /// Mirrors vanilla `AbstractContainerMenu.setSelectedBundleItemIndex`: the
     /// selection is runtime-only state of the bundle contents, so nothing is
     /// broadcast and out-of-range slots are ignored.
-    pub fn set_selected_bundle_item_index(&mut self, slot_index: i32, selected_item_index: i32) {
+    pub fn set_selected_bundle_item_index(
+        &mut self,
+        slot_index: i32,
+        selected_item_index: i32,
+    ) -> Result<()> {
         let Ok(slot_index) = usize::try_from(slot_index) else {
-            return;
+            return Ok(());
         };
         let Some(slot) = self.behavior().slots().get(slot_index) else {
-            return;
+            return Ok(());
         };
 
         let mut guard = self.behavior().lock_all_containers();
         let mut item = slot.get_item(&guard).clone();
-        if ITEM_BEHAVIORS
-            .get_behavior(item.item())
-            .as_bundle()
-            .is_none()
-        {
-            return;
-        }
-        if BundleItem::toggle_selected_item(&mut item, selected_item_index) {
+        if BundleItem::toggle_selected_item(&mut item, selected_item_index)? {
             slot.set_item(&mut guard, item);
         }
+        Ok(())
     }
 
     /// Clears or counts crafting-grid items in the base inventory menu,
@@ -283,13 +282,13 @@ impl Menu {
 
     /// Handles a click action in this menu. Packet clicks are validated via
     /// [`Click::parse`]; invalid programmatically constructed clicks are ignored.
-    pub fn clicked(&mut self, click: Click, player: &Player) {
+    pub fn clicked(&mut self, click: Click, player: &Player) -> Result<()> {
         if !click.is_valid_for(self.behavior().slot_count()) {
             log::debug!(
                 "Ignoring programmatic container click that violates parsed-click invariants: \
                  {click:?}"
             );
-            return;
+            return Ok(());
         }
 
         let has_infinite_materials = player.game_mode() == GameType::Creative;
@@ -326,7 +325,7 @@ impl Menu {
                     Click::Pickup { slot, button } => {
                         if !self
                             .behavior_mut()
-                            .try_item_click_behavior_override(slot, button, player)
+                            .try_item_click_behavior_override(slot, button, player)?
                         {
                             self.behavior_mut().do_pickup(slot, button, player);
                         }
@@ -364,6 +363,7 @@ impl Menu {
             let mut guard = self.behavior().lock_all_containers();
             self.slots_changed(&mut guard, player);
         }
+        Ok(())
     }
 
     /// Handles quick move (shift-click).

@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `83bb593529d35aaf3d2a976fa2676cda60e89ef8`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `4be347ab3a091db6462bf47fe20bcfaf4360c1e5`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -10,7 +10,7 @@
 
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
-| items | 1658 | 1259 |
+| items | 1658 | 1276 |
 | blocks | 1286 | 1028 |
 | entities | 161 | 26 |
 
@@ -19,7 +19,7 @@
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 257.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 255.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -33,7 +33,6 @@
 | `BannerItem` | `black_banner`, `blue_banner`, `brown_banner`, `cyan_banner`, `gray_banner`, `green_banner`, `light_blue_banner`, `light_gray_banner`, `lime_banner`, `magenta_banner`, `orange_banner`, `pink_banner`, `purple_banner`, `red_banner`, `white_banner`, `yellow_banner` |
 | `BoatItem` | `acacia_boat`, `acacia_chest_boat`, `bamboo_chest_raft`, `bamboo_raft`, `birch_boat`, `birch_chest_boat`, `cherry_boat`, `cherry_chest_boat`, `dark_oak_boat`, `dark_oak_chest_boat`, `jungle_boat`, `jungle_chest_boat`, `mangrove_boat`, `mangrove_chest_boat`, `oak_boat`, `oak_chest_boat`, `pale_oak_boat`, `pale_oak_chest_boat`, `poplar_boat`, `poplar_chest_boat`, `spruce_boat`, `spruce_chest_boat` |
 | `BowItem` | `bow` |
-| `BundleItem` | `black_bundle`, `blue_bundle`, `brown_bundle`, `bundle`, `cyan_bundle`, `gray_bundle`, `green_bundle`, `light_blue_bundle`, `light_gray_bundle`, `lime_bundle`, `magenta_bundle`, `orange_bundle`, `pink_bundle`, `purple_bundle`, `red_bundle`, `white_bundle`, `yellow_bundle` |
 | `CrossbowItem` | `crossbow` |
 | `CushionItem` | `black_cushion`, `blue_cushion`, `brown_cushion`, `cyan_cushion`, `gray_cushion`, `green_cushion`, `light_blue_cushion`, `light_gray_cushion`, `lime_cushion`, `magenta_cushion`, `orange_cushion`, `pink_cushion`, `purple_cushion`, `red_cushion`, `white_cushion`, `yellow_cushion` |
 | `DebugStickItem` | `debug_stick` |

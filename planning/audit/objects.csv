@@ -99,7 +99,7 @@ items,birch_trapdoor,BlockItem,yes,audit_existing_implementation
 items,birch_wood,BlockItem,yes,audit_existing_implementation
 items,black_banner,BannerItem,no,check_specialization_or_shared_path
 items,black_bed,BlockItem,yes,audit_existing_implementation
-items,black_bundle,BundleItem,no,check_specialization_or_shared_path
+items,black_bundle,BundleItem,yes,audit_existing_implementation
 items,black_candle,BlockItem,yes,audit_existing_implementation
 items,black_carpet,BlockItem,yes,audit_existing_implementation
 items,black_concrete,BlockItem,yes,audit_existing_implementation
@@ -128,7 +128,7 @@ items,blaze_rod,Item,no,generic_or_separate_path
 items,blaze_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,blue_banner,BannerItem,no,check_specialization_or_shared_path
 items,blue_bed,BlockItem,yes,audit_existing_implementation
-items,blue_bundle,BundleItem,no,check_specialization_or_shared_path
+items,blue_bundle,BundleItem,yes,audit_existing_implementation
 items,blue_candle,BlockItem,yes,audit_existing_implementation
 items,blue_carpet,BlockItem,yes,audit_existing_implementation
 items,blue_concrete,BlockItem,yes,audit_existing_implementation
@@ -174,7 +174,7 @@ items,brick_wall,BlockItem,yes,audit_existing_implementation
 items,bricks,BlockItem,yes,audit_existing_implementation
 items,brown_banner,BannerItem,no,check_specialization_or_shared_path
 items,brown_bed,BlockItem,yes,audit_existing_implementation
-items,brown_bundle,BundleItem,no,check_specialization_or_shared_path
+items,brown_bundle,BundleItem,yes,audit_existing_implementation
 items,brown_candle,BlockItem,yes,audit_existing_implementation
 items,brown_carpet,BlockItem,yes,audit_existing_implementation
 items,brown_concrete,BlockItem,yes,audit_existing_implementation
@@ -201,7 +201,7 @@ items,bubble_coral_block,BlockItem,yes,audit_existing_implementation
 items,bubble_coral_fan,StandingAndWallBlockItem,yes,audit_existing_implementation
 items,bucket,BucketItem,yes,audit_existing_implementation
 items,budding_amethyst,BlockItem,yes,audit_existing_implementation
-items,bundle,BundleItem,no,check_specialization_or_shared_path
+items,bundle,BundleItem,yes,audit_existing_implementation
 items,buried_ancient_city_map,MapItem,no,check_specialization_or_shared_path
 items,buried_mineshaft_map,MapItem,no,check_specialization_or_shared_path
 items,buried_treasure_map,MapItem,no,check_specialization_or_shared_path
@@ -383,7 +383,7 @@ items,cut_sandstone,BlockItem,yes,audit_existing_implementation
 items,cut_sandstone_slab,BlockItem,yes,audit_existing_implementation
 items,cyan_banner,BannerItem,no,check_specialization_or_shared_path
 items,cyan_bed,BlockItem,yes,audit_existing_implementation
-items,cyan_bundle,BundleItem,no,check_specialization_or_shared_path
+items,cyan_bundle,BundleItem,yes,audit_existing_implementation
 items,cyan_candle,BlockItem,yes,audit_existing_implementation
 items,cyan_carpet,BlockItem,yes,audit_existing_implementation
 items,cyan_concrete,BlockItem,yes,audit_existing_implementation
@@ -616,7 +616,7 @@ items,grass_block,BlockItem,yes,audit_existing_implementation
 items,gravel,BlockItem,yes,audit_existing_implementation
 items,gray_banner,BannerItem,no,check_specialization_or_shared_path
 items,gray_bed,BlockItem,yes,audit_existing_implementation
-items,gray_bundle,BundleItem,no,check_specialization_or_shared_path
+items,gray_bundle,BundleItem,yes,audit_existing_implementation
 items,gray_candle,BlockItem,yes,audit_existing_implementation
 items,gray_carpet,BlockItem,yes,audit_existing_implementation
 items,gray_concrete,BlockItem,yes,audit_existing_implementation
@@ -636,7 +636,7 @@ items,gray_wool_slab,BlockItem,yes,audit_existing_implementation
 items,gray_wool_stairs,BlockItem,yes,audit_existing_implementation
 items,green_banner,BannerItem,no,check_specialization_or_shared_path
 items,green_bed,BlockItem,yes,audit_existing_implementation
-items,green_bundle,BundleItem,no,check_specialization_or_shared_path
+items,green_bundle,BundleItem,yes,audit_existing_implementation
 items,green_candle,BlockItem,yes,audit_existing_implementation
 items,green_carpet,BlockItem,yes,audit_existing_implementation
 items,green_concrete,BlockItem,yes,audit_existing_implementation
@@ -757,7 +757,7 @@ items,lever,BlockItem,yes,audit_existing_implementation
 items,light,BlockItem,yes,audit_existing_implementation
 items,light_blue_banner,BannerItem,no,check_specialization_or_shared_path
 items,light_blue_bed,BlockItem,yes,audit_existing_implementation
-items,light_blue_bundle,BundleItem,no,check_specialization_or_shared_path
+items,light_blue_bundle,BundleItem,yes,audit_existing_implementation
 items,light_blue_candle,BlockItem,yes,audit_existing_implementation
 items,light_blue_carpet,BlockItem,yes,audit_existing_implementation
 items,light_blue_concrete,BlockItem,yes,audit_existing_implementation
@@ -777,7 +777,7 @@ items,light_blue_wool_slab,BlockItem,yes,audit_existing_implementation
 items,light_blue_wool_stairs,BlockItem,yes,audit_existing_implementation
 items,light_gray_banner,BannerItem,no,check_specialization_or_shared_path
 items,light_gray_bed,BlockItem,yes,audit_existing_implementation
-items,light_gray_bundle,BundleItem,no,check_specialization_or_shared_path
+items,light_gray_bundle,BundleItem,yes,audit_existing_implementation
 items,light_gray_candle,BlockItem,yes,audit_existing_implementation
 items,light_gray_carpet,BlockItem,yes,audit_existing_implementation
 items,light_gray_concrete,BlockItem,yes,audit_existing_implementation
@@ -802,7 +802,7 @@ items,lily_of_the_valley,BlockItem,yes,audit_existing_implementation
 items,lily_pad,PlaceOnWaterBlockItem,yes,audit_existing_implementation
 items,lime_banner,BannerItem,no,check_specialization_or_shared_path
 items,lime_bed,BlockItem,yes,audit_existing_implementation
-items,lime_bundle,BundleItem,no,check_specialization_or_shared_path
+items,lime_bundle,BundleItem,yes,audit_existing_implementation
 items,lime_candle,BlockItem,yes,audit_existing_implementation
 items,lime_carpet,BlockItem,yes,audit_existing_implementation
 items,lime_concrete,BlockItem,yes,audit_existing_implementation
@@ -827,7 +827,7 @@ items,loom,BlockItem,yes,audit_existing_implementation
 items,mace,MaceItem,yes,audit_existing_implementation
 items,magenta_banner,BannerItem,no,check_specialization_or_shared_path
 items,magenta_bed,BlockItem,yes,audit_existing_implementation
-items,magenta_bundle,BundleItem,no,check_specialization_or_shared_path
+items,magenta_bundle,BundleItem,yes,audit_existing_implementation
 items,magenta_candle,BlockItem,yes,audit_existing_implementation
 items,magenta_carpet,BlockItem,yes,audit_existing_implementation
 items,magenta_concrete,BlockItem,yes,audit_existing_implementation
@@ -982,7 +982,7 @@ items,ominous_trial_key,Item,no,generic_or_separate_path
 items,open_eyeblossom,BlockItem,yes,audit_existing_implementation
 items,orange_banner,BannerItem,no,check_specialization_or_shared_path
 items,orange_bed,BlockItem,yes,audit_existing_implementation
-items,orange_bundle,BundleItem,no,check_specialization_or_shared_path
+items,orange_bundle,BundleItem,yes,audit_existing_implementation
 items,orange_candle,BlockItem,yes,audit_existing_implementation
 items,orange_carpet,BlockItem,yes,audit_existing_implementation
 items,orange_concrete,BlockItem,yes,audit_existing_implementation
@@ -1059,7 +1059,7 @@ items,piglin_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,pillager_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,pink_banner,BannerItem,no,check_specialization_or_shared_path
 items,pink_bed,BlockItem,yes,audit_existing_implementation
-items,pink_bundle,BundleItem,no,check_specialization_or_shared_path
+items,pink_bundle,BundleItem,yes,audit_existing_implementation
 items,pink_candle,BlockItem,yes,audit_existing_implementation
 items,pink_carpet,BlockItem,yes,audit_existing_implementation
 items,pink_concrete,BlockItem,yes,audit_existing_implementation
@@ -1168,7 +1168,7 @@ items,pumpkin_pie,Item,no,generic_or_separate_path
 items,pumpkin_seeds,BlockItem,yes,audit_existing_implementation
 items,purple_banner,BannerItem,no,check_specialization_or_shared_path
 items,purple_bed,BlockItem,yes,audit_existing_implementation
-items,purple_bundle,BundleItem,no,check_specialization_or_shared_path
+items,purple_bundle,BundleItem,yes,audit_existing_implementation
 items,purple_candle,BlockItem,yes,audit_existing_implementation
 items,purple_carpet,BlockItem,yes,audit_existing_implementation
 items,purple_concrete,BlockItem,yes,audit_existing_implementation
@@ -1213,7 +1213,7 @@ items,raw_iron_block,BlockItem,yes,audit_existing_implementation
 items,recovery_compass,Item,no,generic_or_separate_path
 items,red_banner,BannerItem,no,check_specialization_or_shared_path
 items,red_bed,BlockItem,yes,audit_existing_implementation
-items,red_bundle,BundleItem,no,check_specialization_or_shared_path
+items,red_bundle,BundleItem,yes,audit_existing_implementation
 items,red_candle,BlockItem,yes,audit_existing_implementation
 items,red_carpet,BlockItem,yes,audit_existing_implementation
 items,red_concrete,BlockItem,yes,audit_existing_implementation
@@ -1591,7 +1591,7 @@ items,wheat,Item,no,generic_or_separate_path
 items,wheat_seeds,BlockItem,yes,audit_existing_implementation
 items,white_banner,BannerItem,no,check_specialization_or_shared_path
 items,white_bed,BlockItem,yes,audit_existing_implementation
-items,white_bundle,BundleItem,no,check_specialization_or_shared_path
+items,white_bundle,BundleItem,yes,audit_existing_implementation
 items,white_candle,BlockItem,yes,audit_existing_implementation
 items,white_carpet,BlockItem,yes,audit_existing_implementation
 items,white_concrete,BlockItem,yes,audit_existing_implementation
@@ -1631,7 +1631,7 @@ items,writable_book,WritableBookItem,no,check_specialization_or_shared_path
 items,written_book,WrittenBookItem,no,check_specialization_or_shared_path
 items,yellow_banner,BannerItem,no,check_specialization_or_shared_path
 items,yellow_bed,BlockItem,yes,audit_existing_implementation
-items,yellow_bundle,BundleItem,no,check_specialization_or_shared_path
+items,yellow_bundle,BundleItem,yes,audit_existing_implementation
 items,yellow_candle,BlockItem,yes,audit_existing_implementation
 items,yellow_carpet,BlockItem,yes,audit_existing_implementation
 items,yellow_concrete,BlockItem,yes,audit_existing_implementation

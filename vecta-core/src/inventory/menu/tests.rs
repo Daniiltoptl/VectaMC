@@ -1,5 +1,8 @@
 use std::sync::Arc;
 
+#[path = "bundle_review_tests.rs"]
+mod bundle_review;
+
 use super::{MenuBuilder, kinds::BasicKind};
 use crate::{
     behavior::init_behaviors,
@@ -103,7 +106,8 @@ fn perform_partial_swap(world_name: &'static str, game_mode: GameType) -> Partia
             with: SwapTarget::Hotbar(0),
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     PartialSwapFixture {
         world_fixture,
@@ -133,7 +137,8 @@ fn swap_locks_player_inventory_when_menu_has_no_inventory_slots() {
             with: SwapTarget::Hotbar(0),
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert!(container.lock().get_item(0).is_empty());
     assert!(
@@ -215,14 +220,17 @@ fn one_slot_creative_clone_drag_is_a_vanilla_noop() {
             kind: DragKind::Clone,
         }),
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
     menu.clicked(
         Click::QuickCraft(QuickCraft::AddSlot {
             slot: slots.start(),
         }),
         &player,
-    );
-    menu.clicked(Click::QuickCraft(QuickCraft::End), &player);
+    )
+    .expect("menu operation should succeed");
+    menu.clicked(Click::QuickCraft(QuickCraft::End), &player)
+        .expect("menu operation should succeed");
 
     assert_eq!(container.lock().get_item(0).count(), 1);
     assert_eq!(menu.behavior().carried().count(), 1);
@@ -345,13 +353,16 @@ fn bundle_on_cursor_moves_slot_items_into_its_contents() {
         .set_item(0, ItemStack::with_count(&vanilla_items::STONE, 5));
     *fixture.menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::BUNDLE);
 
-    fixture.menu.clicked(
-        Click::Pickup {
-            slot: fixture.slot,
-            button: MouseButton::Left,
-        },
-        &fixture.player,
-    );
+    fixture
+        .menu
+        .clicked(
+            Click::Pickup {
+                slot: fixture.slot,
+                button: MouseButton::Left,
+            },
+            &fixture.player,
+        )
+        .expect("menu operation should succeed");
 
     assert!(
         fixture.container.lock().get_item(0).is_empty(),
@@ -371,13 +382,16 @@ fn bundle_in_slot_hands_one_stack_to_the_cursor() {
         .lock()
         .set_item(0, bundle_with(&vanilla_items::STONE, 7));
 
-    fixture.menu.clicked(
-        Click::Pickup {
-            slot: fixture.slot,
-            button: MouseButton::Right,
-        },
-        &fixture.player,
-    );
+    fixture
+        .menu
+        .clicked(
+            Click::Pickup {
+                slot: fixture.slot,
+                button: MouseButton::Right,
+            },
+            &fixture.player,
+        )
+        .expect("menu operation should succeed");
 
     let carried = fixture.menu.behavior().carried().clone();
     assert!(carried.is(&vanilla_items::STONE));
@@ -397,13 +411,16 @@ fn bundle_refuses_items_that_cannot_enter_containers() {
         .set_item(0, ItemStack::new(&vanilla_items::SHULKER_BOX));
     *fixture.menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::BUNDLE);
 
-    fixture.menu.clicked(
-        Click::Pickup {
-            slot: fixture.slot,
-            button: MouseButton::Left,
-        },
-        &fixture.player,
-    );
+    fixture
+        .menu
+        .clicked(
+            Click::Pickup {
+                slot: fixture.slot,
+                button: MouseButton::Left,
+            },
+            &fixture.player,
+        )
+        .expect("menu operation should succeed");
 
     assert!(
         bundle_contents(fixture.menu.behavior().carried()).is_empty(),
@@ -428,13 +445,16 @@ fn bundle_keeps_the_remainder_when_it_fills_up() {
         .set_item(0, ItemStack::with_count(&vanilla_items::STONE, 64));
     *fixture.menu.behavior_mut().carried_mut() = bundle_with(&vanilla_items::STONE, 40);
 
-    fixture.menu.clicked(
-        Click::Pickup {
-            slot: fixture.slot,
-            button: MouseButton::Left,
-        },
-        &fixture.player,
-    );
+    fixture
+        .menu
+        .clicked(
+            Click::Pickup {
+                slot: fixture.slot,
+                button: MouseButton::Left,
+            },
+            &fixture.player,
+        )
+        .expect("menu operation should succeed");
 
     let slot_item = fixture.container.lock().get_item(0).clone();
     assert_eq!(
@@ -467,8 +487,14 @@ fn selecting_bundle_contents_only_touches_bundle_slots() {
         .lock()
         .set_item(1, ItemStack::new(&vanilla_items::DIRT));
 
-    fixture.menu.set_selected_bundle_item_index(0, 0);
-    fixture.menu.set_selected_bundle_item_index(1, 0);
+    fixture
+        .menu
+        .set_selected_bundle_item_index(0, 0)
+        .expect("menu operation should succeed");
+    fixture
+        .menu
+        .set_selected_bundle_item_index(1, 0)
+        .expect("menu operation should succeed");
 
     let bundle = fixture.container.lock().get_item(0).clone();
     let selected = bundle

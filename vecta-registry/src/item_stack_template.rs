@@ -161,6 +161,15 @@ impl ItemStackTemplate {
         Self::try_with_count_and_patch(stack.item, stack.count, stack.components_patch().clone())
     }
 
+    /// Snapshots runtime contents without imposing the persistent codec's count
+    /// and patch restrictions, as `ItemStackTemplate.fromNonEmptyStack` does.
+    pub(crate) fn from_runtime_stack(stack: &ItemStack) -> Result<Self> {
+        if stack.is_empty() {
+            return Err(Error::other("Stack must be non-empty"));
+        }
+        Self::from_stream(stack.item, stack.count, stack.components_patch().clone())
+    }
+
     pub(crate) fn validate_persistent_encoding(&self) -> Result<()> {
         if self.item == &*vanilla_items::AIR
             || !(Self::MIN_COUNT..=Self::MAX_COUNT).contains(&self.count)

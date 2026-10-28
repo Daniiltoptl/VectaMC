@@ -367,7 +367,8 @@ mod tests {
                 button: MouseButton::Left,
             },
             player,
-        );
+        )
+        .expect("menu operation should succeed");
     }
 
     #[test]
@@ -462,7 +463,8 @@ mod tests {
                 .set_item(&mut guard, ItemStack::new(&vanilla_items::IRON_INGOT));
         }
 
-        menu.clicked(Click::QuickMove { slot: main_slot }, &player);
+        menu.clicked(Click::QuickMove { slot: main_slot }, &player)
+            .expect("menu operation should succeed");
 
         assert!(
             {

@@ -46,7 +46,8 @@ fn partial_result_overflow_uses_the_default_drop_policy() {
             button: MouseButton::Left,
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
     let result = menu
         .behavior()
         .lock_all_containers()
@@ -67,7 +68,8 @@ fn partial_result_overflow_uses_the_default_drop_policy() {
         inventory.set_item(8, matching);
     }
 
-    menu.clicked(Click::QuickMove { slot: 0 }, &player);
+    menu.clicked(Click::QuickMove { slot: 0 }, &player)
+        .expect("menu operation should succeed");
 
     assert!(crafting_container.lock().get_item(0).is_empty());
     assert!(

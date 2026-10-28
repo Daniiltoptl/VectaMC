@@ -192,6 +192,9 @@
   общую систему projectiles/взрывов; проверить все уже реализованные броски.
 - [ ] **V05.05** Bundle: item-click override, вместимость компонентов,
   вложения, выбор/выдача содержимого, обе руки и синхронизация меню.
+  Базовая реализация N02 и [исправления ревью](planning/reviews/N01-N02.md)
+  находятся в `codex/night-vanilla-01`. Настоящий клиент и restart-сценарий
+  остаются непроверенными; полный пункт пока не закрывается.
 - [ ] **V05.06** Bucket/MobBucket: capture/release, NBT моба, вода,
   waterlogging, ultra-warm/environment attributes и отказы размещения.
 - [ ] **V05.07** EmptyMap/Map: создание, tracking, exploration maps,

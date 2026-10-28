@@ -166,10 +166,16 @@ impl ValidatePersistentComponent for ChargedProjectiles {
 /// Mirrors Vanilla `BundleContents`. The selected item index is runtime-only:
 /// Vanilla's codec and stream codec serialize only `items`, and equality and
 /// hashing likewise ignore the selection.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct BundleContents {
     items: Vec<ItemStackTemplate>,
     selected_item: i32,
+}
+
+impl Default for BundleContents {
+    fn default() -> Self {
+        Self::empty()
+    }
 }
 
 impl PartialEq for BundleContents {
@@ -228,13 +234,14 @@ impl BundleContents {
     /// weight cannot be computed, so an invalid component behaves as empty.
     #[must_use]
     pub fn as_mutable(&self) -> BundleContentsMut {
-        if self.compute_weight().is_err() {
+        let Ok(weight) = self.compute_weight() else {
             return BundleContentsMut::new();
-        }
+        };
 
         BundleContentsMut {
             items: self.items.iter().map(ItemStackTemplate::create).collect(),
             selected_item: self.selected_item,
+            weight,
         }
     }
 
@@ -257,10 +264,17 @@ impl BundleContents {
 ///
 /// Mirrors Vanilla `BundleContents.Mutable`. Items are kept newest-first, as in
 /// `Mutable.tryInsert`, which inserts at the head.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Clone)]
 pub struct BundleContentsMut {
     items: Vec<ItemStack>,
     selected_item: i32,
+    weight: CheckedFraction,
+}
+
+impl Default for BundleContentsMut {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BundleContentsMut {
@@ -269,6 +283,7 @@ impl BundleContentsMut {
         Self {
             items: Vec::new(),
             selected_item: BundleContents::NO_SELECTED_ITEM_INDEX,
+            weight: CheckedFraction::ZERO,
         }
     }
 
@@ -295,17 +310,19 @@ impl BundleContentsMut {
     /// `stack` is shrunk by the inserted amount, matching Vanilla
     /// `Mutable.tryInsert`. The caller must already have rejected items that
     /// Vanilla's `canItemBeInBundle` refuses; that check depends on item behavior.
-    pub fn try_insert(&mut self, stack: &mut ItemStack) -> i32 {
+    pub fn try_insert(&mut self, stack: &mut ItemStack) -> Result<i32> {
         if stack.is_empty() {
-            return 0;
+            return Ok(0);
         }
-        if bundle_stack_weight(stack).is_err() {
-            return 0;
-        }
-        let amount = stack.count().min(self.max_amount_for(stack));
+        let Ok(item_weight) = bundle_stack_weight(stack) else {
+            return Ok(0);
+        };
+        let amount = stack.count().min(self.max_amount_for(stack)?);
         if amount <= 0 {
-            return 0;
+            return Ok(0);
         }
+
+        self.weight = self.weight.add(item_weight.multiply(amount)?)?;
 
         if stack.is_stackable()
             && let Some(index) = self
@@ -321,26 +338,22 @@ impl BundleContentsMut {
             self.items.insert(0, stack.split(amount));
         }
 
-        amount
+        Ok(amount)
     }
 
     /// Returns how many of `stack` would currently fit, mirroring Vanilla
     /// `Mutable.getMaxAmountToAdd`.
-    #[must_use]
-    pub fn max_amount_for(&self, stack: &ItemStack) -> i32 {
+    pub fn max_amount_for(&self, stack: &ItemStack) -> Result<i32> {
         let Ok(item_weight) = bundle_stack_weight(stack) else {
-            return 0;
+            return Ok(0);
         };
-        let Ok(weight) = self.current_weight() else {
-            return 0;
-        };
-        weight.remaining_units_of(item_weight)
+        self.weight.remaining_units_of(item_weight)
     }
 
     /// Removes the selected stack, or the newest stack when nothing is selected.
-    pub fn remove_one(&mut self) -> Option<ItemStack> {
+    pub fn remove_one(&mut self) -> Result<Option<ItemStack>> {
         if self.items.is_empty() {
-            return None;
+            return Ok(None);
         }
         let index = if Self::index_is_out_of_bounds(self.selected_item, self.items.len()) {
             0
@@ -348,8 +361,11 @@ impl BundleContentsMut {
             usize::try_from(self.selected_item).unwrap_or(0)
         };
         let removed = self.items.remove(index);
+        self.weight = self
+            .weight
+            .subtract(bundle_stack_weight(&removed)?.multiply(removed.count())?)?;
         self.toggle_selected_item(BundleContents::NO_SELECTED_ITEM_INDEX);
-        Some(removed)
+        Ok(Some(removed))
     }
 
     /// Selects `selected_item`, or clears the selection when it repeats or is out of range.
@@ -364,39 +380,16 @@ impl BundleContentsMut {
     }
 
     /// Converts back into immutable contents, keeping the current selection.
-    ///
-    /// Every stored stack was validated on insert, so conversion cannot fail;
-    /// if it ever does, the stack is skipped rather than panicking.
-    #[must_use]
-    pub fn to_immutable(&self) -> BundleContents {
+    pub fn to_immutable(&self) -> Result<BundleContents> {
         let items = self
             .items
             .iter()
-            .filter_map(|stack| match ItemStackTemplate::from_stack(stack) {
-                Ok(template) => Some(template),
-                Err(error) => {
-                    log::warn!("dropping invalid bundle stack during conversion: {error}");
-                    None
-                }
-            })
-            .collect();
-        BundleContents {
+            .map(ItemStackTemplate::from_runtime_stack)
+            .collect::<Result<Vec<_>>>()?;
+        Ok(BundleContents {
             items,
             selected_item: self.selected_item,
-        }
-    }
-
-    /// Recomputes the total weight from the stored items.
-    ///
-    /// Vanilla keeps a running total; recomputing yields the same value for
-    /// valid contents and cannot drift after an edit.
-    fn current_weight(&self) -> Result<CheckedFraction> {
-        let mut weight = CheckedFraction::ZERO;
-        for stack in &self.items {
-            let item_weight = bundle_stack_weight(stack)?.multiply(stack.count())?;
-            weight = weight.add(item_weight)?;
-        }
-        Ok(weight)
+        })
     }
 
     const fn index_is_out_of_bounds(index: i32, len: usize) -> bool {
@@ -430,8 +423,8 @@ fn bundle_item_weight(item: &ItemStackTemplate) -> Result<CheckedFraction> {
     CheckedFraction::new(1, item.max_stack_size())
 }
 
-/// Positive subset of Commons Lang `Fraction` used by `BundleContents`.
-#[derive(Clone, Copy)]
+/// Checked Commons Lang fractions used by bundle weights and remaining capacity.
+#[derive(Debug, Clone, Copy)]
 struct CheckedFraction {
     numerator: i32,
     denominator: i32,
@@ -448,23 +441,41 @@ impl CheckedFraction {
     };
 
     fn new(numerator: i32, denominator: i32) -> Result<Self> {
-        if numerator < 0 || denominator <= 0 {
+        if denominator <= 0 {
             return Err(Error::other("Invalid bundle weight fraction"));
         }
-        let divisor = gcd(numerator, denominator);
+        let divisor = i32::try_from(gcd_i64(i64::from(numerator), i64::from(denominator)))
+            .map_err(|_| Error::other("Excessive total bundle weight"))?;
         Ok(Self {
             numerator: numerator / divisor,
             denominator: denominator / divisor,
         })
     }
 
-    /// Mirrors the positive-number branches of Commons Lang `Fraction.addSub`.
     fn add(self, other: Self) -> Result<Self> {
-        if self.numerator == 0 {
-            return Ok(other);
-        }
+        self.add_sub(other, false)
+    }
+
+    fn subtract(self, other: Self) -> Result<Self> {
+        self.add_sub(other, true)
+    }
+
+    fn add_sub(self, other: Self, subtract: bool) -> Result<Self> {
         if other.numerator == 0 {
             return Ok(self);
+        }
+        if self.numerator == 0 {
+            return if subtract {
+                Self::new(
+                    other
+                        .numerator
+                        .checked_neg()
+                        .ok_or_else(|| Error::other("Excessive total bundle weight"))?,
+                    other.denominator,
+                )
+            } else {
+                Ok(other)
+            };
         }
 
         let denominator_gcd = gcd(self.denominator, other.denominator);
@@ -472,14 +483,18 @@ impl CheckedFraction {
             let left = checked_mul(self.numerator, other.denominator)?;
             let right = checked_mul(other.numerator, self.denominator)?;
             return Ok(Self {
-                numerator: checked_add(left, right)?,
+                numerator: if subtract {
+                    checked_sub(left, right)?
+                } else {
+                    checked_add(left, right)?
+                },
                 denominator: checked_mul(self.denominator, other.denominator)?,
             });
         }
 
         let left = i64::from(self.numerator) * i64::from(other.denominator / denominator_gcd);
         let right = i64::from(other.numerator) * i64::from(self.denominator / denominator_gcd);
-        let sum = left + right;
+        let sum = if subtract { left - right } else { left + right };
         let reduction = gcd_i64(sum % i64::from(denominator_gcd), i64::from(denominator_gcd));
         let numerator = i32::try_from(sum / reduction)
             .map_err(|_| Error::other("Excessive total bundle weight"))?;
@@ -510,24 +525,29 @@ impl CheckedFraction {
         )
     }
 
-    /// How many whole `unit` weights still fit before reaching one bundle.
-    ///
-    /// Mirrors `Fraction.ONE.subtract(weight).divideBy(unit).intValue()`, which
-    /// truncates and clamps at zero.
-    fn remaining_units_of(self, unit: Self) -> i32 {
+    fn remaining_units_of(self, unit: Self) -> Result<i32> {
         if unit.numerator == 0 {
-            return 0;
+            return Err(Error::other("Cannot divide bundle capacity by zero"));
         }
-        let remaining_numerator = i64::from(self.denominator) - i64::from(self.numerator);
-        if remaining_numerator <= 0 {
-            return 0;
+        let remaining = Self::ONE.subtract(self)?;
+        if remaining.numerator == 0 {
+            return Ok(0);
         }
 
-        let numerator = remaining_numerator * i64::from(unit.denominator);
-        let denominator = i64::from(self.denominator) * i64::from(unit.numerator);
-        i32::try_from(numerator / denominator)
-            .unwrap_or(i32::MAX)
-            .max(0)
+        // Fraction.divideBy multiplies by the reciprocal with checked i32
+        // products after cross-cancellation; widening the products changes its
+        // overflow behavior for otherwise valid custom stack sizes.
+        let left_reduction = gcd(remaining.numerator, unit.numerator);
+        let right_reduction = gcd(unit.denominator, remaining.denominator);
+        let numerator = checked_mul(
+            remaining.numerator / left_reduction,
+            unit.denominator / right_reduction,
+        )?;
+        let denominator = checked_mul(
+            remaining.denominator / right_reduction,
+            unit.numerator / left_reduction,
+        )?;
+        Ok((numerator / denominator).max(0))
     }
 }
 
@@ -556,6 +576,11 @@ fn checked_mul(left: i32, right: i32) -> Result<i32> {
 
 fn checked_add(left: i32, right: i32) -> Result<i32> {
     left.checked_add(right)
+        .ok_or_else(|| Error::other("Excessive total bundle weight"))
+}
+
+fn checked_sub(left: i32, right: i32) -> Result<i32> {
+    left.checked_sub(right)
         .ok_or_else(|| Error::other("Excessive total bundle weight"))
 }
 
@@ -919,7 +944,8 @@ mod tests {
     use vecta_utils::serial::{ReadFrom, WriteTo};
 
     use super::{
-        BundleContents, ChargedProjectiles, ItemContainerContents, SulfurCubeContent, UseRemainder,
+        BundleContents, BundleContentsMut, ChargedProjectiles, ItemContainerContents,
+        SulfurCubeContent, UseRemainder,
     };
     use crate::data_components::DataComponentPatch;
     use crate::data_components::components::{BeehiveOccupant, Bees, CustomData, EntityData};
@@ -927,6 +953,7 @@ mod tests {
         BEES, BUNDLE_CONTENTS, CHARGED_PROJECTILES, CONTAINER, MAX_STACK_SIZE, USE_REMAINDER,
     };
     use crate::init_vanilla_registry;
+    use crate::item_stack::ItemStack;
     use crate::{ItemStackTemplate, REGISTRY, vanilla_entities, vanilla_items};
 
     fn round_trip<T>(value: T)
@@ -1074,7 +1101,9 @@ mod tests {
         ]);
         let mut mutable = contents.as_mutable();
         mutable.toggle_selected_item(1);
-        let selected = mutable.to_immutable();
+        let selected = mutable
+            .to_immutable()
+            .expect("bundle contents should convert");
 
         assert_eq!(selected.selected_item_index(), 1);
         assert_eq!(
@@ -1112,15 +1141,129 @@ mod tests {
         let stone = ItemStackTemplate::new(&vanilla_items::STONE).create();
 
         assert_eq!(
-            mutable.max_amount_for(&stone),
+            mutable
+                .max_amount_for(&stone)
+                .expect("capacity should compute"),
             24,
             "a bundle holding 40 of 64 stone items has room for 24 more"
         );
 
         let mut stack = stone;
         stack.set_count(64);
-        assert_eq!(mutable.try_insert(&mut stack), 24);
+        assert_eq!(
+            mutable
+                .try_insert(&mut stack)
+                .expect("insertion should succeed"),
+            24
+        );
         assert_eq!(stack.count(), 40, "the caller keeps whatever did not fit");
+    }
+
+    #[test]
+    fn bundle_default_mutable_keeps_selection_clear_until_requested() {
+        init_vanilla_registry();
+        let mut contents = BundleContentsMut::default();
+        contents
+            .try_insert(&mut ItemStack::new(&vanilla_items::STONE))
+            .expect("insertion should succeed");
+        contents
+            .try_insert(&mut ItemStack::new(&vanilla_items::DIAMOND))
+            .expect("insertion should succeed");
+        contents.toggle_selected_item(0);
+        let selected = contents
+            .to_immutable()
+            .expect("bundle contents should convert");
+        assert_eq!(
+            selected.selected_item().map(ItemStackTemplate::item),
+            Some(&*vanilla_items::DIAMOND)
+        );
+    }
+
+    #[test]
+    fn bundle_capacity_reports_the_same_fraction_overflow_as_commons_lang() {
+        init_vanilla_registry();
+        let mut contents = BundleContentsMut::new();
+        for (size, capacity) in [(97, 97), (89, 88), (83, 81), (79, 76)] {
+            let mut stack = ItemStack::new(&vanilla_items::STONE);
+            stack.set(MAX_STACK_SIZE, size);
+            assert_eq!(
+                contents
+                    .max_amount_for(&stack)
+                    .expect("bundle operation should succeed"),
+                capacity
+            );
+            assert_eq!(
+                contents
+                    .try_insert(&mut stack)
+                    .expect("bundle operation should succeed"),
+                1
+            );
+        }
+        let mut stack = ItemStack::new(&vanilla_items::STONE);
+        stack.set(MAX_STACK_SIZE, 73);
+        assert!(contents.max_amount_for(&stack).is_err());
+        assert!(contents.try_insert(&mut stack).is_err());
+        assert_eq!(stack.count(), 1);
+        assert_eq!(
+            contents
+                .to_immutable()
+                .expect("bundle operation should succeed")
+                .items()
+                .len(),
+            4
+        );
+    }
+
+    #[test]
+    fn bundle_overweight_contents_still_allow_removal() {
+        init_vanilla_registry();
+        let mut contents = BundleContents::new(vec![
+            ItemStackTemplate::with_count(&vanilla_items::STONE, 40),
+            ItemStackTemplate::with_count(&vanilla_items::DIRT, 40),
+        ])
+        .as_mutable();
+        let mut stack = ItemStack::new(&vanilla_items::DIAMOND);
+        assert_eq!(
+            contents
+                .try_insert(&mut stack)
+                .expect("bundle operation should succeed"),
+            0
+        );
+        assert_eq!(
+            contents
+                .remove_one()
+                .expect("bundle weight should remain valid")
+                .expect("bundle should contain a stack")
+                .count(),
+            40
+        );
+        assert_eq!(
+            contents
+                .try_insert(&mut stack)
+                .expect("bundle operation should succeed"),
+            1
+        );
+    }
+
+    #[test]
+    fn bundle_runtime_conversion_keeps_components_that_cannot_be_persisted() {
+        init_vanilla_registry();
+        let mut contents = BundleContentsMut::new();
+        let mut stack = ItemStack::new(&vanilla_items::STONE);
+        stack.set(MAX_STACK_SIZE, 100);
+        assert_eq!(
+            contents
+                .try_insert(&mut stack)
+                .expect("bundle operation should succeed"),
+            1
+        );
+        let contents = contents
+            .to_immutable()
+            .expect("bundle operation should succeed");
+        assert_eq!(contents.items().len(), 1);
+        let template = &contents.items()[0];
+        assert_eq!(template.create().get(MAX_STACK_SIZE), Some(&100));
+        assert!(template.validate_persistent_encoding().is_err());
     }
 
     #[test]

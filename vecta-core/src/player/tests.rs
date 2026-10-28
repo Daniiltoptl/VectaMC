@@ -512,12 +512,16 @@ fn death_keeps_menu_items_until_entity_removal() {
         .set_item(0, ItemStack::with_count(&vanilla_items::DIRT, 2));
     *player.inventory_menu.lock().behavior_mut().carried_mut() =
         ItemStack::new(&vanilla_items::STICK);
-    player.inventory_menu.lock().clicked(
-        Click::QuickCraft(QuickCraft::Start {
-            kind: DragKind::Left,
-        }),
-        &player,
-    );
+    player
+        .inventory_menu
+        .lock()
+        .clicked(
+            Click::QuickCraft(QuickCraft::Start {
+                kind: DragKind::Left,
+            }),
+            &player,
+        )
+        .expect("menu operation should succeed");
     assert_eq!(
         player.inventory_menu.lock().behavior().quickcraft(),
         Some(DragKind::Left)
@@ -670,12 +674,14 @@ fn death_respawn_cleanup_drops_menu_items_before_fresh_player_construction() {
     {
         let mut inventory_menu = player.inventory_menu.lock();
         *inventory_menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::STICK);
-        inventory_menu.clicked(
-            Click::QuickCraft(QuickCraft::Start {
-                kind: DragKind::Left,
-            }),
-            &player,
-        );
+        inventory_menu
+            .clicked(
+                Click::QuickCraft(QuickCraft::Start {
+                    kind: DragKind::Left,
+                }),
+                &player,
+            )
+            .expect("menu operation should succeed");
         *inventory_menu.behavior_mut().carried_mut() = ItemStack::empty();
     }
 
@@ -700,12 +706,14 @@ fn death_respawn_cleanup_drops_menu_items_before_fresh_player_construction() {
         let mut inventory_menu = replacement.inventory_menu.lock();
         assert_eq!(inventory_menu.behavior().quickcraft(), None);
         *inventory_menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::STICK);
-        inventory_menu.clicked(
-            Click::QuickCraft(QuickCraft::Start {
-                kind: DragKind::Left,
-            }),
-            &replacement,
-        );
+        inventory_menu
+            .clicked(
+                Click::QuickCraft(QuickCraft::Start {
+                    kind: DragKind::Left,
+                }),
+                &replacement,
+            )
+            .expect("menu operation should succeed");
         assert_eq!(inventory_menu.behavior().quickcraft(), Some(DragKind::Left));
     }
 

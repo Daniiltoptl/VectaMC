@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::{
+    bootstrap::init_globals,
     entity::{Entity, LivingEntity as _, RemovalReason, entities::ItemEntity, next_entity_id},
     inventory::{
         click::{Click, ClickOutcome, DragKind, MouseButton, QuickCraft},
@@ -40,6 +41,121 @@ use vecta_utils::{
 use super::{
     EquipmentSwapResult, InvalidHotbarSlot, MenuItemDisposition, MenuRemovalStatus, PlayerInventory,
 };
+
+#[test]
+fn bundle_fraction_error_does_not_apply_prediction_or_block_the_next_click() {
+    use vecta_registry::data_components::components::BundleContents;
+    use vecta_registry::data_components::vanilla_components::{BUNDLE_CONTENTS, MAX_STACK_SIZE};
+    use vecta_registry::item_stack_template::ItemStackTemplate;
+
+    init_globals();
+    let fixture = fresh_test_world("bundle_review_packet_overflow");
+    insert_ready_full_chunk(&fixture.world, ChunkPos::new(0, 0));
+    let player = test_player(Arc::clone(&fixture.world));
+    let templates = [97, 89, 83, 79]
+        .into_iter()
+        .map(|size| {
+            let mut stack = ItemStack::new(&vanilla_items::STONE);
+            stack.set(MAX_STACK_SIZE, size);
+            ItemStackTemplate::from_stack(&stack).expect("test item should persist")
+        })
+        .collect();
+    let mut bundle = ItemStack::new(&vanilla_items::BUNDLE);
+    bundle.set(BUNDLE_CONTENTS, BundleContents::new(templates));
+    *player.inventory_menu.lock().behavior_mut().carried_mut() = bundle;
+    let mut stack = ItemStack::new(&vanilla_items::STONE);
+    stack.set(MAX_STACK_SIZE, 73);
+    player.inventory.lock().set_item(0, stack);
+    let click = || SContainerClick {
+        container_id: 0,
+        state_id: 0,
+        slot_num: 36,
+        button_num: 0,
+        click_type: ClickType::Pickup,
+        changed_slots: FxHashMap::default(),
+        carried_item: HashedStack::Empty,
+    };
+
+    player.handle_container_click(click());
+
+    assert_eq!(player.inventory.lock().get_item(0).count(), 1);
+    assert_eq!(
+        player
+            .inventory_menu
+            .lock()
+            .behavior()
+            .carried()
+            .get(BUNDLE_CONTENTS)
+            .expect("stack should keep bundle contents")
+            .items()
+            .len(),
+        4
+    );
+    let mut next_stack = ItemStack::new(&vanilla_items::STONE);
+    next_stack.set(MAX_STACK_SIZE, 16);
+    player.inventory.lock().set_item(0, next_stack);
+    player.handle_container_click(click());
+    assert!(player.inventory.lock().get_item(0).is_empty());
+    assert_eq!(
+        player
+            .inventory_menu
+            .lock()
+            .behavior()
+            .carried()
+            .get(BUNDLE_CONTENTS)
+            .expect("stack should keep bundle contents")
+            .items()
+            .len(),
+        5
+    );
+}
+
+#[test]
+fn bundle_selection_packet_uses_components_in_the_inventory_menu() {
+    use vecta_protocol::packets::game::SSelectBundleItem;
+    use vecta_registry::data_components::components::BundleContents;
+    use vecta_registry::data_components::vanilla_components::BUNDLE_CONTENTS;
+    use vecta_registry::item_stack_template::ItemStackTemplate;
+
+    init_globals();
+    let fixture = fresh_test_world("bundle_review_selection_packet");
+    let player = test_player(Arc::clone(&fixture.world));
+    let mut stack = ItemStack::new(&vanilla_items::STONE);
+    stack.set(
+        BUNDLE_CONTENTS,
+        BundleContents::new(vec![ItemStackTemplate::new(&vanilla_items::DIAMOND)]),
+    );
+    player.inventory.lock().set_item(0, stack);
+
+    player.handle_select_bundle_item(SSelectBundleItem {
+        slot_id: 36,
+        selected_item_index: 0,
+    });
+    assert_eq!(
+        player
+            .inventory
+            .lock()
+            .get_item(0)
+            .get(BUNDLE_CONTENTS)
+            .expect("stack should keep bundle contents")
+            .selected_item_index(),
+        0
+    );
+    player.handle_select_bundle_item(SSelectBundleItem {
+        slot_id: 36,
+        selected_item_index: 0,
+    });
+    assert_eq!(
+        player
+            .inventory
+            .lock()
+            .get_item(0)
+            .get(BUNDLE_CONTENTS)
+            .expect("stack should keep bundle contents")
+            .selected_item_index(),
+        -1
+    );
+}
 
 #[test]
 fn death_drops_destroy_vanishing_items() {
@@ -1355,7 +1471,8 @@ fn malformed_quickcraft_encoding_resets_active_drag() {
                 kind: DragKind::Left,
             }),
             &player,
-        );
+        )
+        .expect("menu operation should succeed");
         assert_eq!(menu.behavior().quickcraft(), Some(DragKind::Left));
     }
 
@@ -1396,8 +1513,10 @@ fn malformed_non_quickcraft_click_resets_active_drag() {
                 kind: DragKind::Left,
             }),
             &player,
-        );
-        menu.clicked(Click::QuickCraft(QuickCraft::AddSlot { slot: 36 }), &player);
+        )
+        .expect("menu operation should succeed");
+        menu.clicked(Click::QuickCraft(QuickCraft::AddSlot { slot: 36 }), &player)
+            .expect("menu operation should succeed");
         assert_eq!(menu.behavior().quickcraft(), Some(DragKind::Left));
         i16::try_from(menu.behavior().slot_count()).expect("inventory menu should fit in i16")
     };
@@ -1493,7 +1612,8 @@ fn programmatic_out_of_range_menu_click_is_ignored() {
             button: MouseButton::Left,
         },
         &player,
-    );
+    )
+    .expect("menu operation should succeed");
 
     assert!(menu.behavior().carried().is_empty());
 }
