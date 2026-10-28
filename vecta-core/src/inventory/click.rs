@@ -263,7 +263,18 @@ impl Click {
                 }
             }
             ClickType::QuickMove => match button {
-                0 | 1 => Some(Self::QuickMove { slot: slot()? }),
+                0 | 1 => {
+                    // Vanilla's `-999` branch covers both `PICKUP` and
+                    // `QUICK_MOVE`, so a shift-click outside the window still
+                    // drops the carried stack.
+                    if slot_num == SLOT_CLICKED_OUTSIDE {
+                        Some(Self::DropCarried {
+                            button: mouse_button()?,
+                        })
+                    } else {
+                        Some(Self::QuickMove { slot: slot()? })
+                    }
+                }
                 _ => None,
             },
             ClickType::Swap => {
@@ -339,6 +350,26 @@ mod tests {
         );
         // Unknown mouse button.
         assert_eq!(Click::parse(5, 2, ClickType::Pickup, SLOTS), None);
+    }
+
+    #[test]
+    fn quick_move_outside_the_window_drops_the_carried_stack() {
+        assert_eq!(
+            Click::parse(SLOT_CLICKED_OUTSIDE, 0, ClickType::QuickMove, SLOTS),
+            Some(Click::DropCarried {
+                button: MouseButton::Left
+            })
+        );
+        assert_eq!(
+            Click::parse(SLOT_CLICKED_OUTSIDE, 1, ClickType::QuickMove, SLOTS),
+            Some(Click::DropCarried {
+                button: MouseButton::Right
+            })
+        );
+        assert_eq!(
+            Click::parse(SLOT_CLICKED_OUTSIDE, 2, ClickType::QuickMove, SLOTS),
+            None
+        );
     }
 
     #[test]
