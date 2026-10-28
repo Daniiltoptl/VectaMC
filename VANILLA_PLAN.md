@@ -14,6 +14,8 @@
 
 Начальный запрос: [GEMINI_TASK.md](GEMINI_TASK.md). Поимённая инвентаризация:
 [planning/audit/README.md](planning/audit/README.md).
+Для длинного автономного сеанса: [очередь N00–N20](NIGHT_TASK.md)
+с зависимостями, проверками и форматом передачи на ревью.
 
 - [objects.csv](planning/audit/objects.csv) — все 3105 записей текущего
   `classes.json`: 1658 предметов, 1286 блоков и 161 тип сущности, включая
