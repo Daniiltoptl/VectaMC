@@ -96,7 +96,23 @@ impl ExperienceOrbEntity {
     ) -> Self {
         let entity = Self::new(entity_type, id, position, world);
         entity.set_value(value);
-        entity.initialize_spawn_movement();
+        entity.initialize_spawn_movement(position, DVec3::ZERO);
+        entity
+    }
+
+    /// Creates an orb whose position and initial motion face a rough direction.
+    #[must_use]
+    pub fn with_direction(
+        entity_type: EntityTypeRef,
+        id: i32,
+        position: DVec3,
+        rough_direction: DVec3,
+        value: i32,
+        world: Weak<World>,
+    ) -> Self {
+        let entity = Self::new(entity_type, id, position, world);
+        entity.set_value(value);
+        entity.initialize_spawn_movement(position, rough_direction);
         entity
     }
 
@@ -112,7 +128,17 @@ impl ExperienceOrbEntity {
     }
 
     /// Spawns vanilla experience orbs for an XP amount.
-    pub fn award(world: &Arc<World>, position: DVec3, mut amount: i32) {
+    pub fn award(world: &Arc<World>, position: DVec3, amount: i32) {
+        Self::award_with_direction(world, position, DVec3::ZERO, amount);
+    }
+
+    /// Spawns experience orbs directed away from an impact surface.
+    pub fn award_with_direction(
+        world: &Arc<World>,
+        position: DVec3,
+        rough_direction: DVec3,
+        mut amount: i32,
+    ) {
         while amount > 0 {
             let value = Self::get_experience_value(amount);
             amount -= value;
@@ -120,10 +146,11 @@ impl ExperienceOrbEntity {
                 continue;
             }
 
-            let entity: SharedEntity = Arc::new(Self::with_value(
+            let entity: SharedEntity = Arc::new(Self::with_direction(
                 &vanilla_entities::EXPERIENCE_ORB,
                 next_entity_id(),
                 position,
+                rough_direction,
                 value,
                 Arc::downgrade(world),
             ));
@@ -196,15 +223,53 @@ impl ExperienceOrbEntity {
         self.state.lock().health
     }
 
-    fn initialize_spawn_movement(&self) {
+    fn initialize_spawn_movement(&self, position: DVec3, rough_direction: DVec3) {
         let yaw = rand::random_range(0.0..DEGREE_360);
-        let velocity = DVec3::new(
-            f64::from(rand::random_range(-0.1f32..0.1)) * 2.0,
-            f64::from(rand::random_range(0.0f32..0.2)) * 2.0,
-            f64::from(rand::random_range(-0.1f32..0.1)) * 2.0,
+        let mut velocity = DVec3::new(
+            (rand::random::<f64>() * 0.2 - 0.1) * 2.0,
+            rand::random::<f64>() * 0.2 * 2.0,
+            (rand::random::<f64>() * 0.2 - 0.1) * 2.0,
         );
+        if rough_direction.length_squared() > 0.0 && rough_direction.dot(velocity) < 0.0 {
+            velocity = -velocity;
+        }
+        let size = self.bounding_box().size();
+        // Vec3.normalize uses a float threshold even though its length is double.
+        let length = rough_direction.length();
+        let direction = if length < f64::from(1.0e-5_f32) {
+            DVec3::ZERO
+        } else {
+            rough_direction / length
+        };
+        self.base
+            .set_position_local(position + direction * (size * 0.5));
         self.base.set_rotation((yaw, 0.0));
         self.base.set_velocity(velocity);
+
+        let Some(world) = self.level() else {
+            return;
+        };
+        let provider = WorldCollisionProvider::for_entity(&world, self);
+        if !provider.has_entity_context_collision(
+            self.bounding_box(),
+            self.position().y,
+            self.is_descending(),
+        ) {
+            return;
+        }
+        let height = f64::from(self.base.dimensions().height);
+        let width = f64::from(self.base.dimensions().width);
+        let center = self.position() + DVec3::Y * (height * 0.5);
+        if let Some(free_center) = provider.find_free_position(
+            &[WorldAabb::of_size(center, size, size, size)],
+            center,
+            width,
+            height,
+            width,
+        ) {
+            self.base
+                .set_position_local(free_center - DVec3::Y * (height * 0.5));
+        }
     }
 
     fn try_merge_to_existing(world: &Arc<World>, position: DVec3, value: i32) -> bool {
@@ -552,6 +617,72 @@ mod tests {
         assert_eq!(ExperienceOrbEntity::get_experience_value(16), 7);
         assert_eq!(ExperienceOrbEntity::get_experience_value(6), 3);
         assert_eq!(ExperienceOrbEntity::get_experience_value(2), 1);
+    }
+
+    #[test]
+    fn directed_orbs_offset_from_impact_and_keep_motion_in_the_outward_hemisphere() {
+        init_vanilla_registry();
+        let position = DVec3::new(2.0, 80.0, 3.0);
+        for direction in [DVec3::X, -DVec3::Y, DVec3::new(-2.0, 1.0, 3.0)] {
+            for id in 0..64 {
+                let orb = ExperienceOrbEntity::with_direction(
+                    &vanilla_entities::EXPERIENCE_ORB,
+                    id,
+                    position,
+                    direction,
+                    3,
+                    Weak::new(),
+                );
+                let expected_offset = direction.normalize() * (orb.bounding_box().size() * 0.5);
+                assert!((orb.position() - position - expected_offset).length() < 1.0e-12);
+                assert!(orb.velocity().dot(direction) >= 0.0);
+            }
+        }
+        for direction in [DVec3::ZERO, DVec3::X * 1.0e-6] {
+            let orb = ExperienceOrbEntity::with_direction(
+                &vanilla_entities::EXPERIENCE_ORB,
+                1,
+                position,
+                direction,
+                3,
+                Weak::new(),
+            );
+            assert_eq!(orb.position(), position);
+            assert!(orb.velocity().is_finite());
+        }
+    }
+
+    #[test]
+    fn newly_spawned_orb_moves_out_of_a_nearby_solid_wall() {
+        use crate::behavior::init_behaviors;
+        use crate::test_support::{fresh_test_world, insert_ready_full_chunk};
+        use steel_registry::vanilla_blocks;
+        use steel_utils::types::UpdateFlags;
+
+        init_vanilla_registry();
+        init_behaviors();
+        let fixture = fresh_test_world("experience_orb_unstuck");
+        let world = &fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+        assert!(world.set_block(
+            BlockPos::new(1, 80, 0),
+            vanilla_blocks::STONE.default_state(),
+            UpdateFlags::UPDATE_NONE,
+        ));
+        let orb = ExperienceOrbEntity::with_value(
+            &vanilla_entities::EXPERIENCE_ORB,
+            1,
+            DVec3::new(0.9, 80.0, 0.5),
+            3,
+            Arc::downgrade(world),
+        );
+        let provider = WorldCollisionProvider::for_entity(world, &orb);
+        assert!(!provider.has_entity_context_collision(
+            orb.bounding_box(),
+            orb.position().y,
+            false,
+        ));
+        assert!(orb.position().x <= 0.75);
     }
 
     #[test]
