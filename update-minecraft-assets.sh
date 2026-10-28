@@ -4,7 +4,7 @@
 # Cargo.toml.
 #
 # The Nix package build has no network access, so it cannot run the download that
-# steel-utils/build/build.rs performs. Instead the server jar is fetched as a
+# vecta-utils/build/build.rs performs. Instead the server jar is fetched as a
 # fixed-output derivation, which requires the url and content hash to be pinned
 # ahead of time. This script derives both from [workspace.package].version so the
 # pin cannot drift from the version Cargo actually builds against.

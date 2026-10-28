@@ -1,15 +1,15 @@
 # Build/Generated
 /target
-/steel-registry/src/generated
-/steel-utils/src/generated
-/steel-core/src/behavior/generated
-/steel-core/src/entity/generated
-/steel-worldgen/src/generated
-/steel-utils/build_assets/builtin_datapacks
-/steel-utils/build_assets/.asset-extract.lock
-/steel-utils/build_assets/en_us.json
-/steel-utils/build_assets/deprecated.json
-/steel-utils/build_assets/version.json
+/vecta-registry/src/generated
+/vecta-utils/src/generated
+/vecta-core/src/behavior/generated
+/vecta-core/src/entity/generated
+/vecta-worldgen/src/generated
+/vecta-utils/build_assets/builtin_datapacks
+/vecta-utils/build_assets/.asset-extract.lock
+/vecta-utils/build_assets/en_us.json
+/vecta-utils/build_assets/deprecated.json
+/vecta-utils/build_assets/version.json
 
 # Config
 /config

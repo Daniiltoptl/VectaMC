@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "SteelWorldsConfig",
-  "description": "World and domain configuration schema for Steel",
+  "title": "VectaWorldsConfig",
+  "description": "World and domain configuration schema for Vecta",
   "type": "object",
   "properties": {
     "save_path": {
@@ -61,11 +61,11 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["steel:disk", "steel:ram"]
+          "enum": ["vecta:disk", "vecta:ram"]
         },
         "config": {
           "type": "object",
-          "description": "Storage-specific config. steel:disk supports optional relative path; steel:ram accepts no keys.",
+          "description": "Storage-specific config. vecta:disk supports optional relative path; vecta:ram accepts no keys.",
           "additionalProperties": true
         }
       },
@@ -77,8 +77,8 @@
       "properties": {
         "type": {
           "type": "string",
-          "description": "steel:disk persists player data under save_path; steel:ram keeps it in memory and discards it on shutdown.",
-          "enum": ["steel:disk", "steel:ram"]
+          "description": "vecta:disk persists player data under save_path; vecta:ram keeps it in memory and discards it on shutdown.",
+          "enum": ["vecta:disk", "vecta:ram"]
         }
       },
       "required": ["type"],
@@ -141,11 +141,11 @@
         },
         "nether_portal_target": {
           "$ref": "#/definitions/world_name",
-          "description": "Same-domain world name used by Nether portals from this world. If omitted, Steel uses vanilla conventional names."
+          "description": "Same-domain world name used by Nether portals from this world. If omitted, Vecta uses vanilla conventional names."
         },
         "end_portal_target": {
           "$ref": "#/definitions/world_name",
-          "description": "Same-domain world name used by End portals from this non-End world. Invalid on End-dimension worlds. If omitted, Steel uses vanilla conventional names."
+          "description": "Same-domain world name used by End portals from this non-End world. Invalid on End-dimension worlds. If omitted, Vecta uses vanilla conventional names."
         },
         "config": {
           "type": "object",

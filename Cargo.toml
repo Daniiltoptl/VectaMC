@@ -1,35 +1,35 @@
 [workspace]
 resolver = "2"
 members = [
-    "steel",
-    "steel-login",
-    "steel-macros",
-    "steel-protocol",
-    "steel-registry",
-    "steel-worldgen",
-    "steel-utils",
-    "steel-core",
-    "steel-crypto",
-    "steel-math",
+    "vecta",
+    "vecta-login",
+    "vecta-macros",
+    "vecta-protocol",
+    "vecta-registry",
+    "vecta-worldgen",
+    "vecta-utils",
+    "vecta-core",
+    "vecta-crypto",
+    "vecta-math",
 ]
 
 [workspace.package]
 version = "0.16.1+mc26.3"
 edition = "2024"
-authors = ["Alve Jeansson"]
+authors = ["Alve Jeansson", "VectaMC contributors"]
 license = "AGPL-3.0-or-later"
 
 [workspace.dependencies]
 # Internal crates
-steel-core = { path = "steel-core" }
-steel-crypto = { path = "steel-crypto" }
-steel-login = { path = "steel-login" }
-steel-macros = { path = "steel-macros" }
-steel-protocol = { path = "steel-protocol" }
-steel-registry = { path = "steel-registry" }
-steel-utils = { path = "steel-utils" }
-steel-worldgen = { path = "steel-worldgen" }
-steel-math = { path = "steel-math" }
+vecta-core = { path = "vecta-core" }
+vecta-crypto = { path = "vecta-crypto" }
+vecta-login = { path = "vecta-login" }
+vecta-macros = { path = "vecta-macros" }
+vecta-protocol = { path = "vecta-protocol" }
+vecta-registry = { path = "vecta-registry" }
+vecta-utils = { path = "vecta-utils" }
+vecta-worldgen = { path = "vecta-worldgen" }
+vecta-math = { path = "vecta-math" }
 
 # Async runtime
 tokio = { version = "1.53.3", features = [
@@ -161,12 +161,12 @@ debug = 0
 #codegen-backend = "cranelift"
 
 
-[profile.dev.package.steel-worldgen]
+[profile.dev.package.vecta-worldgen]
 opt-level = 3
 debug-assertions = false
 overflow-checks = false
 
-[profile.dev.package.steel-math]
+[profile.dev.package.vecta-math]
 opt-level = 3
 debug-assertions = false
 overflow-checks = false

@@ -1,9 +1,10 @@
 services:
-  steel:
-    image: ghcr.io/steel-foundation/steelmc:nightly
+  vecta:
+    build: .
+    image: vectamc:local
     stdin_open: true
     tty: true
-    container_name: steel-mc
+    container_name: vectamc
     ports:
       - 25565:25565
     volumes:

@@ -13,7 +13,9 @@ VectaMC основан на [SteelMC](https://github.com/Steel-Foundation/SteelM
 
 История Git, авторство исходных файлов и [LICENSE](LICENSE) сохранены.
 Исходный README сохранён в [UPSTREAM.md](UPSTREAM.md).
-Имена внутренних crates и исполняемого файла пока остаются `steel-*` / `steel`.
+После импорта внутренние crates переименованы в `vecta-*`, исполняемый файл —
+в `vecta`, пользовательское название — VectaMC. Названия SteelMC в этом документе
+и UPSTREAM.md указывают на происхождение кода.
 
 ## Локальный ванильный эталон
 

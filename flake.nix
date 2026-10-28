@@ -1,5 +1,5 @@
 {
-  description = "SteelMC development environment and server package";
+  description = "VectaMC development environment and server package";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -63,7 +63,7 @@
           serverJar = pkgs.fetchurl { inherit (assets.serverJar) url hash; };
 
           buildAssets =
-            pkgs.runCommand "steel-build-assets-${assets.minecraftVersion}"
+            pkgs.runCommand "vecta-build-assets-${assets.minecraftVersion}"
               {
                 nativeBuildInputs = [
                   pkgs.unzip
@@ -97,8 +97,8 @@
                 printf '%s' "${assets.minecraftVersion}" > "$out/builtin_datapacks/minecraft/.version"
               '';
 
-          steel = rustPlatform.buildRustPackage {
-            pname = "steel";
+          vecta = rustPlatform.buildRustPackage {
+            pname = "vecta";
             inherit (assets) version;
 
             src = ./.;
@@ -115,13 +115,13 @@
             # Lets the build script's assets_are_valid check short-circuit before it
             # reaches any network call.
             preBuild = ''
-              mkdir -p steel-utils/build_assets
-              cp -r --no-preserve=mode,ownership ${buildAssets}/. steel-utils/build_assets/
+              mkdir -p vecta-utils/build_assets
+              cp -r --no-preserve=mode,ownership ${buildAssets}/. vecta-utils/build_assets/
             '';
 
             cargoBuildFlags = [
               "--package"
-              "steel"
+              "vecta"
             ];
 
             # Suite has known flakiness under constrained parallelism; run tests via `cargo test` instead.
@@ -129,9 +129,9 @@
 
             meta = {
               description = "Minecraft server implementation written in Rust";
-              homepage = "https://steelmc.dev";
+              homepage = "https://github.com/Daniiltoptl/VectaMC";
               license = lib.licenses.agpl3Plus;
-              mainProgram = "steel";
+              mainProgram = "vecta";
               platforms = linuxSystems;
             };
           };
@@ -141,7 +141,7 @@
             pkgs
             toolchain
             devToolchain
-            steel
+            vecta
             ;
         }
       );
@@ -163,13 +163,13 @@
         };
       }) perSystem;
 
-      # Scoped to linuxSystems: steel's meta.platforms excludes aarch64-darwin, and offering it anyway breaks `nix flake check`.
+      # Scoped to linuxSystems: vecta's meta.platforms excludes aarch64-darwin, and offering it anyway breaks `nix flake check`.
       packages = lib.genAttrs linuxSystems (system: {
-        default = perSystem.${system}.steel;
+        default = perSystem.${system}.vecta;
       });
 
       checks = lib.genAttrs linuxSystems (system: {
-        package = perSystem.${system}.steel;
+        package = perSystem.${system}.vecta;
       });
 
       formatter = lib.mapAttrs (_: system: system.pkgs.nixfmt-tree) perSystem;

@@ -75,12 +75,12 @@
 ```sh
 git clone https://github.com/Daniiltoptl/VectaMC.git
 cd VectaMC
-cargo build --release --locked -p steel --features stand-alone
+cargo build --release --locked -p vecta --features stand-alone
 ```
 
-Исполняемый файл пока называется **`steel`**: `target/release/steel`
-или `target/release/steel.exe` на Windows. Имена crates сохранены для удобства
-синхронизации со SteelMC.
+Исполняемый файл — **`vecta`**: `target/release/vecta`
+или `target/release/vecta.exe` на Windows. Внутренние crates используют префикс
+`vecta-*`; в консоли и клиенте сервер называется **VectaMC**.
 
 ### Тестовый запуск
 
@@ -88,7 +88,7 @@ cargo build --release --locked -p steel --features stand-alone
 и подтвердите своё согласие самостоятельно.
 
 ```sh
-cargo run --release --locked -p steel --features stand-alone
+cargo run --release --locked -p vecta --features stand-alone
 ```
 
 Настройки создаются в `config/config.toml`, `config/worlds.toml` и

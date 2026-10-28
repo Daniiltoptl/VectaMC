@@ -1,0 +1,225 @@
+//! Configured carver registry.
+//!
+//! Mirrors vanilla's `ConfiguredWorldCarver` — each entry is a carver kind
+//! (cave or canyon) paired with its configuration. Referenced by biomes via
+//! [`Biome`](crate::biome::Biome)'s `carvers` field and sampled during the
+//! `CARVERS` chunk generation stage.
+
+use std::sync::OnceLock;
+
+use rustc_hash::FxHashMap;
+use vecta_utils::Identifier;
+use vecta_utils::random::{Random, legacy_random::LegacyRandom};
+use vecta_utils::value_providers::{FloatProvider, HeightProvider, IntProvider};
+
+/// Shared per-carver configuration fields present on every carver type.
+///
+/// Mirrors `CaveWorldCarver`/`CanyonWorldCarver`'s common leading fields.
+/// `y_scale`/`lava_level`/`replaceable` are gone from vanilla's schema —
+/// replaceability is now the global `#minecraft:uncarvable` tag and the lava
+/// cutoff lives in the Aquifer's own fixed floor (both in vecta-core).
+#[derive(Debug, Clone)]
+pub struct CarverConfiguration {
+    /// Per-chunk start probability (in `[0, 1]`).
+    pub probability: f32,
+    /// Carver origin Y coordinate provider.
+    pub y: HeightProvider,
+}
+
+/// Cave/nether-cave configuration.
+#[derive(Debug, Clone)]
+pub struct CaveCarverConfiguration {
+    /// Base configuration.
+    pub base: CarverConfiguration,
+    /// Number of cave starts to attempt per source chunk.
+    pub count: IntProvider,
+    /// Per-tunnel thickness draw.
+    pub thickness: FloatProvider,
+    /// When set, `thickness` gets an extra 1-in-10 boost.
+    pub weird_thickness_bias: bool,
+    /// Vertical-stretch multiplier, sampled once per cave, for its room.
+    pub room_vertical_radius_multiplier: FloatProvider,
+    /// Per-tunnel horizontal-radius stretch factor.
+    pub horizontal_radius_multiplier: FloatProvider,
+    /// Per-tunnel vertical-radius stretch factor.
+    pub vertical_radius_multiplier: FloatProvider,
+    /// Vertical-stretch multiplier, sampled once per cave, for its tunnels.
+    pub start_vertical_radius_multiplier: FloatProvider,
+    /// Cave floor cutoff in `[-1, 1]`; blocks below it are skipped.
+    pub floor_level: FloatProvider,
+}
+
+/// Canyon shape parameters — controls tunnel shape and width-per-height
+/// variation.
+#[derive(Debug, Clone)]
+pub struct CanyonShapeConfiguration {
+    /// Fraction of the max carving distance used as the actual tunnel length.
+    pub distance_factor: FloatProvider,
+    /// Overall tunnel thickness.
+    pub thickness: FloatProvider,
+    /// Lower values = fresher width noise each step; higher = smoother.
+    pub width_smoothness: i32,
+    /// Per-step horizontal-radius multiplier.
+    pub horizontal_radius_factor: FloatProvider,
+    /// Baseline vertical-radius multiplier applied along the whole tunnel.
+    pub vertical_radius_default_factor: f32,
+    /// Extra vertical-radius multiplier that peaks at the tunnel midpoint.
+    pub vertical_radius_center_factor: f32,
+    /// Vertical-stretch multiplier (moved here from the old base config).
+    pub y_scale: FloatProvider,
+}
+
+impl CanyonShapeConfiguration {
+    /// Mirrors vanilla `CanyonWorldCarver.initWidthFactors` — fresh squared
+    /// width factor at every `width_smoothness`-th Y level, otherwise
+    /// repeating the previous value.
+    #[must_use]
+    pub fn init_width_factors(&self, gen_depth: i32, random: &mut LegacyRandom) -> Vec<f32> {
+        let depth = gen_depth as usize;
+        let mut factors = vec![0.0_f32; depth];
+        let mut current = 1.0_f32;
+        for (y_index, slot) in factors.iter_mut().enumerate() {
+            if y_index == 0 || random.next_i32_bounded(self.width_smoothness) == 0 {
+                current = 1.0 + random.next_f32() * random.next_f32();
+            }
+            *slot = current * current;
+        }
+        factors
+    }
+
+    /// Mirrors vanilla `CanyonWorldCarver.updateVerticalRadius` — applies the
+    /// shape's default/center factors plus a `Mth.randomBetween(0.75, 1.0)`
+    /// jitter.
+    #[must_use]
+    pub fn update_vertical_radius(
+        &self,
+        random: &mut LegacyRandom,
+        vertical_radius: f64,
+        distance: f32,
+        current_step: f32,
+    ) -> f64 {
+        // Vanilla: `Mth.abs(0.5F - currentStep/distance)` — float arithmetic.
+        let vertical_multiplier = 1.0_f32 - (0.5 - current_step / distance).abs() * 2.0;
+        let factor = self.vertical_radius_default_factor
+            + self.vertical_radius_center_factor * vertical_multiplier;
+        // `Mth.randomBetween(random, 0.75F, 1.0F)` = 0.75 + nextFloat()*0.25.
+        let jitter = 0.75 + random.next_f32() * 0.25;
+        f64::from(factor) * vertical_radius * f64::from(jitter)
+    }
+}
+
+/// Canyon (ravine) configuration.
+#[derive(Debug, Clone)]
+pub struct CanyonCarverConfiguration {
+    /// Base configuration.
+    pub base: CarverConfiguration,
+    /// Per-tunnel vertical rotation amount.
+    pub vertical_rotation: FloatProvider,
+    /// Shape configuration.
+    pub shape: CanyonShapeConfiguration,
+}
+
+/// Which carver algorithm a [`ConfiguredCarver`] uses, along with its
+/// fully-resolved configuration.
+#[derive(Debug, Clone)]
+pub enum ConfiguredCarverKind {
+    /// Branching cave tunnels (`CaveWorldCarver`).
+    Cave(CaveCarverConfiguration),
+    /// Long narrow ravines (`CanyonWorldCarver`).
+    Canyon(CanyonCarverConfiguration),
+}
+
+/// A fully-configured carver, as referenced by biomes via their
+/// `carvers` field.
+///
+/// Mirrors vanilla's `ConfiguredWorldCarver<?>`.
+#[derive(Debug)]
+pub struct ConfiguredCarver {
+    /// Registry key (e.g. `minecraft:cave`, `minecraft:canyon`).
+    pub key: Identifier,
+    /// Which carver algorithm this is + its configuration.
+    pub kind: ConfiguredCarverKind,
+    /// Cached registry ID, set during registration for O(1) lookup on hot
+    /// paths.
+    pub id: OnceLock<usize>,
+}
+
+impl ConfiguredCarver {
+    /// The base (shared) configuration for this carver.
+    #[must_use]
+    pub const fn base(&self) -> &CarverConfiguration {
+        match &self.kind {
+            ConfiguredCarverKind::Cave(c) => &c.base,
+            ConfiguredCarverKind::Canyon(c) => &c.base,
+        }
+    }
+}
+
+/// Read-only reference to a registered [`ConfiguredCarver`].
+pub type ConfiguredCarverRef = &'static ConfiguredCarver;
+
+/// Registry of configured carvers, keyed by namespaced identifier.
+pub struct ConfiguredCarverRegistry {
+    carvers_by_id: Vec<ConfiguredCarverRef>,
+    carvers_by_key: FxHashMap<Identifier, usize>,
+    allows_registering: bool,
+}
+
+impl ConfiguredCarverRegistry {
+    /// Creates an empty registry.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            carvers_by_id: Vec::new(),
+            carvers_by_key: FxHashMap::default(),
+            allows_registering: true,
+        }
+    }
+
+    /// Registers a carver and returns its numeric ID.
+    pub fn register(&mut self, entry: ConfiguredCarverRef) -> usize {
+        assert!(
+            self.allows_registering,
+            "Cannot register ConfiguredCarver after registry has been frozen"
+        );
+        let id = self.carvers_by_id.len();
+        let cached = entry.id.get_or_init(|| id);
+        assert_eq!(*cached, id, "carver registered with conflicting id");
+        self.carvers_by_id.push(entry);
+        self.carvers_by_key.insert(entry.key.clone(), id);
+        id
+    }
+
+    /// Iterates over all registered carvers with their IDs.
+    pub fn iter(&self) -> impl Iterator<Item = (usize, ConfiguredCarverRef)> + '_ {
+        self.carvers_by_id
+            .iter()
+            .enumerate()
+            .map(|(id, &entry)| (id, entry))
+    }
+}
+
+impl Default for ConfiguredCarverRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+crate::impl_registry_ext!(
+    ConfiguredCarverRegistry,
+    ConfiguredCarver,
+    carvers_by_id,
+    carvers_by_key
+);
+
+crate::impl_registry_entry_eq!(ConfiguredCarver);
+
+impl crate::RegistryEntry for ConfiguredCarver {
+    fn key(&self) -> &Identifier {
+        &self.key
+    }
+
+    fn try_id(&self) -> Option<usize> {
+        self.id.get().copied()
+    }
+}

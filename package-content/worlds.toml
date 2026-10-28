@@ -1,5 +1,5 @@
-#:schema https://raw.githubusercontent.com/Steel-Foundation/SteelMC/refs/heads/master/package-content/worlds.schema.json
-# Documentation: https://steelmc.dev/configuration/world-configuration/
+#:schema https://raw.githubusercontent.com/Daniiltoptl/VectaMC/refs/heads/main/package-content/worlds.schema.json
+# Upstream documentation: https://steelmc.dev/configuration/world-configuration/
 
 # Root defaults inherited by domains and worlds unless overridden.
 save_path = "saves"
@@ -8,10 +8,10 @@ default_gamemode = "survival"
 difficulty = "normal"
 
 [storage]
-type = "steel:disk"
+type = "vecta:disk"
 
 [player_storage]
-type = "steel:disk"
+type = "vecta:disk"
 
 [domains.minecraft]
 default = true
