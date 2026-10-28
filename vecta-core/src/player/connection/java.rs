@@ -18,8 +18,8 @@ use vecta_protocol::packets::game::{
     SContainerSlotStateChanged, SInteract, SMovePlayer, SMovePlayerPos, SMovePlayerPosRot,
     SMovePlayerRot, SMovePlayerStatusOnly, SMoveVehicle, SPickItemFromBlock, SPlayerAbilities,
     SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoad, SPunch, SRenameItem,
-    SSeenAdvancement, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate,
-    SSpectatorAction, SUseItem, SUseItemOn,
+    SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot,
+    SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
 };
 
 use crate::command::{handle_client_request, sender::CommandSender};
@@ -96,6 +96,7 @@ enum ScheduledPlayPacketKind {
     CommandSuggestion(SCommandSuggestion),
     ContainerButtonClick(SContainerButtonClick),
     ContainerClick(SContainerClick),
+    SelectBundleItem(SSelectBundleItem),
     ContainerClose(SContainerClose),
     ContainerSlotStateChanged(SContainerSlotStateChanged),
     SetCreativeModeSlot(SSetCreativeModeSlot),
@@ -212,6 +213,7 @@ impl ScheduledPlayPacket {
             | ScheduledPlayPacketKind::MovePlayer(_)
             | ScheduledPlayPacketKind::MoveVehicle(_)
             | ScheduledPlayPacketKind::ContainerClick(_)
+            | ScheduledPlayPacketKind::SelectBundleItem(_)
             | ScheduledPlayPacketKind::RenameItem(_)
             | ScheduledPlayPacketKind::UseItemOn(_)
             | ScheduledPlayPacketKind::UseItem(_)
@@ -310,6 +312,9 @@ impl ScheduledPlayPacket {
             }
             ScheduledPlayPacketKind::ContainerClick(packet) => {
                 player.handle_container_click(packet);
+            }
+            ScheduledPlayPacketKind::SelectBundleItem(packet) => {
+                player.handle_select_bundle_item(packet);
             }
             ScheduledPlayPacketKind::ContainerClose(packet) => {
                 player.handle_container_close(packet);
@@ -794,6 +799,9 @@ impl JavaConnection {
             )?)),
             play::S_SET_CARRIED_ITEM => scheduled(ScheduledPlayPacketKind::SetCarriedItem(
                 SSetCarriedItem::read_packet(data)?,
+            )),
+            play::S_BUNDLE_ITEM_SELECTED => scheduled(ScheduledPlayPacketKind::SelectBundleItem(
+                SSelectBundleItem::read_packet(data)?,
             )),
             play::S_PUNCH => scheduled(ScheduledPlayPacketKind::Punch(SPunch::read_packet(data)?)),
             play::S_PLAYER_ACTION => scheduled(ScheduledPlayPacketKind::PlayerAction(

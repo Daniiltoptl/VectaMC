@@ -92,7 +92,8 @@ pub use provides_trim_material::ProvidesTrimMaterial;
 pub use rarity::Rarity;
 pub use recipes::Recipes;
 pub use recursive_items::{
-    BundleContents, ChargedProjectiles, ItemContainerContents, SulfurCubeContent, UseRemainder,
+    BundleContents, BundleContentsMut, ChargedProjectiles, ItemContainerContents,
+    SulfurCubeContent, UseRemainder,
 };
 pub use registry_holder_sets::{DamageResistant, ProvidesBannerPatterns, Repairable};
 pub use sign_text::SignText;

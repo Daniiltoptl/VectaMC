@@ -18,6 +18,7 @@ use vecta_registry::{
 };
 
 use crate::{
+    behavior::{ITEM_BEHAVIORS, items::BundleItem},
     inventory::{
         click::{DragKind, MouseButton, QuickCraft, can_item_quick_replace},
         lock::{ContainerId, ContainerLockGuard, ContainerRef},
@@ -701,6 +702,69 @@ impl MenuBehavior {
                 let _ = player.drop_item(self.carried.split(1), true, Prediction::Predicted);
             }
         }
+    }
+
+    /// Gives item behaviors the chance to consume a pickup click before the
+    /// default handling runs.
+    ///
+    /// Mirrors vanilla `AbstractContainerMenu.tryItemClickBehaviourOverride`:
+    /// the carried stack's behavior is asked first, then the clicked slot's.
+    /// A consumed click is broadcast immediately, like
+    /// `Item.broadcastChangesOnContainerMenu`.
+    pub(crate) fn try_item_click_behavior_override(
+        &mut self,
+        slot_index: usize,
+        button: MouseButton,
+        player: &Player,
+    ) -> bool {
+        let handled = {
+            let mut guard = self.lock_all_containers();
+            let slot = self.slots[slot_index].as_ref();
+
+            let carried_is_bundle = !self.carried.is_empty()
+                && ITEM_BEHAVIORS
+                    .get_behavior(self.carried.item())
+                    .as_bundle()
+                    .is_some();
+
+            if carried_is_bundle {
+                BundleItem::override_stacked_on_other(
+                    &mut self.carried,
+                    slot,
+                    &mut guard,
+                    player,
+                    button,
+                )
+            } else {
+                let slot_item = slot.get_item(&guard);
+                if ITEM_BEHAVIORS
+                    .get_behavior(slot_item.item())
+                    .as_bundle()
+                    .is_none()
+                {
+                    return false;
+                }
+
+                // The behavior mutates the stack in place in vanilla, so the
+                // edited copy is written back even when the click falls through.
+                let mut stack = slot_item.clone();
+                let handled = BundleItem::override_other_stacked_on_me(
+                    &mut stack,
+                    &mut self.carried,
+                    slot,
+                    &mut guard,
+                    player,
+                    button,
+                );
+                slot.set_item(&mut guard, stack);
+                handled
+            }
+        };
+
+        if handled {
+            self.broadcast_changes(&player.connection);
+        }
+        handled
     }
 
     /// Handles a pickup click (left/right click to pick up or place items).

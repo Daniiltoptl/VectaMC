@@ -20,7 +20,7 @@ use vecta_protocol::packets::game::SSeenAdvancement::Opened;
 use vecta_protocol::packets::game::{
     CContainerClose, COpenScreen, CSetPlayerInventory, ClickType, SContainerButtonClick,
     SContainerClick, SContainerClose, SContainerSlotStateChanged, SRenameItem, SSeenAdvancement,
-    SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot, SoundSource,
+    SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot, SoundSource,
 };
 use vecta_registry::data_components::vanilla_components::SwingAnimation;
 use vecta_registry::item_stack::ItemStack;
@@ -253,6 +253,25 @@ impl Player {
         // - Stonecutter recipe selection
         // - Loom pattern selection
         // - Lectern page turning
+    }
+
+    /// Handles a bundle item selection packet.
+    ///
+    /// Vanilla `ServerGamePacketListenerImpl.handleBundleItemSelectedPacket`
+    /// applies the index to the player's currently open menu.
+    pub fn handle_select_bundle_item(&self, packet: SSelectBundleItem) {
+        match self.take_open_menu_for_callback(None) {
+            Ok(mut menu) => {
+                menu.set_selected_bundle_item_index(packet.slot_id, packet.selected_item_index);
+                self.finish_open_menu_callback(menu);
+            }
+            Err(OpenMenuUnavailable::Closed) => {
+                self.inventory_menu
+                    .lock()
+                    .set_selected_bundle_item_index(packet.slot_id, packet.selected_item_index);
+            }
+            Err(OpenMenuUnavailable::Unavailable) => {}
+        }
     }
 
     /// Handles a container click packet (slot interaction).

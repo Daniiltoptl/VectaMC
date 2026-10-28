@@ -162,25 +162,80 @@ impl ValidatePersistentComponent for ChargedProjectiles {
 }
 
 /// The ordered item templates stored in a bundle.
-#[derive(Debug, Default, Clone, PartialEq)]
+///
+/// Mirrors Vanilla `BundleContents`. The selected item index is runtime-only:
+/// Vanilla's codec and stream codec serialize only `items`, and equality and
+/// hashing likewise ignore the selection.
+#[derive(Debug, Default, Clone)]
 pub struct BundleContents {
     items: Vec<ItemStackTemplate>,
+    selected_item: i32,
+}
+
+impl PartialEq for BundleContents {
+    fn eq(&self, other: &Self) -> bool {
+        self.items == other.items
+    }
 }
 
 impl BundleContents {
+    /// No item is selected.
+    pub const NO_SELECTED_ITEM_INDEX: i32 = -1;
+
     #[must_use]
     pub const fn empty() -> Self {
-        Self { items: Vec::new() }
+        Self {
+            items: Vec::new(),
+            selected_item: Self::NO_SELECTED_ITEM_INDEX,
+        }
     }
 
     #[must_use]
     pub const fn new(items: Vec<ItemStackTemplate>) -> Self {
-        Self { items }
+        Self {
+            items,
+            selected_item: Self::NO_SELECTED_ITEM_INDEX,
+        }
     }
 
     #[must_use]
     pub fn items(&self) -> &[ItemStackTemplate] {
         &self.items
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// Returns the runtime-only selected item index, or `NO_SELECTED_ITEM_INDEX`.
+    #[must_use]
+    pub const fn selected_item_index(&self) -> i32 {
+        self.selected_item
+    }
+
+    /// Returns the selected template, if the index still points at an item.
+    #[must_use]
+    pub fn selected_item(&self) -> Option<&ItemStackTemplate> {
+        usize::try_from(self.selected_item)
+            .ok()
+            .and_then(|index| self.items.get(index))
+    }
+
+    /// Creates a mutable copy of these contents.
+    ///
+    /// Vanilla `BundleContents.asMutable` drops the contents when the stored
+    /// weight cannot be computed, so an invalid component behaves as empty.
+    #[must_use]
+    pub fn as_mutable(&self) -> BundleContentsMut {
+        if self.compute_weight().is_err() {
+            return BundleContentsMut::new();
+        }
+
+        BundleContentsMut {
+            items: self.items.iter().map(ItemStackTemplate::create).collect(),
+            selected_item: self.selected_item,
+        }
     }
 
     /// Validates the checked rational weight used by Vanilla's strict item-stack validation.
@@ -196,6 +251,170 @@ impl BundleContents {
         }
         Ok(weight)
     }
+}
+
+/// Mutable bundle contents used by the bundle item's click and use behavior.
+///
+/// Mirrors Vanilla `BundleContents.Mutable`. Items are kept newest-first, as in
+/// `Mutable.tryInsert`, which inserts at the head.
+#[derive(Debug, Default, Clone)]
+pub struct BundleContentsMut {
+    items: Vec<ItemStack>,
+    selected_item: i32,
+}
+
+impl BundleContentsMut {
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            items: Vec::new(),
+            selected_item: BundleContents::NO_SELECTED_ITEM_INDEX,
+        }
+    }
+
+    /// Returns whether no items are stored.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.items.is_empty()
+    }
+
+    /// Returns the runtime-only selected item index.
+    #[must_use]
+    pub const fn selected_item_index(&self) -> i32 {
+        self.selected_item
+    }
+
+    /// Returns the number of stored stacks.
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.items.len()
+    }
+
+    /// Inserts up to the remaining capacity and returns the amount inserted.
+    ///
+    /// `stack` is shrunk by the inserted amount, matching Vanilla
+    /// `Mutable.tryInsert`. The caller must already have rejected items that
+    /// Vanilla's `canItemBeInBundle` refuses; that check depends on item behavior.
+    pub fn try_insert(&mut self, stack: &mut ItemStack) -> i32 {
+        if stack.is_empty() {
+            return 0;
+        }
+        if bundle_stack_weight(stack).is_err() {
+            return 0;
+        }
+        let amount = stack.count().min(self.max_amount_for(stack));
+        if amount <= 0 {
+            return 0;
+        }
+
+        if stack.is_stackable()
+            && let Some(index) = self
+                .items
+                .iter()
+                .position(|stored| ItemStack::is_same_item_same_components(stored, stack))
+        {
+            let removed = self.items.remove(index);
+            let merged = removed.copy_with_count(removed.count() + amount);
+            stack.shrink(amount);
+            self.items.insert(0, merged);
+        } else {
+            self.items.insert(0, stack.split(amount));
+        }
+
+        amount
+    }
+
+    /// Returns how many of `stack` would currently fit, mirroring Vanilla
+    /// `Mutable.getMaxAmountToAdd`.
+    #[must_use]
+    pub fn max_amount_for(&self, stack: &ItemStack) -> i32 {
+        let Ok(item_weight) = bundle_stack_weight(stack) else {
+            return 0;
+        };
+        let Ok(weight) = self.current_weight() else {
+            return 0;
+        };
+        weight.remaining_units_of(item_weight)
+    }
+
+    /// Removes the selected stack, or the newest stack when nothing is selected.
+    pub fn remove_one(&mut self) -> Option<ItemStack> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let index = if Self::index_is_out_of_bounds(self.selected_item, self.items.len()) {
+            0
+        } else {
+            usize::try_from(self.selected_item).unwrap_or(0)
+        };
+        let removed = self.items.remove(index);
+        self.toggle_selected_item(BundleContents::NO_SELECTED_ITEM_INDEX);
+        Some(removed)
+    }
+
+    /// Selects `selected_item`, or clears the selection when it repeats or is out of range.
+    pub const fn toggle_selected_item(&mut self, selected_item: i32) {
+        self.selected_item = if self.selected_item != selected_item
+            && !Self::index_is_out_of_bounds(selected_item, self.items.len())
+        {
+            selected_item
+        } else {
+            BundleContents::NO_SELECTED_ITEM_INDEX
+        };
+    }
+
+    /// Converts back into immutable contents, keeping the current selection.
+    ///
+    /// Every stored stack was validated on insert, so conversion cannot fail;
+    /// if it ever does, the stack is skipped rather than panicking.
+    #[must_use]
+    pub fn to_immutable(&self) -> BundleContents {
+        let items = self
+            .items
+            .iter()
+            .filter_map(|stack| match ItemStackTemplate::from_stack(stack) {
+                Ok(template) => Some(template),
+                Err(error) => {
+                    log::warn!("dropping invalid bundle stack during conversion: {error}");
+                    None
+                }
+            })
+            .collect();
+        BundleContents {
+            items,
+            selected_item: self.selected_item,
+        }
+    }
+
+    /// Recomputes the total weight from the stored items.
+    ///
+    /// Vanilla keeps a running total; recomputing yields the same value for
+    /// valid contents and cannot drift after an edit.
+    fn current_weight(&self) -> Result<CheckedFraction> {
+        let mut weight = CheckedFraction::ZERO;
+        for stack in &self.items {
+            let item_weight = bundle_stack_weight(stack)?.multiply(stack.count())?;
+            weight = weight.add(item_weight)?;
+        }
+        Ok(weight)
+    }
+
+    const fn index_is_out_of_bounds(index: i32, len: usize) -> bool {
+        index < 0 || index as usize >= len
+    }
+}
+
+fn bundle_stack_weight(stack: &ItemStack) -> Result<CheckedFraction> {
+    if let Some(bundle) = stack.get(BUNDLE_CONTENTS) {
+        return bundle.compute_weight()?.add(CheckedFraction::new(1, 16)?);
+    }
+    if stack
+        .get(BEES)
+        .is_some_and(|bees: &Bees| !bees.bees().is_empty())
+    {
+        return Ok(CheckedFraction::ONE);
+    }
+    CheckedFraction::new(1, stack.max_stack_size())
 }
 
 fn bundle_item_weight(item: &ItemStackTemplate) -> Result<CheckedFraction> {
@@ -289,6 +508,26 @@ impl CheckedFraction {
             checked_mul(self.numerator, value / reduction)?,
             self.denominator / reduction,
         )
+    }
+
+    /// How many whole `unit` weights still fit before reaching one bundle.
+    ///
+    /// Mirrors `Fraction.ONE.subtract(weight).divideBy(unit).intValue()`, which
+    /// truncates and clamps at zero.
+    fn remaining_units_of(self, unit: Self) -> i32 {
+        if unit.numerator == 0 {
+            return 0;
+        }
+        let remaining_numerator = i64::from(self.denominator) - i64::from(self.numerator);
+        if remaining_numerator <= 0 {
+            return 0;
+        }
+
+        let numerator = remaining_numerator * i64::from(unit.denominator);
+        let denominator = i64::from(self.denominator) * i64::from(unit.numerator);
+        i32::try_from(numerator / denominator)
+            .unwrap_or(i32::MAX)
+            .max(0)
     }
 }
 

@@ -31,6 +31,7 @@ use vecta_utils::{Downcast as _, types::GameType};
 use crate::inventory::container::CraftingContainer;
 use crate::inventory::menu::kinds::InventoryKind;
 use crate::{
+    behavior::{ITEM_BEHAVIORS, items::BundleItem},
     inventory::lock::{ContainerId, ContainerLockGuard, ContainerRef},
     player::{Player, PlayerConnection},
 };
@@ -172,6 +173,33 @@ impl Menu {
         kind.on_rename(behavior, name.into(), player);
     }
 
+    /// Selects the highlighted item inside a bundle in `slot_index`.
+    ///
+    /// Mirrors vanilla `AbstractContainerMenu.setSelectedBundleItemIndex`: the
+    /// selection is runtime-only state of the bundle contents, so nothing is
+    /// broadcast and out-of-range slots are ignored.
+    pub fn set_selected_bundle_item_index(&mut self, slot_index: i32, selected_item_index: i32) {
+        let Ok(slot_index) = usize::try_from(slot_index) else {
+            return;
+        };
+        let Some(slot) = self.behavior().slots().get(slot_index) else {
+            return;
+        };
+
+        let mut guard = self.behavior().lock_all_containers();
+        let mut item = slot.get_item(&guard).clone();
+        if ITEM_BEHAVIORS
+            .get_behavior(item.item())
+            .as_bundle()
+            .is_none()
+        {
+            return;
+        }
+        if BundleItem::toggle_selected_item(&mut item, selected_item_index) {
+            slot.set_item(&mut guard, item);
+        }
+    }
+
     /// Clears or counts crafting-grid items in the base inventory menu,
     /// returning the number cleared or counted. Returns 0 for any other menu.
     pub(crate) fn clear_or_count_crafting_items(
@@ -255,8 +283,6 @@ impl Menu {
 
     /// Handles a click action in this menu. Packet clicks are validated via
     /// [`Click::parse`]; invalid programmatically constructed clicks are ignored.
-    ///
-    /// TODO: Add `tryItemClickBehaviorOverride` for bundle item support.
     pub fn clicked(&mut self, click: Click, player: &Player) {
         if !click.is_valid_for(self.behavior().slot_count()) {
             log::debug!(
@@ -298,7 +324,12 @@ impl Menu {
             if outcome == ClickOutcome::Fallthrough {
                 match click {
                     Click::Pickup { slot, button } => {
-                        self.behavior_mut().do_pickup(slot, button, player);
+                        if !self
+                            .behavior_mut()
+                            .try_item_click_behavior_override(slot, button, player)
+                        {
+                            self.behavior_mut().do_pickup(slot, button, player);
+                        }
                     }
                     Click::DropCarried { button } => {
                         self.behavior_mut().drop_carried(button, player);

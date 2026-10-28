@@ -7,7 +7,7 @@ use crate::{
     chunk::{Chunk, status::ChunkStatus},
     entity::{Entity as _, entities::ItemEntity},
     inventory::{
-        click::{Click, DragKind, QuickCraft, SwapTarget},
+        click::{Click, DragKind, MouseButton, QuickCraft, SwapTarget},
         container::{Container as _, SimpleContainer},
         lock::{ContainerLockGuard, ContainerRef},
         slots::{NormalSlot, Slot, SlotStorage},
@@ -17,8 +17,10 @@ use crate::{
 };
 use glam::DVec3;
 use vecta_registry::{
-    init_vanilla_registry, item_stack::ItemStack, vanilla_blocks, vanilla_entities, vanilla_items,
-    vanilla_menu_types,
+    data_components::components::BundleContents,
+    data_components::vanilla_components::BUNDLE_CONTENTS, init_vanilla_registry,
+    item_stack::ItemStack, item_stack_template::ItemStackTemplate, items::ItemRef, vanilla_blocks,
+    vanilla_entities, vanilla_items, vanilla_menu_types,
 };
 use vecta_utils::locks::{IntoShared as _, Shared};
 use vecta_utils::types::{GameType, UpdateFlags};
@@ -274,5 +276,212 @@ fn partial_swap_overflow_is_discarded_in_creative() {
                 |entity| entity.entity_type() == &vanilla_entities::ITEM,
             )
             .is_empty()
+    );
+}
+
+/// Builds a one-slot menu backed by `container` and a matching player.
+struct BundleFixture {
+    /// Keeps the fixture world alive for the duration of the test.
+    _world_fixture: TestWorld,
+    player: Arc<Player>,
+    container: Shared<SimpleContainer>,
+    menu: super::Menu,
+    slot: usize,
+}
+
+fn bundle_fixture(world_name: &'static str) -> BundleFixture {
+    init_vanilla_registry();
+    init_behaviors();
+    let world_fixture = fresh_test_world(world_name);
+    let world = &world_fixture.world;
+    insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+    let player = TestPlayerBuilder::new(Arc::clone(world), "BundleTester", 1).build();
+    player.base().set_position_local(DVec3::new(0.5, 64.0, 0.5));
+
+    let container = SimpleContainer::new(2).into_shared();
+    let container_ref = ContainerRef::from(Arc::clone(&container));
+    let mut builder = MenuBuilder::new(None, 1);
+    let slots = builder.custom_section([
+        NormalSlot::new(container_ref.clone(), 0),
+        NormalSlot::new(container_ref, 1),
+    ]);
+    let menu = builder.build(BasicKind {});
+
+    BundleFixture {
+        _world_fixture: world_fixture,
+        player,
+        container,
+        menu,
+        slot: slots.start(),
+    }
+}
+
+/// Builds a bundle stack holding `count` of `item` inside its contents.
+fn bundle_with(item: ItemRef, count: i32) -> ItemStack {
+    let mut bundle = ItemStack::new(&vanilla_items::BUNDLE);
+    bundle.set(
+        BUNDLE_CONTENTS,
+        BundleContents::new(vec![ItemStackTemplate::with_count(item, count)]),
+    );
+    bundle
+}
+
+fn bundle_contents(stack: &ItemStack) -> Vec<ItemStack> {
+    stack
+        .get(BUNDLE_CONTENTS)
+        .expect("stack should keep bundle contents")
+        .items()
+        .iter()
+        .map(ItemStackTemplate::create)
+        .collect()
+}
+
+#[test]
+fn bundle_on_cursor_moves_slot_items_into_its_contents() {
+    let mut fixture = bundle_fixture("menu_bundle_cursor_insert");
+    fixture
+        .container
+        .lock()
+        .set_item(0, ItemStack::with_count(&vanilla_items::STONE, 5));
+    *fixture.menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::BUNDLE);
+
+    fixture.menu.clicked(
+        Click::Pickup {
+            slot: fixture.slot,
+            button: MouseButton::Left,
+        },
+        &fixture.player,
+    );
+
+    assert!(
+        fixture.container.lock().get_item(0).is_empty(),
+        "the clicked slot must give up its stack"
+    );
+    let contents = bundle_contents(fixture.menu.behavior().carried());
+    assert_eq!(contents.len(), 1);
+    assert!(contents[0].is(&vanilla_items::STONE));
+    assert_eq!(contents[0].count(), 5);
+}
+
+#[test]
+fn bundle_in_slot_hands_one_stack_to_the_cursor() {
+    let mut fixture = bundle_fixture("menu_bundle_slot_remove");
+    fixture
+        .container
+        .lock()
+        .set_item(0, bundle_with(&vanilla_items::STONE, 7));
+
+    fixture.menu.clicked(
+        Click::Pickup {
+            slot: fixture.slot,
+            button: MouseButton::Right,
+        },
+        &fixture.player,
+    );
+
+    let carried = fixture.menu.behavior().carried().clone();
+    assert!(carried.is(&vanilla_items::STONE));
+    assert_eq!(carried.count(), 7);
+    assert!(
+        bundle_contents(&fixture.container.lock().get_item(0).clone()).is_empty(),
+        "the removed stack must leave the contents"
+    );
+}
+
+#[test]
+fn bundle_refuses_items_that_cannot_enter_containers() {
+    let mut fixture = bundle_fixture("menu_bundle_refused_item");
+    fixture
+        .container
+        .lock()
+        .set_item(0, ItemStack::new(&vanilla_items::SHULKER_BOX));
+    *fixture.menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::BUNDLE);
+
+    fixture.menu.clicked(
+        Click::Pickup {
+            slot: fixture.slot,
+            button: MouseButton::Left,
+        },
+        &fixture.player,
+    );
+
+    assert!(
+        bundle_contents(fixture.menu.behavior().carried()).is_empty(),
+        "a shulker box must not enter a bundle"
+    );
+    assert!(
+        fixture
+            .container
+            .lock()
+            .get_item(0)
+            .is(&vanilla_items::SHULKER_BOX),
+        "the refused item must stay in its slot"
+    );
+}
+
+#[test]
+fn bundle_keeps_the_remainder_when_it_fills_up() {
+    let mut fixture = bundle_fixture("menu_bundle_overflow");
+    fixture
+        .container
+        .lock()
+        .set_item(0, ItemStack::with_count(&vanilla_items::STONE, 64));
+    *fixture.menu.behavior_mut().carried_mut() = bundle_with(&vanilla_items::STONE, 40);
+
+    fixture.menu.clicked(
+        Click::Pickup {
+            slot: fixture.slot,
+            button: MouseButton::Left,
+        },
+        &fixture.player,
+    );
+
+    let slot_item = fixture.container.lock().get_item(0).clone();
+    assert_eq!(
+        slot_item.count(),
+        40,
+        "only the amount that still fits may be taken"
+    );
+    let contents = bundle_contents(fixture.menu.behavior().carried());
+    assert_eq!(
+        contents.len(),
+        1,
+        "the inserted stack merges into one stack"
+    );
+    assert_eq!(
+        contents[0].count(),
+        64,
+        "the bundle holds exactly one full stack"
+    );
+}
+
+#[test]
+fn selecting_bundle_contents_only_touches_bundle_slots() {
+    let mut fixture = bundle_fixture("menu_bundle_selection");
+    fixture
+        .container
+        .lock()
+        .set_item(0, bundle_with(&vanilla_items::STONE, 3));
+    fixture
+        .container
+        .lock()
+        .set_item(1, ItemStack::new(&vanilla_items::DIRT));
+
+    fixture.menu.set_selected_bundle_item_index(0, 0);
+    fixture.menu.set_selected_bundle_item_index(1, 0);
+
+    let bundle = fixture.container.lock().get_item(0).clone();
+    let selected = bundle
+        .get(BUNDLE_CONTENTS)
+        .expect("bundle contents should survive")
+        .selected_item_index();
+    assert_eq!(selected, 0);
+    assert!(
+        fixture
+            .container
+            .lock()
+            .get_item(1)
+            .is(&vanilla_items::DIRT),
+        "a non-bundle slot must be left untouched"
     );
 }

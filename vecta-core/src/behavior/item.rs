@@ -1,5 +1,6 @@
 //! Item behavior trait and registry.
 
+use crate::behavior::items::BundleItem;
 use crate::player::player_inventory::Prediction;
 use std::sync::Arc;
 
@@ -273,6 +274,11 @@ pub trait ItemBehavior: Send + Sync {
 
     /// Returns this item behavior as a `SpawnEggItem`.
     fn as_spawn_egg(&self) -> Option<&SpawnEggItem> {
+        None
+    }
+
+    /// Returns this item behavior as a `BundleItem`.
+    fn as_bundle(&self) -> Option<&BundleItem> {
         None
     }
 
