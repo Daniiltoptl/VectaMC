@@ -71,4 +71,22 @@ cargo test --locked --workspace -j 1
 Предел проверки: настоящий клиент 26.3 недоступен, поэтому синхронизация
 выбора проверена только на уровне пакета и меню, а не визуально.
 
+### N01 · Инвентарь — частично
+
+Коммит: `bfbdd45e1`.
+
+- Сверены с `AbstractContainerMenu.doClick` и
+  `ServerGamePacketListenerImpl.handleContainerClick`: порядок обработки
+  пакета клика, `state_id`, `suppressRemoteUpdates`/`broadcastFullState`,
+  `do_pickup`, `do_quick_move`, `do_swap`, `do_throw`, `do_clone`,
+  `do_pickup_all`, quick-craft. Расхождений в порядке операций не найдено;
+  `Slot.safeClone` в 26.3 не проверяет `mayPickup`, поэтому `do_clone`
+  соответствует эталону.
+- Исправлен дефект: `QUICK_MOVE` с `slot_num == -999` отвергался, хотя
+  vanilla выбрасывает предмет с курсора (ветка `-999` общая для `PICKUP`
+  и `QUICK_MOVE`). Тест в `inventory/click.rs`.
+- Не сделано: TODO `ResultSlot::on_take` (учёт crafted count и `ITEM_CRAFTED`),
+  сверка закрытия меню при смерти/disconnect, уничтожения контейнера
+  и сценариев с несколькими игроками.
+
 
