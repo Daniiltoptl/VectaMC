@@ -1,0 +1,13 @@
+{
+  "minecraft_version": "26.3",
+  "source_revision": "52080cd5ee29f4315245132a7d4461201a6591aa",
+  "inputs_sha256": {
+    "Cargo.toml": "32568a46224da850ec7ce63a34ca6ba2fda35f3a7c6c95877f3ee64e02ecc4cc",
+    "vecta-core/build/classes.json": "3be3d172648e1412930e94b8542b950679800809ff26d5b0c840828127918c73",
+    "vecta-core/src/behavior/generated/items.rs": "fefd714f3f61124d14b7578b94a97108fa2cf646c53e70be69f5692540ed1e7d",
+    "vecta-core/src/behavior/generated/blocks.rs": "9ed2cc798f436f03eb9371794f325e59d23d196f0afdde58f7c71b0c62ed736e",
+    "vecta-core/src/entity/generated/entities.rs": "4534436ed6c0e4d72fd2666bcfb58d04b8c36ba810f1b1bb5ddc803e6a52c257",
+    "vecta-registry/build_assets/block_entities.json": "45bbbc8ba710f64b8730403879cc3d74184b6dd30f3352e59bc5aa5162761bcf",
+    "vecta-core/src/block_entity/registry.rs": "75c0f7e0c7b17b62ef6bb1c410954698abf7d76a252ff0fd7d9235ad111c6e02"
+  }
+}
