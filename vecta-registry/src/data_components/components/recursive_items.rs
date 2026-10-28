@@ -1066,6 +1066,64 @@ mod tests {
     }
 
     #[test]
+    fn bundle_selection_is_runtime_only() {
+        init_vanilla_registry();
+        let contents = BundleContents::new(vec![
+            ItemStackTemplate::new(&vanilla_items::STONE),
+            ItemStackTemplate::new(&vanilla_items::DIAMOND),
+        ]);
+        let mut mutable = contents.as_mutable();
+        mutable.toggle_selected_item(1);
+        let selected = mutable.to_immutable();
+
+        assert_eq!(selected.selected_item_index(), 1);
+        assert_eq!(
+            selected, contents,
+            "vanilla equality ignores the selected index"
+        );
+        assert_eq!(
+            selected.compute_hash(),
+            contents.compute_hash(),
+            "the component hash must not depend on the runtime selection"
+        );
+        round_trip(selected.clone());
+
+        let mut network = Vec::new();
+        selected
+            .write(&mut network)
+            .expect("bundle contents should encode");
+        let decoded =
+            BundleContents::read(&mut Cursor::new(network.as_slice())).expect("contents decode");
+        assert_eq!(
+            decoded.selected_item_index(),
+            BundleContents::NO_SELECTED_ITEM_INDEX,
+            "the network codec drops the selection like vanilla"
+        );
+    }
+
+    #[test]
+    fn bundle_mutable_offers_only_the_remaining_weight() {
+        init_vanilla_registry();
+        let mut mutable = BundleContents::new(vec![ItemStackTemplate::with_count(
+            &vanilla_items::STONE,
+            40,
+        )])
+        .as_mutable();
+        let stone = ItemStackTemplate::new(&vanilla_items::STONE).create();
+
+        assert_eq!(
+            mutable.max_amount_for(&stone),
+            24,
+            "a bundle holding 40 of 64 stone items has room for 24 more"
+        );
+
+        let mut stack = stone;
+        stack.set_count(64);
+        assert_eq!(mutable.try_insert(&mut stack), 24);
+        assert_eq!(stack.count(), 40, "the caller keeps whatever did not fit");
+    }
+
+    #[test]
     fn extracted_item_prototypes_use_recursive_component_values() {
         init_vanilla_registry();
         assert_eq!(
