@@ -1,6 +1,6 @@
 {
   "minecraft_version": "26.3",
-  "source_revision": "52080cd5ee29f4315245132a7d4461201a6591aa",
+  "source_revision": "a2db838b68ac4e21d9626aa1f8b146126911f2b3",
   "inputs_sha256": {
     "Cargo.toml": "32568a46224da850ec7ce63a34ca6ba2fda35f3a7c6c95877f3ee64e02ecc4cc",
     "vecta-core/build/classes.json": "3be3d172648e1412930e94b8542b950679800809ff26d5b0c840828127918c73",

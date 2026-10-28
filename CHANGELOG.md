@@ -1,5 +1,17 @@
 # Изменения VectaMC
 
+## 2026-10-28 · V00: исходные результаты проверок
+
+- Зафиксирован базовый коммит `a2db838b6` и исходные результаты проверок в
+  [planning/baseline.md](planning/baseline.md): `cargo check --locked --workspace`,
+  `cargo test --locked --workspace` (3725 успешно, 18 пропущены, 0 ошибок),
+  `cargo fmt --all --check`, `cargo clippy --locked --all-targets --all-features
+  -- -D warnings` (exit 0) и 4 Python-теста.
+- Подтверждено соответствие `minecraft-src/` версии из `Cargo.toml`: 5037
+  Java-файлов, как в `minecraft-src/.vecta-reference.json` (`26.3`).
+- Linux-проверки в этой среде не выполнялись; это заявлено явно, а не скрыто.
+- Настоящий клиент 26.3 не запускался.
+
 ## 2026-10-28 · Начало разработки
 
 - Импортирован SteelMC `65cd7ab416bb2bbe04d4aca3b6d04b1d939d5a8d`
