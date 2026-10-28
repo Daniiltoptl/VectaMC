@@ -43,3 +43,32 @@ cargo test --locked --workspace -j 1
 
 Предел проверки: Linux и настоящий клиент 26.3 недоступны; EULA не принималась.
 
+### N02 · Мешки всех вариантов — реализовано
+
+Коммиты: `ca764fa5d` (реализация), `ac6d04fb5` (проверки).
+
+- `try_item_click_behavior_override` в `MenuBehavior` повторяет
+  `AbstractContainerMenu.tryItemClickBehaviourOverride`: сначала поведение
+  предмета на курсоре, затем поведение предмета в слоте. Обработанный клик
+  сразу рассылается клиенту (`broadcastChangesOnContainerMenu`).
+- `BundleItem` реализует оба направления клика, `use`, анимацию `Bundle`,
+  200 тиков и выбрасывание содержимого с ванильными звуками и статистикой
+  `ITEM_USED`. Используется общий `as_bundle` hook, отдельные копии для
+  вариантов мешка не создавались.
+- `BundleContents` хранит runtime-индекс выбора (кодек, NBT и `HashComponent`
+  его не пишут), получил `as_mutable`/`BundleContentsMut` с ванильными
+  дробными весами (`Fraction.ONE.subtract(weight)`), `try_insert`,
+  `max_amount_for`, `remove_one` и `toggle_selected_item`.
+- Новый пакет `ServerboundSelectBundleItemPacket` (`S_BUNDLE_ITEM_SELECTED`,
+  id 3) декодируется с проверкой `index >= -1` и применяется к открытому меню
+  через `Menu::set_selected_bundle_item_index`.
+- Проверки: `cargo test -p vecta-core --lib` — 2883 passed, 1 ignored;
+  `cargo test -p vecta-protocol --lib` — пакет и валидация индекса;
+  `cargo test -p vecta-registry --lib bundle` — 5 passed;
+  `cargo clippy -p vecta-core -p vecta-registry -p vecta-protocol
+  --all-targets --all-features -- -D warnings` — чисто; `cargo fmt --all`.
+
+Предел проверки: настоящий клиент 26.3 недоступен, поэтому синхронизация
+выбора проверена только на уровне пакета и меню, а не визуально.
+
+
