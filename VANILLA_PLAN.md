@@ -198,6 +198,10 @@
   resolution, validation, copy generation, открытие и рецепты.
 - [ ] **V05.09** ArmorStand, Painting, ItemFrame/GlowItemFrame,
   EndCrystal и Cushion: placement, collision, support, damage, drops и NBT.
+  - [x] ItemFrame/GlowItemFrame: размещение, вставка и поворот предмета,
+    проверка опоры, дроп рамки и содержимого, `Fixed`, save/load.
+    Не поддержано: отслеживание карт (зависит от V05.07) и pick-block
+    для сущностей. Painting и остальные типы группы не начаты.
 - [ ] **V05.10** Boat/ChestBoat/Raft и Minecart items — только после
   рабочих сущностей, пассажиров, управления и контейнеров.
 - [ ] **V05.11** Banner, SmithingTemplate, DiscFragment, DebugStick,

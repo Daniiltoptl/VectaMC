@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 
 use super::*;
+use crate::entity::block_attached_entity::BlockAttachedEntity;
 use crate::entity::leash::Leashable;
 use vecta_math::DEGREE_90;
 
@@ -1485,6 +1486,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     /// Returns this entity as an item frame when it has item-frame behavior.
     fn as_item_frame(&self) -> Option<&dyn ItemFrame> {
         try_as_dyn::<Self, dyn ItemFrame>(self)
+    }
+
+    /// Returns this entity as a block-attached entity when it is attached to a block.
+    fn as_block_attached_entity(&self) -> Option<&dyn BlockAttachedEntity> {
+        try_as_dyn::<Self, dyn BlockAttachedEntity>(self)
     }
 
     /// Returns this entity as a player when it is the concrete server player.

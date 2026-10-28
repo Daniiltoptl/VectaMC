@@ -423,6 +423,8 @@ mod tests {
         fn analog_output(&self) -> i32 {
             self.analog_output
         }
+
+        fn play_placement_sound(&self) {}
     }
 
     #[test]

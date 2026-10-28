@@ -582,7 +582,7 @@ items,glistering_melon_slice,Item,no,generic_or_separate_path
 items,globe_banner_pattern,Item,no,generic_or_separate_path
 items,glow_berries,BlockItem,yes,audit_existing_implementation
 items,glow_ink_sac,GlowInkSacItem,yes,audit_existing_implementation
-items,glow_item_frame,ItemFrameItem,no,check_specialization_or_shared_path
+items,glow_item_frame,ItemFrameItem,yes,audit_existing_implementation
 items,glow_lichen,BlockItem,yes,audit_existing_implementation
 items,glow_squid_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,glowstone,BlockItem,yes,audit_existing_implementation
@@ -711,7 +711,7 @@ items,iron_shovel,Item,no,generic_or_separate_path
 items,iron_spear,Item,no,generic_or_separate_path
 items,iron_sword,Item,no,generic_or_separate_path
 items,iron_trapdoor,BlockItem,yes,audit_existing_implementation
-items,item_frame,ItemFrameItem,no,check_specialization_or_shared_path
+items,item_frame,ItemFrameItem,yes,audit_existing_implementation
 items,jack_o_lantern,BlockItem,yes,audit_existing_implementation
 items,jigsaw,GameMasterBlockItem,no,check_specialization_or_shared_path
 items,jukebox,BlockItem,yes,audit_existing_implementation
@@ -3004,7 +3004,7 @@ entities,frog,Frog,no,check_specialization_or_shared_path
 entities,furnace_minecart,MinecartFurnace,no,check_specialization_or_shared_path
 entities,ghast,Ghast,no,check_specialization_or_shared_path
 entities,giant,Giant,no,check_specialization_or_shared_path
-entities,glow_item_frame,GlowItemFrame,no,check_specialization_or_shared_path
+entities,glow_item_frame,GlowItemFrame,yes,audit_existing_implementation
 entities,glow_squid,GlowSquid,no,check_specialization_or_shared_path
 entities,goat,Goat,no,check_specialization_or_shared_path
 entities,guardian,Guardian,no,check_specialization_or_shared_path

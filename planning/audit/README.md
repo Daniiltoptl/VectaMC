@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `a2db838b68ac4e21d9626aa1f8b146126911f2b3`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `83bb593529d35aaf3d2a976fa2676cda60e89ef8`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -10,16 +10,16 @@
 
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
-| items | 1658 | 1257 |
+| items | 1658 | 1259 |
 | blocks | 1286 | 1028 |
-| entities | 161 | 25 |
+| entities | 161 | 26 |
 
 Полный поимённый каталог, включая уже зарегистрированные объекты: [objects.csv](objects.csv).
 
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 258.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 257.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -43,7 +43,6 @@
 | `GameMasterBlockItem` | `chain_command_block`, `command_block`, `jigsaw`, `repeating_command_block`, `structure_block`, `test_block`, `test_instance_block` |
 | `HangingEntityItem` | `painting` |
 | `Item` | `amethyst_shard`, `angler_pottery_sherd`, `apple`, `archer_pottery_sherd`, `armadillo_scute`, `arms_up_pottery_sherd`, `baked_potato`, `beef`, `beetroot`, `beetroot_soup`, `black_harness`, `blade_pottery_sherd`, `blaze_powder`, `blaze_rod`, `blue_harness`, `bone`, `book`, `bordure_indented_banner_pattern`, `bowl`, `bread`, `breeze_rod`, `brewer_pottery_sherd`, `brick`, `brown_harness`, `burn_pottery_sherd`, `chainmail_boots`, `chainmail_chestplate`, `chainmail_helmet`, `chainmail_leggings`, `charcoal`, `chicken`, `chorus_fruit`, `clay_ball`, `clock`, `coal`, `cod`, `cooked_beef`, `cooked_chicken`, `cooked_cod`, `cooked_mutton`, `cooked_porkchop`, `cooked_rabbit`, `cooked_salmon`, `cookie`, `copper_axe`, `copper_boots`, `copper_chestplate`, `copper_helmet`, `copper_hoe`, `copper_horse_armor`, `copper_ingot`, `copper_leggings`, `copper_nautilus_armor`, `copper_nugget`, `copper_pickaxe`, `copper_shovel`, `copper_spear`, `copper_sword`, `creeper_banner_pattern`, `cyan_harness`, `danger_pottery_sherd`, `diamond`, `diamond_axe`, `diamond_boots`, `diamond_chestplate`, `diamond_helmet`, `diamond_hoe`, `diamond_horse_armor`, `diamond_leggings`, `diamond_nautilus_armor`, `diamond_pickaxe`, `diamond_shovel`, `diamond_spear`, `diamond_sword`, `dragon_breath`, `dried_kelp`, `echo_shard`, `elytra`, `emerald`, `enchanted_book`, `enchanted_golden_apple`, `explorer_pottery_sherd`, `feather`, `fermented_spider_eye`, `field_masoned_banner_pattern`, `firework_star`, `flint`, `flow_banner_pattern`, `flow_pottery_sherd`, `flower_banner_pattern`, `friend_pottery_sherd`, `ghast_tear`, `glistering_melon_slice`, `globe_banner_pattern`, `glowstone_dust`, `gold_ingot`, `gold_nugget`, `golden_apple`, `golden_axe`, `golden_boots`, `golden_carrot`, `golden_chestplate`, `golden_helmet`, `golden_hoe`, `golden_horse_armor`, `golden_leggings`, `golden_nautilus_armor`, `golden_pickaxe`, `golden_shovel`, `golden_spear`, `golden_sword`, `gray_harness`, `green_harness`, `gunpowder`, `guster_banner_pattern`, `guster_pottery_sherd`, `heart_of_the_sea`, `heart_pottery_sherd`, `heartbreak_pottery_sherd`, `honey_bottle`, `howl_pottery_sherd`, `iron_axe`, `iron_boots`, `iron_chestplate`, `iron_helmet`, `iron_hoe`, `iron_horse_armor`, `iron_ingot`, `iron_leggings`, `iron_nautilus_armor`, `iron_nugget`, `iron_pickaxe`, `iron_shovel`, `iron_spear`, `iron_sword`, `lapis_lazuli`, `leather`, `leather_boots`, `leather_chestplate`, `leather_helmet`, `leather_horse_armor`, `leather_leggings`, `light_blue_harness`, `light_gray_harness`, `lime_harness`, `magenta_harness`, `magma_cream`, `melon_slice`, `milk_bucket`, `miner_pottery_sherd`, `mojang_banner_pattern`, `mourner_pottery_sherd`, `mushroom_stew`, `music_disc_11`, `music_disc_13`, `music_disc_5`, `music_disc_blocks`, `music_disc_bounce`, `music_disc_cat`, `music_disc_chirp`, `music_disc_creator`, `music_disc_creator_music_box`, `music_disc_far`, `music_disc_lava_chicken`, `music_disc_mall`, `music_disc_mellohi`, `music_disc_otherside`, `music_disc_pigstep`, `music_disc_precipice`, `music_disc_relic`, `music_disc_stal`, `music_disc_strad`, `music_disc_tears`, `music_disc_wait`, `music_disc_ward`, `mutton`, `nautilus_shell`, `nether_brick`, `nether_star`, `netherite_axe`, `netherite_boots`, `netherite_chestplate`, `netherite_helmet`, `netherite_hoe`, `netherite_horse_armor`, `netherite_ingot`, `netherite_leggings`, `netherite_nautilus_armor`, `netherite_pickaxe`, `netherite_scrap`, `netherite_shovel`, `netherite_spear`, `netherite_sword`, `ominous_bottle`, `ominous_trial_key`, `orange_harness`, `paper`, `phantom_membrane`, `piglin_banner_pattern`, `pink_harness`, `plenty_pottery_sherd`, `poisonous_potato`, `popped_chorus_fruit`, `porkchop`, `prismarine_crystals`, `prismarine_shard`, `prize_pottery_sherd`, `pufferfish`, `pumpkin_pie`, `purple_harness`, `quartz`, `rabbit`, `rabbit_foot`, `rabbit_hide`, `rabbit_stew`, `raw_copper`, `raw_gold`, `raw_iron`, `recovery_compass`, `red_harness`, `resin_brick`, `rotten_flesh`, `saddle`, `salmon`, `scrape_pottery_sherd`, `sheaf_pottery_sherd`, `shelter_pottery_sherd`, `shulker_shell`, `skull_banner_pattern`, `skull_pottery_sherd`, `slime_ball`, `snort_pottery_sherd`, `spider_eye`, `stick`, `stone_axe`, `stone_hoe`, `stone_pickaxe`, `stone_shovel`, `stone_spear`, `stone_sword`, `sugar`, `suspicious_stew`, `totem_of_undying`, `trial_key`, `tropical_fish`, `turtle_helmet`, `turtle_scute`, `wheat`, `white_harness`, `wolf_armor`, `wooden_axe`, `wooden_hoe`, `wooden_pickaxe`, `wooden_shovel`, `wooden_spear`, `wooden_sword`, `yellow_harness` |
-| `ItemFrameItem` | `glow_item_frame`, `item_frame` |
 | `KnowledgeBookItem` | `knowledge_book` |
 | `MapItem` | `abandoned_camp_map`, `buried_ancient_city_map`, `buried_mineshaft_map`, `buried_treasure_map`, `buried_trial_chambers_map`, `desert_pyramid_map`, `desert_village_map`, `filled_map`, `jungle_pyramid_map`, `ocean_monument_map`, `plains_village_map`, `savanna_village_map`, `snowy_village_map`, `swamp_hut_map`, `taiga_village_map`, `warm_ocean_ruins_map`, `woodland_mansion_map` |
 | `MinecartItem` | `chest_minecart`, `command_block_minecart`, `furnace_minecart`, `hopper_minecart`, `minecart`, `tnt_minecart` |
@@ -148,7 +147,6 @@
 | `Frog` | `frog` |
 | `Ghast` | `ghast` |
 | `Giant` | `giant` |
-| `GlowItemFrame` | `glow_item_frame` |
 | `GlowSquid` | `glow_squid` |
 | `Goat` | `goat` |
 | `Guardian` | `guardian` |

@@ -1,4 +1,4 @@
-//! Minimal persistent item-frame entity used by structure generation.
+//! Vanilla `ItemFrame` entity: displayed item, rotation, support checks and drops.
 
 use std::sync::{Arc, Weak};
 
@@ -7,35 +7,62 @@ use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::NbtCompound;
 use vecta_macros::entity_behavior;
 use vecta_math::DEGREE_90;
+use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::data_components::vanilla_components::MAP_ID;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
-use vecta_registry::vanilla_blocks;
+use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::vanilla_entity_data::ItemFrameEntityData;
+use vecta_registry::vanilla_game_rules::ENTITY_DROPS;
+use vecta_registry::{
+    sound_events, vanilla_blocks, vanilla_damage_type_tags, vanilla_entities, vanilla_game_events,
+    vanilla_items,
+};
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, Direction, DowncastType, DowncastTypeKey, WorldAabb, axis::Axis};
 
+use crate::behavior::{BLOCK_BEHAVIORS, InteractionResult};
 use crate::entity::block_attached_entity::{BlockAttachedEntity, BlockAttachedEntityBase};
 use crate::entity::damage::DamageSource;
 use crate::entity::{
-    Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntityMoveError, EntitySyncedData,
-    ItemFrame, SharedEntity,
+    Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntityEventSource as _, EntityMoveError,
+    EntitySyncedData, ItemFrame, SharedEntity,
 };
-use crate::physics::{MoveResult, MoverType};
+use crate::physics::{CollisionWorld as _, MoveResult, MoverType, WorldCollisionProvider};
+use crate::player::Player;
 use crate::world::World;
 
-/// Item frame state needed by end-city structure markers.
-///
-/// This intentionally implements only placement, synced item/facing data,
-/// persistence, and comparator integration.
-///
-/// TODO: Add interaction, drops, map tracking, and support checks.
+const NUM_ROTATIONS: i32 = 8;
+const FRAME_SIZE: f64 = 0.75;
+const FRAMED_MAP_SIZE: f64 = 1.0;
+const FRAME_DEPTH: f64 = 0.0625;
+const DROP_OFFSET: f64 = 0.15;
+
+/// Persistent state that Vanilla keeps as plain `ItemFrame` fields.
+#[derive(Debug, Clone, Copy)]
+struct ItemFrameState {
+    drop_chance: f32,
+    fixed: bool,
+}
+
+impl ItemFrameState {
+    const fn new() -> Self {
+        Self {
+            drop_chance: 1.0,
+            fixed: false,
+        }
+    }
+}
+
+/// Item frame entity covering Vanilla `ItemFrame` and its `GlowItemFrame` subtype.
 #[entity_behavior(class = "ItemFrame")]
 pub struct ItemFrameEntity {
     base: EntityBase,
     entity_type: EntityTypeRef,
     entity_data: SyncMutex<ItemFrameEntityData>,
     block_attached_entity_base: BlockAttachedEntityBase,
+    state: SyncMutex<ItemFrameState>,
 }
 
 // SAFETY: This key is owned by Vecta and uniquely identifies `ItemFrameEntity`.
@@ -60,7 +87,7 @@ impl ItemFrameEntity {
         )
     }
 
-    /// Creates a fresh item frame attached to `block_pos`.
+    /// Creates a fresh item frame attached to `block_pos` and facing `direction`.
     #[must_use]
     pub fn new_attached(
         entity_type: EntityTypeRef,
@@ -83,6 +110,7 @@ impl ItemFrameEntity {
             entity_type,
             entity_data: SyncMutex::new(ItemFrameEntityData::new()),
             block_attached_entity_base: BlockAttachedEntityBase::new(block_pos),
+            state: SyncMutex::new(ItemFrameState::new()),
         };
         entity
             .entity_data
@@ -106,10 +134,85 @@ impl ItemFrameEntity {
                 position.y.floor() as i32,
                 position.z.floor() as i32,
             )),
+            state: SyncMutex::new(ItemFrameState::new()),
         }
     }
 
-    /// Sets the framed item, matching vanilla by storing a single item.
+    /// Returns the framed item.
+    #[must_use]
+    pub fn item(&self) -> ItemStack {
+        self.entity_data.lock().item.get().clone()
+    }
+
+    /// Returns the current item rotation in eighths of a turn.
+    #[must_use]
+    pub fn rotation(&self) -> i32 {
+        *self.entity_data.lock().rotation.get()
+    }
+
+    /// Returns whether this frame ignores interactions, damage, movement and support loss.
+    #[must_use]
+    pub fn is_fixed(&self) -> bool {
+        self.state.lock().fixed
+    }
+
+    fn is_glow_frame(&self) -> bool {
+        self.entity_type == &vanilla_entities::GLOW_ITEM_FRAME
+    }
+
+    fn add_item_sound(&self) -> SoundEventRef {
+        if self.is_glow_frame() {
+            &sound_events::ENTITY_GLOW_ITEM_FRAME_ADD_ITEM
+        } else {
+            &sound_events::ENTITY_ITEM_FRAME_ADD_ITEM
+        }
+    }
+
+    fn remove_item_sound(&self) -> SoundEventRef {
+        if self.is_glow_frame() {
+            &sound_events::ENTITY_GLOW_ITEM_FRAME_REMOVE_ITEM
+        } else {
+            &sound_events::ENTITY_ITEM_FRAME_REMOVE_ITEM
+        }
+    }
+
+    fn rotate_item_sound(&self) -> SoundEventRef {
+        if self.is_glow_frame() {
+            &sound_events::ENTITY_GLOW_ITEM_FRAME_ROTATE_ITEM
+        } else {
+            &sound_events::ENTITY_ITEM_FRAME_ROTATE_ITEM
+        }
+    }
+
+    fn break_sound(&self) -> SoundEventRef {
+        if self.is_glow_frame() {
+            &sound_events::ENTITY_GLOW_ITEM_FRAME_BREAK
+        } else {
+            &sound_events::ENTITY_ITEM_FRAME_BREAK
+        }
+    }
+
+    /// Plays the placement sound of this frame variant.
+    pub fn play_placement_sound(&self) {
+        let sound = if self.is_glow_frame() {
+            &sound_events::ENTITY_GLOW_ITEM_FRAME_PLACE
+        } else {
+            &sound_events::ENTITY_ITEM_FRAME_PLACE
+        };
+        self.play_sound(sound, 1.0, 1.0);
+    }
+
+    /// Returns the frame item matching this entity's variant.
+    #[must_use]
+    pub fn frame_item_stack(&self) -> ItemStack {
+        if self.is_glow_frame() {
+            ItemStack::new(&vanilla_items::GLOW_ITEM_FRAME)
+        } else {
+            ItemStack::new(&vanilla_items::ITEM_FRAME)
+        }
+    }
+
+    /// Sets the framed item, matching Vanilla by storing a single item.
     pub fn set_item(&self, item: ItemStack) {
         self.set_item_with_update(item, true);
     }
@@ -119,9 +222,31 @@ impl ItemFrameEntity {
         if !item.is_empty() {
             item.set_count(1);
         }
+        let has_item = !item.is_empty();
         self.entity_data.lock().item.set(item);
         self.recalculate_position_or_warn();
-        if update_comparators && let Some(world) = self.level() {
+        if has_item {
+            // Vanilla `ItemFrame.setItem` also plays this sound while loading saved
+            // data, because `readAdditionalSaveData` reuses the same path.
+            self.play_sound(self.add_item_sound(), 1.0, 1.0);
+        }
+        if update_comparators {
+            self.update_output_signal_neighbours();
+        }
+    }
+
+    fn set_rotation(&self, rotation: i32, update_comparators: bool) {
+        self.entity_data
+            .lock()
+            .rotation
+            .set(rotation.rem_euclid(NUM_ROTATIONS));
+        if update_comparators {
+            self.update_output_signal_neighbours();
+        }
+    }
+
+    fn update_output_signal_neighbours(&self) {
+        if let Some(world) = self.level() {
             world.update_neighbor_for_output_signal(
                 self.block_attached_entity_base.pos(),
                 &vanilla_blocks::AIR,
@@ -167,6 +292,132 @@ impl ItemFrameEntity {
         self.entity_data.lock().item.get().has(MAP_ID)
     }
 
+    /// Returns the collision box used for placement checks and overlapping frames.
+    fn pop_box(&self) -> WorldAabb {
+        Self::frame_bounding_box(
+            self.block_attached_entity_base.pos(),
+            self.direction(),
+            false,
+        )
+    }
+
+    fn has_level_collision(&self, pop_box: WorldAabb) -> bool {
+        let Some(world) = self.level() else {
+            return false;
+        };
+        let collision = WorldCollisionProvider::new(&world);
+        if collision.has_block_collision(&pop_box) {
+            return true;
+        }
+        let border = world.world_border_snapshot();
+        !border.is_within_bounds_with_margin(pop_box.min_x(), pop_box.min_z(), 0.0)
+            || !border.is_within_bounds_with_margin(pop_box.max_x(), pop_box.max_z(), 0.0)
+    }
+
+    /// Returns whether another hanging entity occupies the same cell or facing.
+    ///
+    /// Vanilla compares against every `HangingEntity`. Paintings are not
+    /// implemented yet, so item frames are the only hanging entities to check.
+    fn can_coexist(&self, allow_intersecting_same_type: bool) -> bool {
+        let Some(world) = self.level() else {
+            return true;
+        };
+        let pop_box = self.pop_box();
+        let direction = self.direction();
+        !world.has_entity_in_aabb_matching(&pop_box, |other| {
+            if other.id() == self.id() {
+                return false;
+            }
+            let Some(other_frame) = other.as_item_frame() else {
+                return false;
+            };
+            let intersects_same_type =
+                !allow_intersecting_same_type && other.entity_type() == self.entity_type();
+            intersects_same_type || other_frame.direction() == direction
+        })
+    }
+
+    /// Returns whether the frame's backing block still supports it.
+    fn survives(&self) -> bool {
+        if self.is_fixed() {
+            return true;
+        }
+        if self.has_level_collision(self.pop_box()) {
+            return false;
+        }
+        let Some(world) = self.level() else {
+            return false;
+        };
+        let direction = self.direction();
+        let behind = self
+            .block_attached_entity_base
+            .pos()
+            .relative(direction.opposite());
+        let state = world.get_block_state(behind);
+        let supported = state.is_solid()
+            || (direction.axis().is_horizontal()
+                && BLOCK_BEHAVIORS.get_behavior(state.get_block()).is_diode());
+        supported && self.can_coexist(true)
+    }
+
+    pub(super) fn move_frame(&self, mover_type: MoverType, delta: DVec3) -> Option<MoveResult> {
+        if self.is_fixed() {
+            return None;
+        }
+        self.move_entity_block_attached_entity(mover_type, delta)
+    }
+
+    fn should_damage_drop_item(&self, source: &DamageSource) -> bool {
+        !source.is(&vanilla_damage_type_tags::DamageTypeTag::IS_EXPLOSION)
+            && !self.item().is_empty()
+    }
+
+    fn spawn_at_location(&self, item: ItemStack) {
+        let Some(world) = self.level() else {
+            return;
+        };
+        let step = self.direction().offset_vec().as_dvec3();
+        let position =
+            self.position() + DVec3::new(step.x * DROP_OFFSET, 0.0, step.z * DROP_OFFSET);
+        if let Some(entity) = world.spawn_item(position, item) {
+            entity.set_default_pickup_delay();
+        }
+    }
+
+    /// Drops the frame and its contents, matching Vanilla `ItemFrame.dropItem`.
+    fn drop_frame_and_contents(&self, caused_by: Option<&dyn Entity>, with_frame: bool) {
+        if self.is_fixed() {
+            return;
+        }
+        let Some(world) = self.level() else {
+            return;
+        };
+
+        let item = self.item();
+        self.set_item_with_update(ItemStack::empty(), true);
+
+        if !world.get_game_rule(&ENTITY_DROPS) {
+            return;
+        }
+        if caused_by
+            .and_then(|entity| entity.as_player())
+            .is_some_and(Player::has_infinite_materials)
+        {
+            return;
+        }
+
+        if with_frame {
+            self.spawn_at_location(self.frame_item_stack());
+        }
+        if item.is_empty() {
+            return;
+        }
+        let drop_chance = self.state.lock().drop_chance;
+        if rand::random_range(0.0_f32..1.0) < drop_chance {
+            self.spawn_at_location(item);
+        }
+    }
+
     fn frame_center(block_pos: BlockPos, direction: Direction) -> DVec3 {
         let off = direction.offset_vec().as_dvec3() * 0.46875;
         block_pos.0.as_dvec3() + DVec3::splat(0.5) - off
@@ -194,19 +445,23 @@ impl ItemFrameEntity {
         has_framed_map: bool,
     ) -> WorldAabb {
         let center = Self::frame_center(block_pos, direction);
-        let size = if has_framed_map { 1.0 } else { 0.75 };
+        let size = if has_framed_map {
+            FRAMED_MAP_SIZE
+        } else {
+            FRAME_SIZE
+        };
         let x_size = if direction.axis() == Axis::X {
-            0.0625
+            FRAME_DEPTH
         } else {
             size
         };
         let y_size = if direction.axis() == Axis::Y {
-            0.0625
+            FRAME_DEPTH
         } else {
             size
         };
         let z_size = if direction.axis() == Axis::Z {
-            0.0625
+            FRAME_DEPTH
         } else {
             size
         };
@@ -231,8 +486,12 @@ impl ItemFrame for ItemFrameEntity {
         if entity_data.item.get().is_empty() {
             0
         } else {
-            *entity_data.rotation.get() % 8 + 1
+            *entity_data.rotation.get() % NUM_ROTATIONS + 1
         }
+    }
+
+    fn play_placement_sound(&self) {
+        Self::play_placement_sound(self);
     }
 }
 
@@ -271,7 +530,25 @@ impl Entity for ItemFrameEntity {
     }
 
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
-        self.hurt_block_attached_entity(world, source, amount)
+        if !self.is_fixed() {
+            if self.is_invulnerable_to_base(source) {
+                return false;
+            }
+            if self.should_damage_drop_item(source) {
+                let caused_by = source.causing_entity();
+                self.drop_frame_and_contents(caused_by.as_ref().map(AsRef::as_ref), false);
+                self.game_event_with_source_entity(
+                    &vanilla_game_events::BLOCK_CHANGE,
+                    caused_by.as_ref().map(AsRef::as_ref),
+                );
+                self.play_sound(self.remove_item_sound(), 1.0, 1.0);
+                return true;
+            }
+            return self.hurt_block_attached_entity(world, source, amount);
+        }
+
+        let can_hurt_when_fixed = source.bypasses_invulnerability() || source.is_creative_player();
+        can_hurt_when_fixed && self.hurt_block_attached_entity(world, source, amount)
     }
 
     fn skip_attack_interaction(&self, source: &SharedEntity) -> bool {
@@ -279,11 +556,13 @@ impl Entity for ItemFrameEntity {
     }
 
     fn push_impulse(&self, impulse: DVec3) {
-        self.push_impulse_block_attached_entity(impulse);
+        if !self.is_fixed() {
+            self.push_impulse_block_attached_entity(impulse);
+        }
     }
 
     fn move_entity(self: Arc<Self>, mover_type: MoverType, delta: DVec3) -> Option<MoveResult> {
-        self.move_entity_block_attached_entity(mover_type, delta)
+        self.move_frame(mover_type, delta)
     }
 
     fn refresh_dimensions(&self) {
@@ -294,47 +573,91 @@ impl Entity for ItemFrameEntity {
         self.try_set_position_block_attached_entity(pos)
     }
 
+    fn interact(
+        &self,
+        player: &Player,
+        hand: InteractionHand,
+        _location: DVec3,
+    ) -> InteractionResult {
+        let held = player.inventory.lock().get_item_in_hand(hand).clone();
+        let frame_has_item = !self.item().is_empty();
+        let has_held_item = !held.is_empty();
+        if self.is_fixed() {
+            return InteractionResult::Pass;
+        }
+
+        if !frame_has_item {
+            if !has_held_item || self.is_removed() {
+                return InteractionResult::Pass;
+            }
+            // Vanilla rejects maps that already track the 256-entity limit.
+            // Map saved data is not implemented yet (V05.07), so no map can
+            // reach that limit here.
+            self.set_item(held);
+            self.game_event_with_source_entity(
+                &vanilla_game_events::BLOCK_CHANGE,
+                Some(player.as_entity_event_source()),
+            );
+            player.inventory.lock().mutate_item_in_hand(hand, |item| {
+                item.consume_one(player.has_infinite_materials());
+            });
+            return InteractionResult::Success;
+        }
+
+        self.play_sound(self.rotate_item_sound(), 1.0, 1.0);
+        self.set_rotation(self.rotation() + 1, true);
+        self.game_event_with_source_entity(
+            &vanilla_game_events::BLOCK_CHANGE,
+            Some(player.as_entity_event_source()),
+        );
+        InteractionResult::Success
+    }
+
     fn save_additional(&self, nbt: &mut NbtCompound) {
         self.save_block_attached_entity(nbt);
 
-        let entity_data = self.entity_data.lock();
-        let item = entity_data.item.get();
+        let item = self.item();
         if !item.is_empty() {
             nbt.insert("Item", item.to_nbt_tag_ref());
         }
-        nbt.insert("ItemRotation", *entity_data.rotation.get() as i8);
-        nbt.insert("ItemDropChance", 1.0_f32);
+        let state = *self.state.lock();
+        nbt.insert("ItemRotation", self.rotation() as i8);
+        nbt.insert("ItemDropChance", state.drop_chance);
         nbt.insert(
             "Facing",
-            direction_3d_data_value(*entity_data.hanging_entity.direction.get()) as i8,
+            direction_3d_data_value(*self.entity_data.lock().hanging_entity.direction.get()) as i8,
         );
-        nbt.insert("Invisible", 0_i8);
-        nbt.insert("Fixed", 0_i8);
+        nbt.insert("Invisible", i8::from(self.is_invisible()));
+        nbt.insert("Fixed", i8::from(state.fixed));
     }
 
     fn load_additional(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         self.load_block_attached_entity(nbt);
 
-        if let Some(item_tag) = nbt.compound("Item")
-            && let Some(item) = ItemStack::from_borrowed_compound(&item_tag)
-        {
-            self.set_item_with_update(item, false);
-        }
+        let item = nbt
+            .compound("Item")
+            .and_then(|item_tag| ItemStack::from_borrowed_compound(&item_tag))
+            .unwrap_or_else(ItemStack::empty);
+        self.set_item_with_update(item, false);
 
         if let Some(item_rotation) = nbt.byte("ItemRotation") {
-            self.entity_data
-                .lock()
-                .rotation
-                .set(i32::from(item_rotation).rem_euclid(8));
+            self.set_rotation(i32::from(item_rotation), false);
+        }
+
+        if let Some(drop_chance) = nbt.float("ItemDropChance") {
+            self.state.lock().drop_chance = drop_chance;
         }
 
         let facing = nbt
             .byte("Facing")
             .and_then(|value| direction_from_3d_data_value(i32::from(value)))
-            .or_else(|| nbt.int("Facing").and_then(direction_from_3d_data_value));
-        if let Some(direction) = facing {
-            self.set_direction(direction);
-        }
+            .or_else(|| nbt.int("Facing").and_then(direction_from_3d_data_value))
+            .unwrap_or(Direction::Down);
+        self.set_direction(facing);
+
+        self.entity_data
+            .set_base_invisible_flag(nbt.byte("Invisible").is_some_and(|value| value != 0));
+        self.state.lock().fixed = nbt.byte("Fixed").is_some_and(|value| value != 0);
 
         self.recalculate_position_or_warn();
     }
@@ -346,10 +669,14 @@ impl BlockAttachedEntity for ItemFrameEntity {
     }
 
     fn survives(&self) -> bool {
-        true
+        ItemFrameEntity::survives(self)
     }
 
-    fn drop_item(&self, _caused_by: Option<&dyn Entity>) {}
+    fn drop_item(&self, caused_by: Option<&dyn Entity>) {
+        self.play_sound(self.break_sound(), 1.0, 1.0);
+        self.drop_frame_and_contents(caused_by, true);
+        self.game_event_with_source_entity(&vanilla_game_events::BLOCK_CHANGE, caused_by);
+    }
 
     fn recalculate_bounding_box(&self) -> Result<(), EntityMoveError> {
         self.try_recalculate_position()
@@ -389,67 +716,4 @@ const fn direction_2d_data_value(direction: Direction) -> u8 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::string::ToString;
-    use vecta_registry::{vanilla_entities, vanilla_items};
-
-    #[test]
-    fn item_frame_persists_structure_marker_state() {
-        let frame = ItemFrameEntity::new_attached(
-            &vanilla_entities::ITEM_FRAME,
-            1,
-            BlockPos::new(12, 80, 14),
-            Direction::West,
-            Weak::new(),
-        );
-        frame.set_item(ItemStack::new(&vanilla_items::ELYTRA));
-
-        let mut nbt = NbtCompound::new();
-        frame.save_additional(&mut nbt);
-
-        assert_eq!(nbt.byte("Facing"), Some(4));
-        assert_eq!(nbt.byte("ItemRotation"), Some(0));
-        assert_eq!(nbt.float("ItemDropChance"), Some(1.0));
-        assert_eq!(nbt.byte("Invisible"), Some(0));
-        assert_eq!(nbt.byte("Fixed"), Some(0));
-        let Some(item) = nbt.compound("Item") else {
-            panic!("item frame should save framed item");
-        };
-        assert_eq!(
-            item.string("id").map(ToString::to_string),
-            Some("minecraft:elytra".to_owned())
-        );
-        assert_eq!(item.int("count"), Some(1));
-    }
-
-    #[test]
-    fn item_frame_is_pickable_like_vanilla() {
-        let frame = ItemFrameEntity::new_attached(
-            &vanilla_entities::ITEM_FRAME,
-            1,
-            BlockPos::new(12, 80, 14),
-            Direction::West,
-            Weak::new(),
-        );
-
-        assert!(frame.is_pickable());
-    }
-
-    #[test]
-    fn analog_output_uses_item_presence_and_rotation() {
-        let frame = ItemFrameEntity::new_attached(
-            &vanilla_entities::ITEM_FRAME,
-            1,
-            BlockPos::new(12, 80, 14),
-            Direction::West,
-            Weak::new(),
-        );
-        assert_eq!(frame.analog_output(), 0);
-
-        frame.set_item_with_update(ItemStack::new(&vanilla_items::ELYTRA), false);
-        assert_eq!(frame.analog_output(), 1);
-        frame.entity_data.lock().rotation.set(7);
-        assert_eq!(frame.analog_output(), 8);
-    }
-}
+mod tests;

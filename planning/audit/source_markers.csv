@@ -106,7 +106,6 @@ vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,190,// TODO: Route 
 vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,225,// TODO: Replace these local transfers with the shared conversion state transfer API.
 vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,255,// TODO: add this function to DyeColor
 vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,266,// TODO: add this function to DyeColor
-vecta-core/src/entity/entities/objects/display_ui/item_frame.rs,32,"/// TODO: Add interaction, drops, map tracking, and support checks."
 vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,93,"// TODO: Implement portal handling, fire refresh, dragon fight callbacks, and explosion behavior."
 vecta-core/src/entity/entities/objects/items/item_entity.rs,697,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
 vecta-core/src/entity/entities/objects/items/item_entity.rs,707,// TODO: Call item.onDestroyed() when implemented
@@ -116,9 +115,9 @@ vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,547,// TODO: 
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,656,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,895,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1347,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2509,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,3875,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/entity/mod.rs,1348,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2515,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,3881,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
 vecta-core/src/entity/living_entity.rs,692,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
 vecta-core/src/entity/living_entity.rs,700,// TODO: apply helmet damage once those equipment hooks exist.
 vecta-core/src/entity/living_entity.rs,735,// TODO: Play secondary hurt sounds once equipment effects expose them.

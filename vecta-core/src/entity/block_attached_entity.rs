@@ -91,7 +91,7 @@ pub trait BlockAttachedEntity: Entity {
 
     fn recalculate_bounding_box(&self) -> Result<(), EntityMoveError>;
 
-    fn tick_block_attached_entity(self: Arc<Self>) {
+    fn tick_block_attached_entity(&self) {
         self.check_below_world();
         if self.block_attached_entity_base().should_check_survival() {
             // Check for survival.
@@ -170,7 +170,7 @@ pub trait BlockAttachedEntity: Entity {
     }
 
     fn move_entity_block_attached_entity(
-        self: Arc<Self>,
+        &self,
         _mover_type: MoverType,
         delta: DVec3,
     ) -> Option<MoveResult> {
