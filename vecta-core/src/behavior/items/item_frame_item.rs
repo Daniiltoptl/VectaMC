@@ -10,7 +10,7 @@ use vecta_utils::{BlockPos, Direction};
 use crate::behavior::{InteractionResult, ItemBehavior, UseOnContext};
 use crate::entity::block_attached_entity::BlockAttachedEntity;
 use crate::entity::entities::objects::display_ui::create_item_frame;
-use crate::entity::{add_spawned_entity, apply_implicit_item_stack_components};
+use crate::entity::{add_spawned_entity, apply_item_stack_components};
 use crate::player::Player;
 use crate::world::game_event::GameEventContext;
 
@@ -66,7 +66,10 @@ impl ItemBehavior for ItemFrameItem {
             );
             return InteractionResult::Fail;
         };
-        apply_implicit_item_stack_components(&entity, &stack);
+        if let Err(error) = apply_item_stack_components(&entity, &stack, player.is_operator()) {
+            log::warn!("failed to apply placed item frame components: {error:?}");
+            return InteractionResult::Fail;
+        }
 
         let survives = entity
             .as_block_attached_entity()

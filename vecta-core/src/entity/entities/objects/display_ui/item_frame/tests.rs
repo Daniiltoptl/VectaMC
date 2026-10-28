@@ -19,12 +19,17 @@ use crate::behavior::{
 };
 use crate::entity::damage::DamageSource;
 use crate::entity::entities::GlowItemFrameEntity;
-use crate::entity::{Entity as _, SharedEntity, entities::ItemEntity, init_entities};
+use crate::entity::{
+    Entity as _, SharedEntity, entities::ItemEntity, init_entities, next_entity_id,
+};
 use crate::player::Player;
 use crate::test_support::{
     TestPlayerBuilder, TestWorld, dropped_items, fresh_test_world, insert_ready_full_chunk,
 };
 use crate::world::World;
+
+#[path = "review_tests.rs"]
+mod review;
 
 /// Frame block position used by every scenario.
 const FRAME_POS: BlockPos = BlockPos::new(8, 64, 8);
@@ -74,7 +79,7 @@ impl Fixture {
     fn frame(&self) -> ItemFrameEntity {
         ItemFrameEntity::new_attached(
             &vanilla_entities::ITEM_FRAME,
-            42,
+            next_entity_id(),
             FRAME_POS,
             Direction::South,
             Arc::downgrade(self.world()),
@@ -84,7 +89,7 @@ impl Fixture {
     fn glow_frame(&self) -> GlowItemFrameEntity {
         GlowItemFrameEntity::new_attached(
             &vanilla_entities::GLOW_ITEM_FRAME,
-            43,
+            next_entity_id(),
             FRAME_POS,
             Direction::South,
             Arc::downgrade(self.world()),

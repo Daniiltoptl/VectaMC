@@ -200,6 +200,8 @@
   EndCrystal и Cushion: placement, collision, support, damage, drops и NBT.
   - [x] ItemFrame/GlowItemFrame: размещение, вставка и поворот предмета,
     проверка опоры, дроп рамки и содержимого, `Fixed`, save/load.
+    [Ревью Codex и исправления](planning/reviews/V05.09a.md): ENTITY_DATA,
+    имена дропа, NBT и world-border collision; добавлены граничные сценарии.
     Не поддержано: отслеживание карт (зависит от V05.07) и pick-block
     для сущностей. Painting и остальные типы группы не начаты.
 - [ ] **V05.10** Boat/ChestBoat/Raft и Minecart items — только после

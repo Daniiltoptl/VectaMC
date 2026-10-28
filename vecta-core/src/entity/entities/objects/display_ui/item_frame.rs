@@ -8,7 +8,7 @@ use simdnbt::owned::NbtCompound;
 use vecta_macros::entity_behavior;
 use vecta_math::DEGREE_90;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
-use vecta_registry::data_components::vanilla_components::MAP_ID;
+use vecta_registry::data_components::vanilla_components::{CUSTOM_NAME, MAP_ID};
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::sound_event::SoundEventRef;
@@ -19,10 +19,11 @@ use vecta_registry::{
     vanilla_items,
 };
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtNumeric as _;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, Direction, DowncastType, DowncastTypeKey, WorldAabb, axis::Axis};
 
-use crate::behavior::{BLOCK_BEHAVIORS, InteractionResult};
+use crate::behavior::{BLOCK_BEHAVIORS, BlockCollisionContext, InteractionResult};
 use crate::entity::block_attached_entity::{BlockAttachedEntity, BlockAttachedEntityBase};
 use crate::entity::damage::DamageSource;
 use crate::entity::{
@@ -37,7 +38,7 @@ const NUM_ROTATIONS: i32 = 8;
 const FRAME_SIZE: f64 = 0.75;
 const FRAMED_MAP_SIZE: f64 = 1.0;
 const FRAME_DEPTH: f64 = 0.0625;
-const DROP_OFFSET: f64 = 0.15;
+const DROP_OFFSET: f32 = 0.15;
 
 /// Persistent state that Vanilla keeps as plain `ItemFrame` fields.
 #[derive(Debug, Clone, Copy)]
@@ -205,11 +206,15 @@ impl ItemFrameEntity {
     /// Returns the frame item matching this entity's variant.
     #[must_use]
     pub fn frame_item_stack(&self) -> ItemStack {
-        if self.is_glow_frame() {
+        let mut stack = if self.is_glow_frame() {
             ItemStack::new(&vanilla_items::GLOW_ITEM_FRAME)
         } else {
             ItemStack::new(&vanilla_items::ITEM_FRAME)
+        };
+        if let Some(name) = self.custom_name() {
+            stack.set(CUSTOM_NAME, name);
         }
+        stack
     }
 
     /// Sets the framed item, matching Vanilla by storing a single item.
@@ -239,7 +244,7 @@ impl ItemFrameEntity {
         self.entity_data
             .lock()
             .rotation
-            .set(rotation.rem_euclid(NUM_ROTATIONS));
+            .set(rotation % NUM_ROTATIONS);
         if update_comparators {
             self.update_output_signal_neighbours();
         }
@@ -305,13 +310,11 @@ impl ItemFrameEntity {
         let Some(world) = self.level() else {
             return false;
         };
-        let collision = WorldCollisionProvider::new(&world);
-        if collision.has_block_collision(&pop_box) {
-            return true;
-        }
-        let border = world.world_border_snapshot();
-        !border.is_within_bounds_with_margin(pop_box.min_x(), pop_box.min_z(), 0.0)
-            || !border.is_within_bounds_with_margin(pop_box.max_x(), pop_box.max_z(), 0.0)
+        let collision = WorldCollisionProvider::for_entity(&world, self);
+        let context = BlockCollisionContext::entity(self.position().y, self.is_descending())
+            .with_fall_distance(self.fall_distance());
+        collision.has_block_collision_with_context(&pop_box, context)
+            || collision.has_world_border_collision(&pop_box)
     }
 
     /// Returns whether another hanging entity occupies the same cell or facing.
@@ -377,8 +380,8 @@ impl ItemFrameEntity {
             return;
         };
         let step = self.direction().offset_vec().as_dvec3();
-        let position =
-            self.position() + DVec3::new(step.x * DROP_OFFSET, 0.0, step.z * DROP_OFFSET);
+        let offset = f64::from(DROP_OFFSET);
+        let position = self.position() + DVec3::new(step.x * offset, 0.0, step.z * offset);
         if let Some(entity) = world.spawn_item(position, item) {
             entity.set_default_pickup_delay();
         }
@@ -505,7 +508,7 @@ impl Entity for ItemFrameEntity {
     }
 
     fn spawn_data(&self) -> i32 {
-        direction_3d_data_value(*self.entity_data.lock().hanging_entity.direction.get())
+        self.direction().get_3d_data_value()
     }
 
     fn spawn_position(&self) -> DVec3 {
@@ -623,10 +626,7 @@ impl Entity for ItemFrameEntity {
         let state = *self.state.lock();
         nbt.insert("ItemRotation", self.rotation() as i8);
         nbt.insert("ItemDropChance", state.drop_chance);
-        nbt.insert(
-            "Facing",
-            direction_3d_data_value(*self.entity_data.lock().hanging_entity.direction.get()) as i8,
-        );
+        nbt.insert("Facing", self.direction().get_3d_data_value() as i8);
         nbt.insert("Invisible", i8::from(self.is_invisible()));
         nbt.insert("Fixed", i8::from(state.fixed));
     }
@@ -640,24 +640,27 @@ impl Entity for ItemFrameEntity {
             .unwrap_or_else(ItemStack::empty);
         self.set_item_with_update(item, false);
 
-        if let Some(item_rotation) = nbt.byte("ItemRotation") {
-            self.set_rotation(i32::from(item_rotation), false);
-        }
-
-        if let Some(drop_chance) = nbt.float("ItemDropChance") {
-            self.state.lock().drop_chance = drop_chance;
-        }
+        self.set_rotation(
+            i32::from(read_frame_byte(&nbt, "ItemRotation").unwrap_or(0)),
+            false,
+        );
+        self.state.lock().drop_chance = nbt
+            .get("ItemDropChance")
+            .and_then(|tag| tag.codec_f32())
+            .unwrap_or(1.0);
 
         let facing = nbt
-            .byte("Facing")
-            .and_then(|value| direction_from_3d_data_value(i32::from(value)))
-            .or_else(|| nbt.int("Facing").and_then(direction_from_3d_data_value))
-            .unwrap_or(Direction::Down);
+            .get("Facing")
+            .and_then(|tag| tag.codec_i32())
+            .map_or(Direction::Down, |value| {
+                Direction::from_3d_data_value(i32::from(value as i8))
+            });
         self.set_direction(facing);
 
-        self.entity_data
-            .set_base_invisible_flag(nbt.byte("Invisible").is_some_and(|value| value != 0));
-        self.state.lock().fixed = nbt.byte("Fixed").is_some_and(|value| value != 0);
+        self.entity_data.set_base_invisible_flag(
+            read_frame_byte(&nbt, "Invisible").is_some_and(|value| value != 0),
+        );
+        self.state.lock().fixed = read_frame_byte(&nbt, "Fixed").is_some_and(|value| value != 0);
 
         self.recalculate_position_or_warn();
     }
@@ -683,27 +686,17 @@ impl BlockAttachedEntity for ItemFrameEntity {
     }
 }
 
-const fn direction_3d_data_value(direction: Direction) -> i32 {
-    match direction {
-        Direction::Down => 0,
-        Direction::Up => 1,
-        Direction::North => 2,
-        Direction::South => 3,
-        Direction::West => 4,
-        Direction::East => 5,
+fn read_frame_byte(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<i8> {
+    let tag = nbt.get(key)?;
+    // TagValueInput byte/boolean access uses NumericTag.byteValue, which floors
+    // floating tags; Codec.BYTE (used for Facing) uses Number.byteValue instead.
+    if let Some(value) = tag.float() {
+        return Some(value.floor() as i32 as i8);
     }
-}
-
-const fn direction_from_3d_data_value(value: i32) -> Option<Direction> {
-    match value {
-        0 => Some(Direction::Down),
-        1 => Some(Direction::Up),
-        2 => Some(Direction::North),
-        3 => Some(Direction::South),
-        4 => Some(Direction::West),
-        5 => Some(Direction::East),
-        _ => None,
+    if let Some(value) = tag.double() {
+        return Some(value.floor() as i32 as i8);
     }
+    tag.codec_i32().map(|value| value as i8)
 }
 
 const fn direction_2d_data_value(direction: Direction) -> u8 {
