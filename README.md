@@ -1,169 +1,132 @@
 <p align="center">
-  <img src=".github/assets/readme/steel-logo.png" alt="SteelMC logo" width="192">
-</p>
-
-<h1 align="center">SteelMC</h1>
-
-<p align="center">
-  A Minecraft Java Edition server written in Rust.
+  <img src="assets/vecta-banner.svg" alt="VectaMC — Minecraft server in Rust" width="100%">
 </p>
 
 <p align="center">
-  <a href="https://github.com/Steel-Foundation/SteelMC/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Steel-Foundation/SteelMC?display_name=tag&sort=semver&style=flat-square"></a>
-  <a href="https://github.com/Steel-Foundation/SteelMC/actions/workflows/test.yml"><img alt="Tests" src="https://img.shields.io/github/actions/workflow/status/Steel-Foundation/SteelMC/test.yml?branch=master&label=tests&style=flat-square"></a>
-  <a href="https://github.com/Steel-Foundation/SteelMC/actions/workflows/lint.yml"><img alt="Lint" src="https://img.shields.io/github/actions/workflow/status/Steel-Foundation/SteelMC/lint.yml?branch=master&label=lint&style=flat-square"></a>
-  <a href="LICENSE"><img alt="AGPL-3.0-or-later license" src="https://img.shields.io/github/license/Steel-Foundation/SteelMC?style=flat-square"></a>
+  <a href="https://github.com/Daniiltoptl/VectaMC/actions/workflows/ci.yml"><img src="https://github.com/Daniiltoptl/VectaMC/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Minecraft_Java-26.3-75d9a3?style=flat-square" alt="Target: Minecraft Java 26.3">
+  <img src="https://img.shields.io/badge/status-pre--alpha-e8ae55?style=flat-square" alt="Pre-alpha">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue?style=flat-square" alt="AGPL-3.0-or-later"></a>
 </p>
 
 <p align="center">
-  <a href="https://steelmc.dev/">Website</a> ·
-  <a href="https://steelmc.dev/getting-started/introduction/">Documentation</a> ·
-  <a href="https://steelmc.dev/tracker">Implementation tracker</a> ·
-  <a href="https://steelmc.dev/discord">Discord</a>
+  <b>Сервер Minecraft на Rust. Шаг за шагом — к ванильному поведению.</b><br>
+  Основан на SteelMC · Базовая версия 26.3 · Сначала полноценное выживание
 </p>
 
-![A sunset over a SteelMC-generated world, with forests, rivers, mountains, and a lit village](.github/assets/readme/sunset.webp)
+<p align="center">
+  <a href="#состояние-проекта">Состояние</a> ·
+  <a href="#сборка">Сборка</a> ·
+  <a href="ROADMAP.md">План разработки</a> ·
+  <a href="CHANGELOG.md">Изменения</a> ·
+  <a href="PROVENANCE.md">Происхождение</a>
+</p>
+
+---
+
+## Что такое VectaMC
+
+**VectaMC** — развитие [SteelMC](https://github.com/Steel-Foundation/SteelMC)
+с целью воспроизвести поведение официального сервера Minecraft Java Edition.
+Первый ориентир — **26.3**: предметы должны работать, мобы — вести себя правильно,
+а игровой прогресс — сохраняться между запусками.
+
+Мы дополняем недостающие механики и проверяем их по эталону выбранной версии.
+Плагины и дополнительные возможности Paper, Purpur и Folia запланированы
+после ванильной основы.
 
 > [!IMPORTANT]
-> SteelMC is still pre-alpha. You can connect and explore generated worlds, but
-> survival gameplay is incomplete and many vanilla systems are still missing. Do not
-> replace your production server with it yet.
+> **Проект в pre-alpha. Полное ванильное выживание ещё не реализовано.**
+> Наличие предмета в реестре не означает, что все его действия работают.
+> Используйте отдельный тестовый мир; готовность к публичному серверу не заявляется.
 
-## What is SteelMC?
+## Состояние проекта
 
-SteelMC is an independent implementation of the Minecraft Java Edition server. It
-tracks the latest Java Edition release and currently targets **Minecraft 26.3**.
+| Область | Текущее состояние |
+| --- | --- |
+| Сеть и вход игрока | Базовая реализация унаследована от SteelMC |
+| Чанки, генерация, освещение и сохранение | Унаследованы; требуют дальнейших проверок VectaMC |
+| Предметы и блоки | Реестры есть; специализированные поведения реализованы частично |
+| Инвентарь, крафты и меню | Реализованы частично |
+| Мобы, AI и естественный спавн | Неполная реализация |
+| Бой, редстоун и остальные системы выживания | Требуют аудита и доработки |
+| Совместимость с официальным сервером | Полное соответствие пока не подтверждено |
+| Клиенты 1.21–26.2, будущие 26.4+ | Запланированы; сейчас не поддерживаются |
+| Плагины | Отложены |
 
-The goal is to match vanilla behavior while making better use of modern multicore
-hardware. Gameplay updates remain synchronous, while chunk generation, lighting,
-packet processing, and chunk sending can run outside the main tick.
+Конкретные изменения VectaMC перечислены в [CHANGELOG](CHANGELOG.md).
+Исходная точка и авторство описаны в [PROVENANCE](PROVENANCE.md).
+Мы не приписываем проекту результаты измерений и проверок upstream как собственные.
 
-## World generation
+## Сборка
 
-World generation is currently the most complete part of SteelMC. Its parity suite
-compares 7,500 randomly selected chunks with a reproducible vanilla reference: 2,500
-in each dimension. All tested chunks match block for block. Entity spawning is not
-included because most entity behavior has not been implemented yet.
+Нужны **Git**, toolchain Rust из `rust-toolchain.toml` и компилятор C/C++.
+На Windows установите Visual Studio Build Tools с компонентами C++ и Windows SDK;
+на Linux нужен также `lld`, указанный в `.cargo/config.toml`.
+Первая сборка загружает Rust-зависимости и ресурсы целевой версии Minecraft.
 
-In a focused benchmark on a Ryzen 9 9950X, SteelMC generated a fresh
-10,201-chunk Overworld area in a median of 3.98 seconds. Results vary with hardware,
-and this benchmark does not represent every server workload.
+```sh
+git clone https://github.com/Daniiltoptl/VectaMC.git
+cd VectaMC
+cargo build --release --locked -p steel --features stand-alone
+```
 
-Read [Introducing SteelMC](https://steelmc.dev/blog/announcement/) for the design
-story, parity methodology, benchmark context, and limitations. Full results and
-reproduction instructions are available on the
-[benchmark page](https://steelmc.dev/reference/benchmarks/).
+Исполняемый файл пока называется **`steel`**: `target/release/steel`
+или `target/release/steel.exe` на Windows. Имена crates сохранены для удобства
+синхронизации со SteelMC.
 
-## Current status
+### Тестовый запуск
 
-Today, clients can join a persistent multiplayer world, move and interact, use
-inventories and commands, and return later to saved chunks. SteelMC currently
-provides:
+Прежде чем запускать сервер, ознакомьтесь с [Minecraft EULA](https://www.minecraft.net/eula)
+и подтвердите своё согласие самостоятельно.
 
-- Java Edition networking, authentication, encryption, and compression
-- Persistent chunk generation, loading, saving, and lighting
-- Player movement, collision, block interaction, and inventories
-- Commands, permissions, chat, and server configuration
-- Early entity, block entity, and gameplay behavior implementations
+```sh
+cargo run --release --locked -p steel --features stand-alone
+```
 
-SteelMC is not ready to replace an established server:
+Настройки создаются в `config/config.toml`, `config/worlds.toml` и
+`config/groups.toml`. Запуск настоящего клиента и игровой сценарий проверяются
+отдельно от успешной компиляции.
 
-- Survival gameplay is incomplete.
-- Only a small number of entities have meaningful behavior.
-- Full vanilla and protocol parity have not been reached.
-- Plugins are not available yet.
-- Paper, Bukkit, Fabric, Forge, and NeoForge extensions are not compatible.
+## Как проверяем ванильное поведение
 
-Follow the [implementation tracker](https://steelmc.dev/tracker) for a more detailed
-view of what is available today.
+Для разработки используем локальный эталон из официального сервера **26.3**.
+Нужны Python 3.11+ и Java 25; `JAVA_HOME` должен указывать на подходящий JDK.
 
-## Try it
+```sh
+python scripts/prepare_vanilla.py
+```
 
-Pre-built releases, Docker images, and source-build instructions are available in
-the [installation guide](https://steelmc.dev/getting-started/installation/).
+В Git Bash/Linux доступен тот же шаг через `./update-minecraft-src.sh`.
+Скрипт читает версию из `Cargo.toml`, проверяет контрольные суммы загрузок
+и создаёт `minecraft-src/minecraft/src/`. Gradle не требуется.
+Исходники Minecraft и скачанные JAR остаются локальными и не попадают в Git.
+Подробности — в [PROVENANCE](PROVENANCE.md).
 
-Expect bugs and incomplete mechanics. If you try SteelMC, please share what you find
-on [Discord](https://steelmc.dev/discord) or open a
-[GitHub issue](https://github.com/Steel-Foundation/SteelMC/issues).
-
-## Contributing
-
-Contributions are welcome. Most changes begin by reading the vanilla source,
-understanding the behavior it implements, and deciding how to express that behavior
-cleanly in Rust.
-
-As a new contributor, please limit yourself to 3 open PRs at a time,
-so we can give feedback on your existing ones before you open more.
-Also, start with a small, simple contribution first,
-around 1k lines changed or less, so it's quicker to review.
-
-Before you start:
-
-1. Check existing issues and pull requests, then discuss substantial changes with
-   the community.
-2. Read the [contributor guide](https://steelmc.dev/development/start-contributing/)
-   and [code standards](https://steelmc.dev/development/code-standard/).
-3. Generate the targeted vanilla source with `./update-minecraft-src.sh` and verify
-   behavior against it.
-4. Run the relevant tests and checks before opening a pull request.
-
-The repository uses a pinned nightly Rust toolchain. The common validation commands
-are:
-
-```bash
-cargo test
+```sh
+cargo check --locked --workspace
+cargo test --locked --workspace
 cargo fmt --all --check
-cargo clippy -r --all-targets --all-features
-typos
+cargo clippy --locked --all-targets --all-features -- -D warnings
+python -m unittest discover -s scripts -p "test_*.py" -v
 ```
 
-Nix and NixOS users can get the pinned toolchain, `lld`, `prek`, and `typos` in one
-step with `nix develop` (or `direnv allow`, using the checked-in `.envrc`).
+## Этапы разработки
 
-Generated Rust formatting is disabled by default. Enable the `fmt` feature on
-`steel-registry`, `steel-utils`, and `steel-worldgen` to format their generated files
-with prettyplease during compilation:
+1. **Основа:** воспроизводимая сборка, эталон 26.3 и проверяемый список пробелов.
+2. **Предметы и выживание:** взаимодействия, инвентарь, ресурсы и боевые механики.
+3. **Живой мир:** мобы, AI, жидкости, редстоун, измерения и боссы.
+4. **Проверка:** сравнение с ваниллой, сохранение и длительные игровые прогоны.
+5. **Расширение:** другие версии Minecraft, затем плагины.
 
-```bash
-cargo build --features steel-registry/fmt,steel-utils/fmt,steel-worldgen/fmt
-```
+Подробный список и критерии готовности — в [ROADMAP](ROADMAP.md).
 
-Generated documentation for SteelMC's Rust crates is available in the
-[Rust API reference](https://rustdoc.steelmc.dev/steel_core/index.html).
+## Благодарности и лицензия
 
-AI may be used as a tool, but contributors must understand and be able to explain
-every line they submit. Fully autonomous pull requests are not accepted.
+Основу проекта создали **Alve Jeansson и участники SteelMC**.
+История Git, уведомления об авторстве и лицензия сохранены;
+[исходный README SteelMC](UPSTREAM.md) доступен отдельно.
 
-For an easy entry into SteelMC as a new contributor, you can check out issues with the tag `good first issue`, or our [tracker](https://steelmc.dev/tracker/) of unimplemented content,
-which is always a good first start.
-
-## Community
-
-The [SteelMC Discord](https://steelmc.dev/discord) is where we discuss designs,
-coordinate work, share progress, and answer questions. Longer project updates are
-published on the [SteelMC website](https://steelmc.dev/).
-
-If you enjoy SteelMC, you can support its development by
-[sponsoring the project on GitHub](https://github.com/sponsors/Steel-Foundation). Any support is greatly appreciated!
-
-## License
-
-SteelMC is free software licensed under the
-[GNU Affero General Public License v3.0 or later](LICENSE).
-
-The SteelMC logo was designed by **colonthreeing**.
-
-## Acknowledgements
-
-SteelMC's world generation, lighting, and other performance work has drawn ideas from
-[C2ME](https://github.com/RelativityMC/C2ME-fabric),
-[ScalableLux](https://github.com/RelativityMC/ScalableLux),
-[FastNoise](https://codeberg.org/ZenXArch/FastNoise),
-[Lithium](https://github.com/CaffeineMC/lithium), and
-[Structure Layout Optimizer](https://github.com/TelepathicGrunt/StructureLayoutOptimizer).
-
-## Top contributors
-
-<a href="https://github.com/Steel-Foundation/SteelMC/graphs/contributors">
-  <img src="https://contrib.rocks/image?repo=Steel-Foundation/SteelMC" alt="SteelMC contributors">
-</a>
+VectaMC распространяется по **GNU AGPL v3.0 or later** — см. [LICENSE](LICENSE).
+Minecraft принадлежит Mojang/Microsoft. VectaMC — независимый проект,
+не связанный с Mojang/Microsoft и не одобренный ими.

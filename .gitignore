@@ -49,3 +49,5 @@ rustc-ice-*
 .DS_STORE
 .gitcraft-tmp/
 /.vs
+/.vecta-cache/
+__pycache__/

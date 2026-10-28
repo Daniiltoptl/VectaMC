@@ -1,39 +1,29 @@
-# Contributing to Steel
+# Работа над VectaMC
 
-We welcome contributions to Steel! By contributing, you help us make Steel the best Minecraft server it can be. Please take a moment to review this document to understand how to contribute effectively.
+Сначала прочитайте [AGENTS.md](AGENTS.md), [ROADMAP.md](ROADMAP.md) и
+[PROVENANCE.md](PROVENANCE.md). Целевая версия определяется `+mc...` в
+`Cargo.toml`, а не номером клиента или предположением разработчика.
 
-## Before You Start
+Для игровых изменений сначала подготовьте локальный ванильный эталон:
 
-### New Starters
+```sh
+python scripts/prepare_vanilla.py
+```
 
-As a new contributor, please limit yourself to 3 open PRs at a time, so we can give feedback on your existing ones before you open more.
-Also, start with a small, simple contribution first, around 1k lines changed or less, so it's quicker to review.
+Укажите в описании изменения проверенное поведение, использованные Java-классы
+или извлечённые данные и оставшиеся ограничения. Новые механики должны иметь
+подходящие зависимости и проверку значимых граничных случаев. Наличие класса
+или предмета в реестре не является доказательством полноты реализации.
 
-### Review time
+Не редактируйте сгенерированный Rust и извлечённые JSON вручную. Правьте
+генератор или SteelExtractor, затем обновляйте только необходимые данные.
+Не коммитьте `minecraft-src/`, JAR Minecraft, миры и локальные настройки.
 
-Maintainers review PRs in their free time, so an initial review can take a while. If you haven't heard back after a week, ask on Discord or leave a comment on your PR to get our attention.
+Перед отправкой выполните подходящие тесты, `cargo fmt --all --check` и Clippy.
+Для Python-инструментов: `python -m unittest discover -s scripts -p "test_*.py" -v`.
+Записывайте изменения и ограничения в CHANGELOG. Если проверка не запускалась,
+укажите это прямо.
 
-### Discuss Major Changes
-
-Before implementing any major changes or new features, please create a post in the [#feature-discussion](https://canary.discord.com/channels/1428487339759370322/1429074039015473272) channel on our [Discord](https://discord.gg/MwChEHnAbh) server. This allows for discussion of potential problems, alternative solutions, and overall alignment with the project's direction.
-
-### Minor changes
-
-Don't PR changes that have no impact on code foundation/structure, unless paired with a partial or full implementation. This ensures that stale code will be minimized.
-
-### Consider Future Use Cases
-
-When optimizing code or removing "unnecessary" vanilla Minecraft elements, always consider their potential use cases in future implementations. This also applies when choosing which crate to place new functionality into; think about modularity and future extensibility.
-
-### Use Parchment Mappings
-
-Please stick to Parchment mapping names most of the time for consistency and easier collaboration.
-
-### AI policy
-
-We allow the use of generative AI models such as LLM's for the generation of code in our project. However, we will not tolerate "vibe coding", meaning:
-1. Do not overuse AI - You should understand the code that has been generated.
-2. Re-read, check and correct the generated code to fit our coding guidelines and reduce sub-optimal implementation, as well as poorly readable doc-comments.
-
-
-Thank you for contributing to Steel!
+VectaMC сохраняет AGPL-3.0-or-later и авторство SteelMC. Для отправки изменений
+в сам SteelMC дополнительно соблюдайте их актуальные правила:
+[SteelMC contributing guide](https://github.com/Steel-Foundation/SteelMC/blob/master/CONTRIBUTING.md).
