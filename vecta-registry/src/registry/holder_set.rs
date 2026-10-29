@@ -48,6 +48,9 @@ pub trait RegistryHolderSetEntry: RegistryEntry + Debug + Send + Sync {
 
     /// Returns whether an entry belongs to this tag.
     fn holder_set_tag_contains(entry: &'static Self, tag: &Identifier) -> bool;
+
+    /// Returns the entries of this tag in tag order.
+    fn holder_set_tag_entries(tag: &Identifier) -> Vec<&'static Self>;
 }
 
 /// Vanilla's homogeneous holder-set representation for a registry.
@@ -75,6 +78,16 @@ impl<T: RegistryHolderSetEntry> RegistryHolderSet<T> {
         match self {
             Self::Tag(tag) => T::holder_set_tag_contains(entry, tag),
             Self::Direct(entries) => entries.contains(&entry),
+        }
+    }
+
+    /// Expands the set into concrete entries, preserving vanilla's iteration
+    /// order: tag contents in tag order, direct lists in list order.
+    #[must_use]
+    pub fn entries(&self) -> Vec<&'static T> {
+        match self {
+            Self::Tag(tag) => T::holder_set_tag_entries(tag),
+            Self::Direct(entries) => entries.clone(),
         }
     }
 
@@ -250,6 +263,10 @@ macro_rules! impl_registry_holder_set_entry {
 
             fn holder_set_tag_contains(entry: &'static Self, tag: &Identifier) -> bool {
                 REGISTRY.$registry.is_in_tag(entry, tag)
+            }
+
+            fn holder_set_tag_entries(tag: &Identifier) -> Vec<&'static Self> {
+                REGISTRY.$registry.get_tag(tag).unwrap_or_default()
             }
         }
     };
