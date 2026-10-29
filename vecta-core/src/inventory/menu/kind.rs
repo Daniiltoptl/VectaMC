@@ -93,6 +93,22 @@ pub trait MenuKind: ErasedType + Send + Sync {
         true
     }
 
+    /// Handles a container button click from the client's button packet, such as
+    /// stonecutter recipe selection or lectern page turning.
+    ///
+    /// Returns whether the click was accepted. Vanilla's
+    /// `AbstractContainerMenu.clickMenuButton` returns `false` for menus without
+    /// buttons, and the caller only broadcasts menu changes for accepted clicks.
+    fn click_menu_button(
+        &mut self,
+        _behavior: &mut MenuBehavior,
+        _guard: &mut ContainerLockGuard,
+        _player: &Player,
+        _button_id: i32,
+    ) -> bool {
+        false
+    }
+
     /// Handles a beacon effect update from the client's set-beacon packet.
     /// Returns `false` when the selection or payment is invalid.
     fn on_update_effects(

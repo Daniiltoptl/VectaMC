@@ -150,6 +150,15 @@ impl Menu {
         accepted
     }
 
+    /// Forwards a container button click from the set-button packet. Returns
+    /// whether the click was accepted; the caller broadcasts menu changes only
+    /// for accepted clicks, matching vanilla's `handleContainerButtonClick`.
+    pub fn click_menu_button(&mut self, player: &Player, button_id: i32) -> bool {
+        let Self { behavior, kind, .. } = self;
+        let mut guard = behavior.lock_all_containers();
+        kind.click_menu_button(behavior, &mut guard, player, button_id)
+    }
+
     /// Called when the menu is closed. Hands the carried item and input sections
     /// back to the player, then runs the kind's cleanup. Items drop into the
     /// world if the player can't take them (see

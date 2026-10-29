@@ -11,7 +11,7 @@ use vecta_registry::data_components::vanilla_components::{
 use vecta_registry::recipe::{
     BookCloningRecipe, CraftingInput, CraftingRecipe, DyeRecipe, FireworkRocketRecipe,
     FireworkStarFadeRecipe, FireworkStarRecipe, PositionedCraftingInput, ShieldDecorationRecipe,
-    TypedRecipeRef, vanilla_recipe_types,
+    SingleItemRecipeInput, StonecuttingRecipe, TypedRecipeRef, vanilla_recipe_types,
 };
 use vecta_registry::{
     DyeColor, ItemStackTemplate, REGISTRY, RegistryExt as _, TaggedRegistryExt as _,
@@ -24,6 +24,9 @@ use super::container::Container;
 
 /// Typed reference to one registered crafting recipe.
 pub type CraftingRecipeRef = TypedRecipeRef<CraftingRecipe, CraftingInput>;
+
+/// Typed reference to one registered stonecutting recipe.
+pub type StonecuttingRecipeRef = TypedRecipeRef<StonecuttingRecipe, SingleItemRecipeInput>;
 
 /// Updates a result container from the first matching crafting recipe.
 pub fn slot_changed_crafting_grid<R: Container>(crafting: &CraftingContainer, result: &mut R) {

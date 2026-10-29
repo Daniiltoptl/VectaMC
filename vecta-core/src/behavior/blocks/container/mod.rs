@@ -9,6 +9,7 @@ mod ender_chest_block;
 mod furnace_block;
 mod grindstone_block;
 mod shulker_box_block;
+mod stonecutter_block;
 
 pub use anvil_block::*;
 pub use barrel_block::*;
@@ -21,3 +22,4 @@ pub use ender_chest_block::*;
 pub use furnace_block::*;
 pub use grindstone_block::*;
 pub use shulker_box_block::*;
+pub use stonecutter_block::*;
