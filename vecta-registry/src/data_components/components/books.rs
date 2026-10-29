@@ -4,7 +4,7 @@ use std::io::{Cursor, Error, Result, Write};
 
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use simdnbt::{FromNbtTag, ToNbtTag};
-use text_components::TextComponent;
+use text_components::{TextComponent, resolving::TryTextResolutor};
 use vecta_utils::codec::VarInt;
 use vecta_utils::hash::{ComponentHasher, HashComponent, HashEntry, sort_map_entries};
 use vecta_utils::nbt::NbtNumeric as _;
@@ -254,6 +254,45 @@ impl WrittenBookContent {
         }
     }
 
+    /// Resolves every page through `resolutor`, mirroring
+    /// `WrittenBookContent.resolve`.
+    ///
+    /// Returns `None` when the content is already resolved or when a page
+    /// cannot be resolved or no longer fits the page length, which is the
+    /// signal vanilla uses to fall back to [`Self::mark_resolved`].
+    #[must_use]
+    pub fn resolve(&self, resolutor: &impl TryTextResolutor) -> Option<Self> {
+        if self.resolved {
+            return None;
+        }
+
+        let mut pages = Vec::with_capacity(self.pages.len());
+        for page in &self.pages {
+            pages.push(resolve_filterable_page(page, resolutor)?);
+        }
+
+        Some(Self {
+            title: self.title.clone(),
+            author: self.author.clone(),
+            generation: self.generation,
+            pages,
+            resolved: true,
+        })
+    }
+
+    /// Marks the content resolved without touching its pages, mirroring
+    /// `WrittenBookContent.markResolved`.
+    #[must_use]
+    pub fn mark_resolved(&self) -> Self {
+        Self {
+            title: self.title.clone(),
+            author: self.author.clone(),
+            generation: self.generation,
+            pages: self.pages.clone(),
+            resolved: true,
+        }
+    }
+
     #[must_use]
     pub fn pages(&self) -> &[Filterable<TextComponent>] {
         &self.pages
@@ -366,6 +405,36 @@ impl HashComponent for WrittenBookContent {
         }
         hash_entries(hasher, &mut entries);
     }
+}
+
+fn resolve_filterable_page(
+    page: &Filterable<TextComponent>,
+    resolutor: &impl TryTextResolutor,
+) -> Option<Filterable<TextComponent>> {
+    let raw = resolve_page(page.raw(), resolutor)?;
+    let filtered = match page.filtered() {
+        Some(filtered) => Some(resolve_page(filtered, resolutor)?),
+        None => None,
+    };
+    Some(Filterable::new(raw, filtered))
+}
+
+fn resolve_page(
+    component: &TextComponent,
+    resolutor: &impl TryTextResolutor,
+) -> Option<TextComponent> {
+    // Vanilla keeps the original component when resolution throws.
+    let resolved = component
+        .try_resolve(resolutor)
+        .unwrap_or_else(|_| component.clone());
+    (!is_page_too_large(&resolved)).then_some(resolved)
+}
+
+/// Vanilla `WrittenBookContent.isPageTooLarge`: the JSON form must fit the
+/// page length. Encoding failures are not treated as oversized pages.
+fn is_page_too_large(component: &TextComponent) -> bool {
+    serde_json::to_string(component)
+        .is_ok_and(|encoded| encoded.encode_utf16().count() > WrittenBookContent::PAGE_LENGTH)
 }
 
 fn filterable_string_nbt(value: &Filterable<String>) -> NbtCompound {
@@ -682,5 +751,104 @@ mod tests {
             item.components.get(WRITABLE_BOOK_CONTENT),
             Some(WritableBookContent::empty())
         );
+    }
+}
+
+#[cfg(test)]
+mod resolve_tests {
+    use text_components::{
+        TextComponent,
+        content::{Content, Resolvable},
+        resolving::TryTextResolutor,
+    };
+
+    use super::{Filterable, WrittenBookContent};
+
+    /// Resolves every score component to a fixed replacement and rejects
+    /// nothing, standing in for a command source.
+    struct FixedResolutor(TextComponent);
+
+    impl TryTextResolutor for FixedResolutor {
+        type Error = ();
+
+        fn try_resolve_content(
+            &self,
+            resolvable: &Resolvable,
+            _recursion_depth: usize,
+        ) -> Result<TextComponent, Self::Error> {
+            Ok(match resolvable {
+                Resolvable::Scoreboard { .. } => self.0.clone(),
+                _ => TextComponent::new(),
+            })
+        }
+    }
+
+    fn content(pages: Vec<Filterable<TextComponent>>, resolved: bool) -> WrittenBookContent {
+        WrittenBookContent::new(
+            Filterable::pass_through("Title".to_owned()),
+            "Author".to_owned(),
+            0,
+            pages,
+            resolved,
+        )
+        .expect("test written book should be valid")
+    }
+
+    #[test]
+    fn resolution_replaces_resolvable_pages_and_marks_the_content_resolved() {
+        let page = TextComponent {
+            content: Content::Resolvable(Resolvable::Scoreboard {
+                selector: "*".into(),
+                objective: "points".into(),
+            }),
+            ..Default::default()
+        };
+        let resolutor = FixedResolutor(TextComponent::plain("7"));
+
+        let resolved = content(vec![Filterable::pass_through(page)], false)
+            .resolve(&resolutor)
+            .expect("score pages should resolve");
+
+        assert!(resolved.resolved());
+        assert_eq!(resolved.pages()[0].raw(), &TextComponent::plain("7"));
+    }
+
+    #[test]
+    fn already_resolved_content_is_not_resolved_again() {
+        let resolutor = FixedResolutor(TextComponent::plain("7"));
+        let resolved = content(
+            vec![Filterable::pass_through(TextComponent::plain("page"))],
+            true,
+        );
+
+        assert!(resolved.resolve(&resolutor).is_none());
+    }
+
+    #[test]
+    fn a_page_that_grows_past_the_page_length_fails_resolution() {
+        let page = TextComponent {
+            content: Content::Resolvable(Resolvable::Scoreboard {
+                selector: "*".into(),
+                objective: "points".into(),
+            }),
+            ..Default::default()
+        };
+        let resolutor = FixedResolutor(TextComponent::plain("x".repeat(40_000)));
+
+        assert!(
+            content(vec![Filterable::pass_through(page)], false)
+                .resolve(&resolutor)
+                .is_none(),
+            "vanilla refuses to store a page whose JSON form is too long"
+        );
+    }
+
+    #[test]
+    fn marking_resolved_keeps_the_original_pages() {
+        let page = TextComponent::plain("page");
+        let marked = content(vec![Filterable::pass_through(page.clone())], false).mark_resolved();
+
+        assert!(marked.resolved());
+        assert_eq!(marked.pages()[0].raw(), &page);
     }
 }

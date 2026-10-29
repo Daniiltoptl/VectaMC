@@ -19,16 +19,22 @@ use text_components::TextComponent;
 use vecta_protocol::packets::game::SSeenAdvancement::Opened;
 use vecta_protocol::packets::game::{
     CContainerClose, COpenScreen, CSetPlayerInventory, ClickType, SContainerButtonClick,
-    SContainerClick, SContainerClose, SContainerSlotStateChanged, SRenameItem, SSeenAdvancement,
-    SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot, SoundSource,
+    SContainerClick, SContainerClose, SContainerSlotStateChanged, SEditBook, SRenameItem,
+    SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot,
+    SoundSource,
 };
-use vecta_registry::data_components::vanilla_components::SwingAnimation;
+use vecta_registry::data_components::components::{
+    Filterable, WritableBookContent, WrittenBookContent,
+};
+use vecta_registry::data_components::vanilla_components::{
+    SwingAnimation, WRITABLE_BOOK_CONTENT, WRITTEN_BOOK_CONTENT,
+};
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::mob_effect::MobEffectRef;
 use vecta_registry::sound_events;
 use vecta_registry::stat::vanilla_stat_types;
-use vecta_registry::vanilla_custom_stats;
 use vecta_registry::{REGISTRY, RegistryExt};
+use vecta_registry::{vanilla_custom_stats, vanilla_items};
 use vecta_utils::{
     Downcast as _,
     locks::Shared,
@@ -280,6 +286,72 @@ impl Player {
             }
             Err(OpenMenuUnavailable::Unavailable) => {}
         }
+    }
+
+    /// Handles a book edit or signing packet.
+    ///
+    /// Vanilla `ServerGamePacketListenerImpl.handleEditBook` only accepts hotbar
+    /// slots and the offhand slot, and both of its apply branches test the stack
+    /// for writable-book content rather than for a concrete item. The stack is
+    /// read again when the edit is applied, so a slot that changed in between
+    /// never receives the text.
+    pub fn handle_edit_book(&self, packet: SEditBook) {
+        let Ok(slot) = usize::try_from(packet.slot) else {
+            return;
+        };
+        if slot >= usize::from(PlayerInventory::SELECTION_SIZE)
+            && slot != PlayerInventory::SLOT_OFFHAND
+        {
+            return;
+        }
+
+        // Vanilla runs text filtering before touching the stack. No filter
+        // service exists in Vecta, so `TextFilter.DUMMY` semantics apply and
+        // both `filterableFromOutgoing` branches collapse to pass-through.
+        let SEditBook { pages, title, .. } = packet;
+
+        let mut inventory = self.inventory.lock();
+        let stack = inventory.get_item(slot).clone();
+        if !stack.has(WRITABLE_BOOK_CONTENT) {
+            return;
+        }
+
+        let Some(title) = title else {
+            let Ok(content) =
+                WritableBookContent::new(pages.into_iter().map(Filterable::pass_through).collect())
+            else {
+                return;
+            };
+            let mut edited = stack;
+            edited.set(WRITABLE_BOOK_CONTENT, content);
+            inventory.set_item(slot, edited);
+            drop(inventory);
+            self.broadcast_inventory_changes();
+            return;
+        };
+
+        // `ItemStack.transmuteCopy` keeps the explicit component patch, so the
+        // signed book keeps names, lore and other unrelated components.
+        let Ok(content) = WrittenBookContent::new(
+            Filterable::pass_through(title),
+            self.gameprofile.name().to_owned(),
+            0,
+            pages
+                .into_iter()
+                .map(|page| Filterable::pass_through(TextComponent::plain(page)))
+                .collect(),
+            true,
+        ) else {
+            return;
+        };
+
+        let mut signed = stack;
+        signed.set_item(&vanilla_items::WRITTEN_BOOK.key);
+        signed.remove(WRITABLE_BOOK_CONTENT);
+        signed.set(WRITTEN_BOOK_CONTENT, content);
+        inventory.set_item(slot, signed);
+        drop(inventory);
+        self.broadcast_inventory_changes();
     }
 
     /// Handles a container click packet (slot interaction).

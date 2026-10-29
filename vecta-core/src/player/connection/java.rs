@@ -15,11 +15,11 @@ use vecta_protocol::packets::game::{
     SAcceptTeleportation, SAttack, SChangeDifficulty, SChangeGameMode, SChat, SChatAck,
     SChatCommand, SChatSessionUpdate, SChunkBatchReceived, SClientCommand, SClientTickEnd,
     SCommandSuggestion, SContainerButtonClick, SContainerClick, SContainerClose,
-    SContainerSlotStateChanged, SInteract, SMovePlayer, SMovePlayerPos, SMovePlayerPosRot,
-    SMovePlayerRot, SMovePlayerStatusOnly, SMoveVehicle, SPickItemFromBlock, SPlayerAbilities,
-    SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoad, SPunch, SRenameItem,
-    SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot,
-    SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
+    SContainerSlotStateChanged, SEditBook, SInteract, SMovePlayer, SMovePlayerPos,
+    SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SMoveVehicle, SPickItemFromBlock,
+    SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoad, SPunch,
+    SRenameItem, SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem,
+    SSetCreativeModeSlot, SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
 };
 
 use crate::command::{handle_client_request, sender::CommandSender};
@@ -99,6 +99,7 @@ enum ScheduledPlayPacketKind {
     SelectBundleItem(SSelectBundleItem),
     ContainerClose(SContainerClose),
     ContainerSlotStateChanged(SContainerSlotStateChanged),
+    EditBook(SEditBook),
     SetCreativeModeSlot(SSetCreativeModeSlot),
     PlayerInput(SPlayerInput),
     PlayerCommand(SPlayerCommand),
@@ -178,6 +179,7 @@ impl ScheduledPlayPacket {
             | ScheduledPlayPacketKind::SetCarriedItem(_)
             | ScheduledPlayPacketKind::Punch(_)
             | ScheduledPlayPacketKind::PickItemFromBlock(_)
+            | ScheduledPlayPacketKind::EditBook(_)
             | ScheduledPlayPacketKind::ClientCommand(_) => ScheduledPacketExecution::PlayerLocal,
             ScheduledPlayPacketKind::PlayerCommand(packet) => match packet.action {
                 PlayerCommandAction::StartSprinting
@@ -316,6 +318,7 @@ impl ScheduledPlayPacket {
             ScheduledPlayPacketKind::SelectBundleItem(packet) => {
                 player.handle_select_bundle_item(packet);
             }
+            ScheduledPlayPacketKind::EditBook(packet) => player.handle_edit_book(packet),
             ScheduledPlayPacketKind::ContainerClose(packet) => {
                 player.handle_container_close(packet);
             }
@@ -802,6 +805,9 @@ impl JavaConnection {
             )),
             play::S_BUNDLE_ITEM_SELECTED => scheduled(ScheduledPlayPacketKind::SelectBundleItem(
                 SSelectBundleItem::read_packet(data)?,
+            )),
+            play::S_EDIT_BOOK => scheduled(ScheduledPlayPacketKind::EditBook(
+                SEditBook::read_packet(data)?,
             )),
             play::S_PUNCH => scheduled(ScheduledPlayPacketKind::Punch(SPunch::read_packet(data)?)),
             play::S_PLAYER_ACTION => scheduled(ScheduledPlayPacketKind::PlayerAction(

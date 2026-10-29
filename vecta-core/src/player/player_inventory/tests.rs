@@ -18,7 +18,9 @@ use crate::{
         menu::{Menu, MenuBehavior, MenuBuilder, MenuKind, kinds::BasicKind},
     },
     player::{Player, PlayerConnection, ResetReason, connection::NetworkConnection},
-    test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk, test_world},
+    test_support::{
+        TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk, test_world,
+    },
     world::World,
 };
 use rustc_hash::FxHashMap;
@@ -26,7 +28,7 @@ use simdnbt::owned::{NbtList, NbtTag};
 use text_components::TextComponent;
 use vecta_protocol::{
     packet_traits::{CompressionInfo, EncodedPacket},
-    packets::game::{ClickType, HashedStack, SContainerClick, SSetCreativeModeSlot},
+    packets::game::{ClickType, HashedStack, SContainerClick, SEditBook, SSetCreativeModeSlot},
 };
 use vecta_registry::{
     RegistryEntry, init_vanilla_registry, item_stack::ItemStack, vanilla_entities, vanilla_items,
@@ -35,6 +37,7 @@ use vecta_registry::{
 use vecta_utils::{
     ChunkPos, Downcast as _, DowncastType, DowncastTypeKey, Identifier, WorldAabb,
     locks::{IntoShared as _, Shared},
+    text::DisplayResolutor,
     types::{GameType, InteractionHand},
 };
 
@@ -2098,4 +2101,236 @@ fn resolve_beacon_effect_separates_absent_from_unknown_ids() {
 
     assert_eq!(Player::resolve_beacon_effect(Some(9999)), Err(()));
     assert_eq!(Player::resolve_beacon_effect(Some(-1)), Err(()));
+}
+
+fn writable_book_with_pages(pages: &[&str]) -> ItemStack {
+    use vecta_registry::data_components::components::{Filterable, WritableBookContent};
+    use vecta_registry::data_components::vanilla_components::WRITABLE_BOOK_CONTENT;
+
+    let mut stack = ItemStack::new(&vanilla_items::WRITABLE_BOOK);
+    stack.set(
+        WRITABLE_BOOK_CONTENT,
+        WritableBookContent::new(
+            pages
+                .iter()
+                .map(|page| Filterable::pass_through((*page).to_owned()))
+                .collect(),
+        )
+        .expect("test writable book should be valid"),
+    );
+    stack
+}
+
+fn edit_book_packet(slot: i32, pages: &[&str], title: Option<&str>) -> SEditBook {
+    SEditBook {
+        slot,
+        pages: pages.iter().map(|page| (*page).to_owned()).collect(),
+        title: title.map(ToOwned::to_owned),
+    }
+}
+
+fn book_test_player(name: &'static str) -> (Arc<Player>, TestWorld) {
+    init_globals();
+    let fixture = fresh_test_world(name);
+    insert_ready_full_chunk(&fixture.world, ChunkPos::new(0, 0));
+    let player = TestPlayerBuilder::new(Arc::clone(&fixture.world), name, 1).build();
+    player.set_client_loaded(true);
+    (player, fixture)
+}
+
+fn inventory_item(player: &Player, slot: usize) -> ItemStack {
+    player.inventory.lock().get_item(slot).clone()
+}
+
+#[test]
+fn saving_a_writable_book_replaces_its_pages_through_the_packet_handler() {
+    use vecta_registry::data_components::vanilla_components::WRITABLE_BOOK_CONTENT;
+
+    let (player, _fixture) = book_test_player("BookSaver");
+    player
+        .inventory
+        .lock()
+        .set_item(3, writable_book_with_pages(&["old"]));
+
+    player.handle_edit_book(edit_book_packet(3, &["first", "second"], None));
+
+    let stack = inventory_item(&player, 3);
+    assert!(stack.is(&vanilla_items::WRITABLE_BOOK));
+    let content = stack
+        .get(WRITABLE_BOOK_CONTENT)
+        .expect("saved book keeps writable content");
+    let pages = content
+        .pages()
+        .iter()
+        .map(|page| page.raw().as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(pages, vec!["first", "second"]);
+    assert!(
+        content.pages().iter().all(|page| page.filtered().is_none()),
+        "no filter service exists, so vanilla keeps pass-through text"
+    );
+}
+
+#[test]
+fn signing_a_writable_book_transmutes_it_into_a_written_book() {
+    use vecta_registry::data_components::vanilla_components::{
+        WRITABLE_BOOK_CONTENT, WRITTEN_BOOK_CONTENT,
+    };
+
+    let (player, _fixture) = book_test_player("BookSigner");
+    player
+        .inventory
+        .lock()
+        .set_item(0, writable_book_with_pages(&["draft"]));
+
+    player.handle_edit_book(edit_book_packet(0, &["page one"], Some("My Book")));
+
+    let stack = inventory_item(&player, 0);
+    assert!(stack.is(&vanilla_items::WRITTEN_BOOK));
+    assert!(!stack.has(WRITABLE_BOOK_CONTENT));
+
+    let content = stack
+        .get(WRITTEN_BOOK_CONTENT)
+        .expect("signed book carries written content");
+    assert_eq!(content.title().raw(), "My Book");
+    assert_eq!(content.author(), "BookSigner");
+    assert_eq!(content.generation(), 0);
+    assert!(
+        content.resolved(),
+        "signing produces already-resolved pages"
+    );
+    assert_eq!(content.pages().len(), 1);
+    assert_eq!(
+        content.pages()[0].raw().to_plain(&DisplayResolutor),
+        "page one"
+    );
+}
+
+#[test]
+fn signing_preserves_unrelated_components_from_the_writable_book() {
+    use text_components::TextComponent;
+    use vecta_registry::data_components::vanilla_components::{CUSTOM_NAME, WRITTEN_BOOK_CONTENT};
+
+    let (player, _fixture) = book_test_player("BookComponents");
+    let mut stack = writable_book_with_pages(&["draft"]);
+    stack.set(CUSTOM_NAME, TextComponent::plain("Renamed"));
+    player.inventory.lock().set_item(1, stack);
+
+    player.handle_edit_book(edit_book_packet(1, &["page"], Some("Title")));
+
+    let stack = inventory_item(&player, 1);
+    assert!(stack.is(&vanilla_items::WRITTEN_BOOK));
+    assert_eq!(
+        stack.get(CUSTOM_NAME),
+        Some(&TextComponent::plain("Renamed")),
+        "`ItemStack.transmuteCopy` keeps the explicit component patch"
+    );
+    assert!(stack.has(WRITTEN_BOOK_CONTENT));
+}
+
+#[test]
+fn editing_the_offhand_book_uses_the_offhand_slot() {
+    use vecta_registry::data_components::vanilla_components::WRITABLE_BOOK_CONTENT;
+
+    let (player, _fixture) = book_test_player("BookOffhand");
+    player.inventory.lock().set_item(
+        PlayerInventory::SLOT_OFFHAND,
+        writable_book_with_pages(&["draft"]),
+    );
+
+    player.handle_edit_book(edit_book_packet(
+        i32::try_from(PlayerInventory::SLOT_OFFHAND).expect("offhand index fits an i32"),
+        &["offhand page"],
+        None,
+    ));
+
+    let stack = inventory_item(&player, PlayerInventory::SLOT_OFFHAND);
+    assert_eq!(
+        stack
+            .get(WRITABLE_BOOK_CONTENT)
+            .expect("offhand book should be edited")
+            .pages()[0]
+            .raw(),
+        "offhand page"
+    );
+}
+
+#[test]
+fn editing_rejects_slots_outside_the_hotbar_and_offhand() {
+    let (player, _fixture) = book_test_player("BookBadSlot");
+    for slot in [9, 35, 36, 41] {
+        player
+            .inventory
+            .lock()
+            .set_item(slot, writable_book_with_pages(&["draft"]));
+        let before = inventory_item(&player, slot);
+
+        player.handle_edit_book(edit_book_packet(
+            i32::try_from(slot).expect("inventory index fits an i32"),
+            &["should not apply"],
+            Some("Title"),
+        ));
+
+        assert_eq!(
+            inventory_item(&player, slot),
+            before,
+            "slot {slot} must not accept book edits"
+        );
+    }
+
+    player.handle_edit_book(edit_book_packet(-1, &["page"], None));
+}
+
+#[test]
+fn editing_ignores_stacks_without_writable_book_content() {
+    let (player, _fixture) = book_test_player("BookWrongItem");
+    player
+        .inventory
+        .lock()
+        .set_item(2, ItemStack::with_count(&vanilla_items::STONE, 4));
+    let before = inventory_item(&player, 2);
+
+    player.handle_edit_book(edit_book_packet(2, &["page"], Some("Title")));
+
+    assert_eq!(inventory_item(&player, 2), before);
+}
+
+#[test]
+fn resending_an_edit_after_signing_leaves_the_written_book_untouched() {
+    let (player, _fixture) = book_test_player("BookAfterSign");
+    player
+        .inventory
+        .lock()
+        .set_item(4, writable_book_with_pages(&["draft"]));
+
+    player.handle_edit_book(edit_book_packet(4, &["page"], Some("Title")));
+    let signed = inventory_item(&player, 4);
+
+    player.handle_edit_book(edit_book_packet(4, &["overwrite"], None));
+
+    assert_eq!(inventory_item(&player, 4), signed);
+}
+
+#[test]
+fn a_signed_book_survives_a_persistent_round_trip() {
+    use std::io::Cursor;
+
+    use simdnbt::{FromNbtTag as _, borrow::read_tag};
+
+    let (player, _fixture) = book_test_player("BookRoundTrip");
+    player
+        .inventory
+        .lock()
+        .set_item(5, writable_book_with_pages(&["draft"]));
+
+    player.handle_edit_book(edit_book_packet(5, &["kept page"], Some("Kept Title")));
+    let signed = inventory_item(&player, 5);
+
+    let tag = signed.to_nbt_tag_ref();
+    let mut bytes = Vec::new();
+    tag.write(&mut bytes);
+    let borrowed = read_tag(&mut Cursor::new(bytes.as_slice())).expect("saved book should parse");
+    let loaded = ItemStack::from_nbt_tag(borrowed.as_tag()).expect("saved book should load");
+
+    assert_eq!(loaded, signed);
 }

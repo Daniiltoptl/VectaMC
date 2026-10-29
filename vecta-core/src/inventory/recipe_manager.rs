@@ -440,4 +440,79 @@ mod tests {
         assert!(result.is(&vanilla_items::PURPLE_DYE));
         assert_eq!(result.get(DYE), Some(&DyeColor::Purple));
     }
+
+    fn signed_book(generation: i32) -> ItemStack {
+        use text_components::TextComponent;
+        use vecta_registry::data_components::components::{Filterable, WrittenBookContent};
+        use vecta_registry::data_components::vanilla_components::WRITTEN_BOOK_CONTENT;
+
+        let mut stack = ItemStack::new(&vanilla_items::WRITTEN_BOOK);
+        stack.set(
+            WRITTEN_BOOK_CONTENT,
+            WrittenBookContent::new(
+                Filterable::pass_through("Title".to_owned()),
+                "Author".to_owned(),
+                generation,
+                vec![Filterable::pass_through(TextComponent::plain("page"))],
+                true,
+            )
+            .expect("test written book should be valid"),
+        );
+        stack
+    }
+
+    #[test]
+    fn book_cloning_copies_the_signed_book_and_raises_its_generation() {
+        use vecta_registry::data_components::vanilla_components::WRITTEN_BOOK_CONTENT;
+
+        init_vanilla_registry();
+        let input = CraftingInput::new(
+            2,
+            1,
+            vec![
+                signed_book(0),
+                ItemStack::new(&vanilla_items::WRITABLE_BOOK),
+            ],
+        );
+        let Some(recipe) = REGISTRY
+            .recipes
+            .find_match(&vanilla_recipe_types::CRAFTING, &input)
+        else {
+            panic!("a signed book and a writable book should match book cloning");
+        };
+
+        let result = assemble_recipe(recipe, &input);
+
+        assert!(result.is(&vanilla_items::WRITTEN_BOOK));
+        assert_eq!(result.count(), 1);
+        let content = result
+            .get(WRITTEN_BOOK_CONTENT)
+            .expect("the copy keeps written content");
+        assert_eq!(content.generation(), 1);
+        assert_eq!(content.title().raw(), "Title");
+        assert_eq!(content.author(), "Author");
+    }
+
+    #[test]
+    fn book_cloning_refuses_generations_outside_the_recipe_range() {
+        init_vanilla_registry();
+        for generation in [2, 3] {
+            let input = CraftingInput::new(
+                2,
+                1,
+                vec![
+                    signed_book(generation),
+                    ItemStack::new(&vanilla_items::WRITABLE_BOOK),
+                ],
+            );
+
+            assert!(
+                REGISTRY
+                    .recipes
+                    .find_match(&vanilla_recipe_types::CRAFTING, &input)
+                    .is_none(),
+                "generation {generation} is outside the default 0..=1 range"
+            );
+        }
+    }
 }
