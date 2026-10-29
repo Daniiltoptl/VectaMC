@@ -284,6 +284,16 @@ impl Player {
         dist_sq < max_range * max_range
     }
 
+    /// Returns true when `entity` is a live target within entity interaction range.
+    ///
+    /// Mirrors vanilla `Player.isWithinEntityInteractionRange(Entity, double)`,
+    /// which rejects removed entities before measuring their bounding box.
+    #[must_use]
+    pub fn is_entity_within_interaction_range(&self, entity: &dyn Entity, buffer: f64) -> bool {
+        !entity.is_removed()
+            && self.is_within_entity_interaction_range(entity.bounding_box(), buffer)
+    }
+
     /// Handles spectator camera selection.
     pub fn handle_spectator_action(&self, packet: SSpectatorAction) {
         if !self.has_client_loaded() || self.game_mode() != GameType::Spectator {

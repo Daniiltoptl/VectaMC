@@ -8,7 +8,9 @@ use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::{NbtCompound, NbtTag};
 use vecta_macros::entity_behavior;
 use vecta_registry::entity_type::EntityTypeRef;
+use vecta_registry::item_stack::ItemStack;
 use vecta_registry::vanilla_entity_data::EndCrystalEntityData;
+use vecta_registry::vanilla_items;
 use vecta_utils::{BlockPos, locks::SyncMutex};
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
@@ -95,6 +97,10 @@ impl Entity for EndCrystalEntity {
 
     fn is_pickable(&self) -> bool {
         true
+    }
+
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        Some(ItemStack::new(&vanilla_items::END_CRYSTAL))
     }
 
     fn blocks_building(&self) -> bool {

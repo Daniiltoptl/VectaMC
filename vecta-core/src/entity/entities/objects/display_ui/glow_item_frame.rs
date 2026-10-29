@@ -122,6 +122,10 @@ impl Entity for GlowItemFrameEntity {
         self.inner.is_pickable()
     }
 
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        self.inner.get_pick_result()
+    }
+
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
         self.inner.hurt(world, source, amount)
     }

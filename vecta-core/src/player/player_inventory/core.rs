@@ -1,4 +1,4 @@
-use std::{array, ops::Range};
+use std::{array, mem, ops::Range};
 
 use simdnbt::owned::{NbtList, NbtTag};
 use vecta_registry::{enchantment_effect::EnchantmentEffectComponent, item_stack::ItemStack};
@@ -283,33 +283,39 @@ impl PlayerInventory {
             .map(|i| i as u8)
     }
 
-    /// Swaps items between selected hotbar slot and the given slot.
-    /// Used for pick block when item is in main inventory but not hotbar.
+    /// Moves the stack in `slot` into a hotbar slot and selects it.
+    ///
+    /// Mirrors vanilla `Inventory.pickSlot`: the destination is
+    /// [`Self::get_suitable_hotbar_slot`] and the two slots are swapped, so the
+    /// previously selected stack takes the source slot.
     pub fn pick_slot(&mut self, slot: u8) {
-        let slot = slot as usize;
-        if slot >= Self::INVENTORY_SIZE {
+        if usize::from(slot) >= Self::INVENTORY_SIZE {
             return;
         }
-        let selected = self.selected as usize;
-        self.items.swap(selected, slot);
+        let selected = self.get_suitable_hotbar_slot();
+        self.set_selected_slot(selected);
+        self.items.swap(usize::from(selected), usize::from(slot));
         self.set_changed();
     }
 
-    /// Adds an item to the hotbar (for creative pick block) and selects it.
-    /// Returns true if successful.
+    /// Places `stack` in a hotbar slot and selects it (creative pick block).
+    ///
+    /// Mirrors vanilla `Inventory.addAndPickItem`: the destination is
+    /// [`Self::get_suitable_hotbar_slot`], an occupying stack is relocated to
+    /// [`Self::get_free_slot`] when one exists, and it is overwritten otherwise.
+    /// `stack` must be non-empty, matching every vanilla caller.
     pub fn add_and_pick_item(&mut self, stack: ItemStack) -> bool {
-        // Find first empty hotbar slot
-        for i in 0..Self::SELECTION_SIZE {
-            let j = usize::from(i);
-            if self.items[j].is_empty() {
-                self.items[j] = stack;
-                self.selected = i;
-                self.set_changed();
-                return true;
-            }
+        let selected = self.get_suitable_hotbar_slot();
+        self.set_selected_slot(selected);
+
+        let selected_index = usize::from(selected);
+        let displaced = mem::replace(&mut self.items[selected_index], stack);
+        if !displaced.is_empty()
+            && let Some(free_slot) = self.get_free_slot()
+        {
+            self.items[usize::from(free_slot)] = displaced;
         }
-        // No empty slot, replace current slot
-        self.items[self.selected as usize] = stack;
+
         self.set_changed();
         true
     }

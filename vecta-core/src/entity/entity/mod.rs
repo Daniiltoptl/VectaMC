@@ -1498,6 +1498,16 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         self.downcast_ref::<Player>()
     }
 
+    /// Returns the stack the pick-block key produces for this entity.
+    ///
+    /// Mirrors vanilla `Entity.getPickResult`. Vanilla declares the base result
+    /// as `null` and overrides it on `Mob` (spawn egg), item frames, leash
+    /// knots, end crystals and the vehicle hierarchy; the default here delegates
+    /// the mob rule to [`Mob::get_pick_result`] and stays `None` otherwise.
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        self.as_mob().and_then(Mob::get_pick_result)
+    }
+
     /// Visits vanilla `Entity.getWeaponItem` without copying inventory state.
     fn with_weapon_item(&self, visitor: &mut dyn FnMut(Option<&ItemStack>)) {
         let Some(living) = self.as_living_entity() else {

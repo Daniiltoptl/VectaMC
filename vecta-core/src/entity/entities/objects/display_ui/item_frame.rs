@@ -532,6 +532,15 @@ impl Entity for ItemFrameEntity {
         self.is_pickable_block_attached_entity()
     }
 
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        let framed = self.item();
+        Some(if framed.is_empty() {
+            self.frame_item_stack()
+        } else {
+            framed.copy_with_count(framed.count())
+        })
+    }
+
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
         if !self.is_fixed() {
             if self.is_invulnerable_to_base(source) {

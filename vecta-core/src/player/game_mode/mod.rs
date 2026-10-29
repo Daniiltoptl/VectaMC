@@ -13,8 +13,8 @@ use vecta_math::wrap_degrees;
 use vecta_protocol::packets::game::{
     CBlockChangedAck, CBlockUpdate, CChangeDifficulty, CGameEvent, COpenSignEditor,
     CPlayerInfoUpdate, CSetCamera, CSetEntityMotion, CSetHeldSlot, GameEventType, PlayerAction,
-    SAttack, SInteract, SPickItemFromBlock, SPlayerAction, SSignUpdate, SSpectatorAction, SUseItem,
-    SUseItemOn,
+    SAttack, SInteract, SPickItemFromBlock, SPickItemFromEntity, SPlayerAction, SSignUpdate,
+    SSpectatorAction, SUseItem, SUseItemOn,
 };
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::Direction;

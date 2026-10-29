@@ -255,6 +255,10 @@ impl Entity for LeashFenceKnotEntity {
         self.is_pickable_block_attached_entity()
     }
 
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        Some(ItemStack::new(&vanilla_items::LEAD))
+    }
+
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {
         self.hurt_block_attached_entity(world, source, amount)
     }

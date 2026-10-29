@@ -176,6 +176,40 @@ impl Player {
         }
     }
 
+    /// Applies vanilla `ServerGamePacketListenerImpl.tryPickItem` to a resolved stack.
+    ///
+    /// Shared by the block and entity pick-block requests. Vanilla gates this on
+    /// `ItemStack.isItemEnabled(enabledFeatures)`; Vecta has no per-connection
+    /// enabled-feature set, so every registered item is enabled.
+    pub fn try_pick_item(&self, item_stack: ItemStack) {
+        let mut inventory = self.inventory.lock();
+
+        match inventory.find_slot_matching_item_with_same_components(&item_stack) {
+            Some(slot_with_item) => {
+                if PlayerInventory::is_hotbar_slot(slot_with_item) {
+                    inventory.set_selected_slot(slot_with_item);
+                } else {
+                    inventory.pick_slot(slot_with_item);
+                }
+            }
+            None => {
+                if self.has_infinite_materials() {
+                    inventory.add_and_pick_item(item_stack);
+                }
+            }
+        }
+
+        self.send_packet(CSetHeldSlot {
+            slot: i32::from(inventory.get_selected_slot()),
+        });
+
+        drop(inventory);
+        self.inventory_menu
+            .lock()
+            .behavior_mut()
+            .broadcast_changes(&self.connection);
+    }
+
     /// Handles the pick block action (middle click on a block).
     ///
     /// # Panics
@@ -213,40 +247,7 @@ impl Player {
 
         // TODO: If include_data, copy the block entity data into the picked item stack.
 
-        let mut inventory = self.inventory.lock();
-
-        match inventory.find_slot_matching_item_with_same_components(&item_stack) {
-            Some(slot_with_item) => {
-                if PlayerInventory::is_hotbar_slot(slot_with_item) {
-                    inventory.set_selected_slot(slot_with_item);
-                } else {
-                    let slot = inventory.get_suitable_hotbar_slot();
-
-                    inventory.set_selected_slot(slot);
-                    inventory.pick_slot(slot_with_item);
-                }
-            }
-            None => {
-                if self.has_infinite_materials() {
-                    let slot = inventory.get_suitable_hotbar_slot();
-
-                    inventory.set_selected_slot(slot);
-                    inventory.add_and_pick_item(item_stack);
-                } else {
-                    return;
-                }
-            }
-        }
-
-        self.send_packet(CSetHeldSlot {
-            slot: i32::from(inventory.get_selected_slot()),
-        });
-
-        drop(inventory);
-        self.inventory_menu
-            .lock()
-            .behavior_mut()
-            .broadcast_changes(&self.connection);
+        self.try_pick_item(item_stack);
     }
 
     /// Handles a sign update packet from the client.

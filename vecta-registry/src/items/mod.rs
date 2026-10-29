@@ -12,8 +12,9 @@ use crate::{
     blocks::BlockRef,
     data_components::{
         DataComponentMap,
-        vanilla_components::{ITEM_MODEL, ITEM_NAME},
+        vanilla_components::{ENTITY_DATA, ITEM_MODEL, ITEM_NAME},
     },
+    entity_type::EntityTypeRef,
     item_stack::ItemStack,
     vanilla_items,
 };
@@ -192,6 +193,21 @@ impl ItemRegistry {
             .enumerate()
             .map(|(id, &item)| (id, item))
     }
+
+    /// Returns the first item whose `ENTITY_DATA` component targets `entity_type`.
+    ///
+    /// Vanilla equivalent: `SpawnEggItem.byId(EntityType)`, which scans the item
+    /// registry's component lookup for a matching `DataComponents.ENTITY_DATA`.
+    /// Vanilla does not restrict the result to the `SpawnEggItem` class, so this
+    /// lookup stays component-driven as well.
+    #[must_use]
+    pub fn by_entity_data_type(&self, entity_type: EntityTypeRef) -> Option<ItemRef> {
+        self.items_by_id.iter().copied().find(|item| {
+            item.components
+                .get(ENTITY_DATA)
+                .is_some_and(|data| data.entity_type() == entity_type)
+        })
+    }
 }
 
 #[cfg(test)]
@@ -203,7 +219,7 @@ mod tests {
     use crate::{
         REGISTRY,
         data_components::vanilla_components::{ITEM_MODEL, ITEM_NAME},
-        init_vanilla_registry, vanilla_blocks, vanilla_items,
+        init_vanilla_registry, vanilla_blocks, vanilla_entities, vanilla_items,
     };
 
     #[test]
@@ -264,6 +280,27 @@ mod tests {
             !REGISTRY
                 .items
                 .is_block_item(&vanilla_items::DIAMOND_PICKAXE)
+        );
+    }
+
+    #[test]
+    fn entity_data_lookup_finds_the_matching_spawn_egg() {
+        init_vanilla_registry();
+
+        assert_eq!(
+            REGISTRY.items.by_entity_data_type(&vanilla_entities::PIG),
+            Some(&*vanilla_items::PIG_SPAWN_EGG)
+        );
+        assert_eq!(
+            REGISTRY
+                .items
+                .by_entity_data_type(&vanilla_entities::PIGLIN_BRUTE),
+            Some(&*vanilla_items::PIGLIN_BRUTE_SPAWN_EGG)
+        );
+        assert_eq!(
+            REGISTRY.items.by_entity_data_type(&vanilla_entities::ITEM),
+            None,
+            "entities without a spawn egg must not resolve to one"
         );
     }
 }

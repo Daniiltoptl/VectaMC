@@ -17,9 +17,9 @@ use vecta_protocol::packets::game::{
     SCommandSuggestion, SContainerButtonClick, SContainerClick, SContainerClose,
     SContainerSlotStateChanged, SEditBook, SInteract, SMovePlayer, SMovePlayerPos,
     SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SMoveVehicle, SPickItemFromBlock,
-    SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput, SPlayerLoad, SPunch,
-    SRenameItem, SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem,
-    SSetCreativeModeSlot, SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
+    SPickItemFromEntity, SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput,
+    SPlayerLoad, SPunch, SRenameItem, SSeenAdvancement, SSelectBundleItem, SSetBeacon,
+    SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
 };
 
 use crate::command::{handle_client_request, sender::CommandSender};
@@ -112,6 +112,7 @@ enum ScheduledPlayPacketKind {
     Punch(SPunch),
     PlayerAction(SPlayerAction),
     PickItemFromBlock(SPickItemFromBlock),
+    PickItemFromEntity(SPickItemFromEntity),
     SignUpdate(SSignUpdate),
     SpectatorAction(SSpectatorAction),
     ClientCommand(SClientCommand),
@@ -179,6 +180,7 @@ impl ScheduledPlayPacket {
             | ScheduledPlayPacketKind::SetCarriedItem(_)
             | ScheduledPlayPacketKind::Punch(_)
             | ScheduledPlayPacketKind::PickItemFromBlock(_)
+            | ScheduledPlayPacketKind::PickItemFromEntity(_)
             | ScheduledPlayPacketKind::EditBook(_)
             | ScheduledPlayPacketKind::ClientCommand(_) => ScheduledPacketExecution::PlayerLocal,
             ScheduledPlayPacketKind::PlayerCommand(packet) => match packet.action {
@@ -347,6 +349,9 @@ impl ScheduledPlayPacket {
             }
             ScheduledPlayPacketKind::PickItemFromBlock(packet) => {
                 player.handle_pick_item_from_block(packet);
+            }
+            ScheduledPlayPacketKind::PickItemFromEntity(packet) => {
+                player.handle_pick_item_from_entity(packet);
             }
             ScheduledPlayPacketKind::SignUpdate(packet) => player.handle_sign_update(packet),
             ScheduledPlayPacketKind::SpectatorAction(packet) => {
@@ -816,6 +821,11 @@ impl JavaConnection {
             play::S_PICK_ITEM_FROM_BLOCK => scheduled(ScheduledPlayPacketKind::PickItemFromBlock(
                 SPickItemFromBlock::read_packet(data)?,
             )),
+            play::S_PICK_ITEM_FROM_ENTITY => {
+                scheduled(ScheduledPlayPacketKind::PickItemFromEntity(
+                    SPickItemFromEntity::read_packet(data)?,
+                ))
+            }
             play::S_SIGN_UPDATE => scheduled(ScheduledPlayPacketKind::SignUpdate(
                 SSignUpdate::read_packet(data)?,
             )),
@@ -1364,6 +1374,15 @@ mod tests {
             execution(ScheduledPlayPacketKind::PickItemFromBlock(
                 SPickItemFromBlock {
                     pos: BlockPos::new(0, 64, 0),
+                    include_data: false,
+                },
+            )),
+            ScheduledPacketExecution::PlayerLocal
+        );
+        assert_eq!(
+            execution(ScheduledPlayPacketKind::PickItemFromEntity(
+                SPickItemFromEntity {
+                    id: 1,
                     include_data: false,
                 },
             )),

@@ -8,6 +8,8 @@ use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::{NbtCompound, NbtTag};
 use vecta_macros::entity_behavior;
 use vecta_registry::entity_type::EntityTypeRef;
+use vecta_registry::item_stack::ItemStack;
+use vecta_registry::vanilla_items;
 use vecta_utils::Identifier;
 use vecta_utils::axis::Axis;
 use vecta_utils::block_util::FoundRectangle;
@@ -98,6 +100,10 @@ impl Entity for ChestMinecartEntity {
 
     fn is_pickable(&self) -> bool {
         !self.is_removed()
+    }
+
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        Some(ItemStack::new(&vanilla_items::CHEST_MINECART))
     }
 
     fn is_pushable(&self) -> bool {

@@ -376,6 +376,18 @@ pub trait Mob: LivingEntity + Leashable {
         is_saddled
     }
 
+    /// Returns the spawn egg that spawns this mob's entity type.
+    ///
+    /// Mirrors vanilla `Mob.getPickResult`, which resolves
+    /// `SpawnEggItem.byId(this.getType())` through the item registry's
+    /// `ENTITY_DATA` component lookup.
+    fn get_pick_result(&self) -> Option<ItemStack> {
+        REGISTRY
+            .items
+            .by_entity_data_type(self.entity_type())
+            .map(ItemStack::new)
+    }
+
     fn custom_server_ai_step(&self) {}
 
     /// Runs vanilla `Mob.ate`, invoked after an eating goal resolves a block.

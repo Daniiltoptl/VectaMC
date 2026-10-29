@@ -5,9 +5,9 @@ use super::{
     DamageType, ENTITY_INTERACTION_RANGE_BUFFER, EnchantmentDamageContext,
     EnchantmentPostAttackContext, Entity, EntityTypeRef, GameType, ITEM_BEHAVIORS, InteractionHand,
     InteractionResult, InventoryAccess, ItemStack, LivingEntity, PiercingWeapon, Player, SAttack,
-    SInteract, SharedEntity, SoundEventHolder, SoundEventRef, TextComponent, TranslatedMessage,
-    World, WorldAabb, enchantment_helper, piercing_ray_hit_t, vanilla_attributes,
-    vanilla_damage_types, vanilla_entities,
+    SInteract, SPickItemFromEntity, SharedEntity, SoundEventHolder, SoundEventRef, TextComponent,
+    TranslatedMessage, World, WorldAabb, enchantment_helper, piercing_ray_hit_t,
+    vanilla_attributes, vanilla_damage_types, vanilla_entities,
 };
 
 use crate::player::food_data::food_constants;
@@ -695,6 +695,39 @@ impl Player {
         let result = self.interact_on(target.as_ref(), packet.hand, packet.location);
         self.swing_after_interaction(packet.hand, animation, result);
         self.broadcast_inventory_changes();
+    }
+
+    /// Handles the pick block action (middle click on an entity).
+    ///
+    /// Mirrors vanilla `ServerGamePacketListenerImpl.handlePickItemFromEntity`.
+    /// Vanilla looks the target up with `Level.getEntityOrPart`; Vecta has no
+    /// multi-part entity bodies, so the plain entity lookup is equivalent.
+    ///
+    /// The `includeData` branch of the vanilla handler only prints an `Avatar`
+    /// game profile for game-master players. Vecta has no `Avatar` profile
+    /// command foundation, so that branch is intentionally absent.
+    pub fn handle_pick_item_from_entity(&self, packet: SPickItemFromEntity) {
+        let world = self.get_world();
+
+        let Some(entity) = world.get_entity_by_id(packet.id) else {
+            return;
+        };
+
+        if !self
+            .is_entity_within_interaction_range(entity.as_ref(), ENTITY_INTERACTION_RANGE_BUFFER)
+        {
+            return;
+        }
+
+        let Some(pick_result) = entity.get_pick_result() else {
+            return;
+        };
+
+        if pick_result.is_empty() {
+            return;
+        }
+
+        self.try_pick_item(pick_result);
     }
 
     /// Awards stats and sends particles when an entity gets attacked by this player.
