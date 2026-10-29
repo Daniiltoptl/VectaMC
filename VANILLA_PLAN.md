@@ -201,14 +201,19 @@
   banners/frames, decorations, cloning/scaling/locking и persistence.
 - [ ] **V05.08** Writable/Written/KnowledgeBook: редактирование, подпись,
   resolution, validation, copy generation, открытие и рецепты.
+  N03 добавляет редактирование, подпись, открытие и проверки копирования;
+  [ревью N03/N19](planning/reviews/N03-N19.md) фиксирует исправления и ограничения.
+  KnowledgeBook/recipe book и точный codec JSON для предела страниц остаются открытыми.
 - [ ] **V05.09** ArmorStand, Painting, ItemFrame/GlowItemFrame,
   EndCrystal и Cushion: placement, collision, support, damage, drops и NBT.
   - [x] ItemFrame/GlowItemFrame: размещение, вставка и поворот предмета,
     проверка опоры, дроп рамки и содержимого, `Fixed`, save/load.
     [Ревью Codex и исправления](planning/reviews/V05.09a.md): ENTITY_DATA,
     имена дропа, NBT и world-border collision; добавлены граничные сценарии.
-    Не поддержано: отслеживание карт (зависит от V05.07) и pick-block
-    для сущностей. Painting и остальные типы группы не начаты.
+    N19 добавляет entity pick-block для рамок и других уже реализованных типов;
+    [ревью и ограничения](planning/reviews/N03-N19.md).
+    Не поддержано: отслеживание карт (зависит от V05.07).
+    Painting и остальные типы группы не начаты.
 - [ ] **V05.10** Boat/ChestBoat/Raft и Minecart items — только после
   рабочих сущностей, пассажиров, управления и контейнеров.
 - [ ] **V05.11** Banner, SmithingTemplate, DiscFragment, DebugStick,

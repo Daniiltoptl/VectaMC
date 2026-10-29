@@ -709,7 +709,7 @@ impl Player {
     pub fn handle_pick_item_from_entity(&self, packet: SPickItemFromEntity) {
         let world = self.get_world();
 
-        let Some(entity) = world.get_entity_by_id(packet.id) else {
+        let Some(entity) = world.get_accessible_entity_by_id(packet.id) else {
             return;
         };
 

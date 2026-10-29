@@ -1627,8 +1627,8 @@ items,wooden_shovel,Item,no,generic_or_separate_path
 items,wooden_spear,Item,no,generic_or_separate_path
 items,wooden_sword,Item,no,generic_or_separate_path
 items,woodland_mansion_map,MapItem,no,check_specialization_or_shared_path
-items,writable_book,WritableBookItem,no,check_specialization_or_shared_path
-items,written_book,WrittenBookItem,no,check_specialization_or_shared_path
+items,writable_book,WritableBookItem,yes,audit_existing_implementation
+items,written_book,WrittenBookItem,yes,audit_existing_implementation
 items,yellow_banner,BannerItem,no,check_specialization_or_shared_path
 items,yellow_bed,BlockItem,yes,audit_existing_implementation
 items,yellow_bundle,BundleItem,yes,audit_existing_implementation

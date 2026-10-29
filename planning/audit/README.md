@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `4be347ab3a091db6462bf47fe20bcfaf4360c1e5`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `c825001bb2e5a9585b8da529c52470ba1de4b9b3`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -10,7 +10,7 @@
 
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
-| items | 1658 | 1276 |
+| items | 1658 | 1278 |
 | blocks | 1286 | 1028 |
 | entities | 161 | 26 |
 
@@ -50,8 +50,6 @@
 | `SpectralArrowItem` | `spectral_arrow` |
 | `TridentItem` | `trident` |
 | `WindChargeItem` | `wind_charge` |
-| `WritableBookItem` | `writable_book` |
-| `WrittenBookItem` | `written_book` |
 
 ### blocks
 

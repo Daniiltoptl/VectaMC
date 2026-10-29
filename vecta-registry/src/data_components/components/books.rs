@@ -424,9 +424,9 @@ fn resolve_page(
     resolutor: &impl TryTextResolutor,
 ) -> Option<TextComponent> {
     // Vanilla keeps the original component when resolution throws.
-    let resolved = component
-        .try_resolve(resolutor)
-        .unwrap_or_else(|_| component.clone());
+    let Ok(resolved) = component.try_resolve(resolutor) else {
+        return Some(component.clone());
+    };
     (!is_page_too_large(&resolved)).then_some(resolved)
 }
 
@@ -850,5 +850,35 @@ mod resolve_tests {
 
         assert!(marked.resolved());
         assert_eq!(marked.pages()[0].raw(), &page);
+    }
+
+    #[test]
+    fn failed_resolution_preserves_even_an_oversized_original_page() {
+        struct FailingResolutor;
+
+        impl TryTextResolutor for FailingResolutor {
+            type Error = ();
+
+            fn try_resolve_content(
+                &self,
+                _resolvable: &Resolvable,
+                _recursion_depth: usize,
+            ) -> Result<TextComponent, Self::Error> {
+                Err(())
+            }
+        }
+
+        let page = TextComponent {
+            content: Content::Resolvable(Resolvable::Scoreboard {
+                selector: "x".repeat(40_000).into(),
+                objective: "points".into(),
+            }),
+            ..Default::default()
+        };
+        let resolved = content(vec![Filterable::pass_through(page.clone())], false)
+            .resolve(&FailingResolutor)
+            .expect("vanilla returns the original page directly when resolution throws");
+        assert_eq!(resolved.pages()[0].raw(), &page);
+        assert!(resolved.resolved());
     }
 }

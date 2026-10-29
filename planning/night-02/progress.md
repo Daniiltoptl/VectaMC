@@ -1,6 +1,16 @@
 # Night 02 — progress journal
 
 Branch: `codex/night-vanilla-02`
+
+Review status: [Codex review of N03/N19](../reviews/N03-N19.md) supplements the
+implementation entries below. These entries describe the original commits;
+they do not certify full vanilla parity or client testing.
+
+Codex follow-up: corrected hidden-entity pick lookup, book-resolution lock scope,
+writable-item opening by written-content component, and exception fallback for
+oversized original pages. Six regression scenarios were added. Final workspace
+run: **3820 passed, 0 failed, 18 ignored** on Windows; detailed limits and logs are
+recorded in the review.
 Base: `6f8b7fec3` (docs: prepare second vanilla development night after bundle review)
 Verified game commit inherited from night 01: `d5866e78e1214393142136d57e210459765be230`
 

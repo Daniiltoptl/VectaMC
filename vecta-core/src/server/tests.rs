@@ -231,6 +231,7 @@ async fn test_server_with_worlds(
     .await
 }
 
+mod book_resolution;
 mod connection_lifecycle;
 mod player_limit;
 
