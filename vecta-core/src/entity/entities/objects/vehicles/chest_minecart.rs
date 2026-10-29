@@ -17,7 +17,8 @@ use vecta_utils::locks::SyncMutex;
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
 use crate::entity::{
-    Entity, EntityBase, EntityBaseLoad, reset_forward_direction_of_relative_portal_position,
+    Entity, EntityBase, EntityBaseLoad, EntityMovementEmission,
+    reset_forward_direction_of_relative_portal_position,
 };
 use crate::portal::portal_shape::PortalShape;
 use crate::world::World;
@@ -96,6 +97,10 @@ impl Entity for ChestMinecartEntity {
 
     fn entity_type(&self) -> EntityTypeRef {
         self.entity_type
+    }
+
+    fn movement_emission(&self) -> EntityMovementEmission {
+        EntityMovementEmission::Events
     }
 
     fn is_pickable(&self) -> bool {

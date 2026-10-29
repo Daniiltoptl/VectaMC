@@ -52,9 +52,9 @@ vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,98,// TODO(environ
 vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,274,// TODO(turtle-entity): spawn one baby Turtle per egg here once the
 vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,303,// TODO(zombie-family): widen this to the whole zombie set (a shared
 vecta-core/src/behavior/item.rs,113,// TODO: Mirror Item.use for BLOCKS_ATTACKS and KINETIC_WEAPON so
-vecta-core/src/behavior/item.rs,328,// TODO: spawn item-crumb particles when `has_consume_particles()` is set.
-vecta-core/src/behavior/item.rs,397,// TODO: Spawn item-crumb particles when `has_consume_particles()` is set.
-vecta-core/src/behavior/item.rs,398,// TODO: Trigger CriteriaTriggers.CONSUME_ITEM once the advancement-criteria
+vecta-core/src/behavior/item.rs,332,// TODO: spawn item-crumb particles when `has_consume_particles()` is set.
+vecta-core/src/behavior/item.rs,401,// TODO: Spawn item-crumb particles when `has_consume_particles()` is set.
+vecta-core/src/behavior/item.rs,402,// TODO: Trigger CriteriaTriggers.CONSUME_ITEM once the advancement-criteria
 vecta-core/src/behavior/items/block_transformer.rs,67,// TODO: Trigger ITEM_USED_ON_BLOCK advancements here
 vecta-core/src/behavior/items/bonemeal.rs,91,// TODO: implement coral and underwater bonemeal tag selection.
 vecta-core/src/behavior/items/bucket.rs,134,// TODO: Remove fallback once all waterloggable blocks implement pickup_block.
@@ -106,13 +106,13 @@ vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,190,// TODO: Route 
 vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,225,// TODO: Replace these local transfers with the shared conversion state transfer API.
 vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,255,// TODO: add this function to DyeColor
 vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,266,// TODO: add this function to DyeColor
-vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,95,"// TODO: Implement portal handling, fire refresh, dragon fight callbacks, and explosion behavior."
-vecta-core/src/entity/entities/objects/items/item_entity.rs,698,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,185,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,520,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,547,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,656,// TODO: check if passing a lock is better here
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,895,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,99,"// TODO: Implement portal handling, fire refresh, dragon fight callbacks, and explosion behavior."
+vecta-core/src/entity/entities/objects/items/item_entity.rs,702,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,186,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,521,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,548,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,657,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,900,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
 vecta-core/src/entity/entity/mod.rs,1348,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
 vecta-core/src/entity/entity/mod.rs,2525,// TODO: Recursively reposition this entity's passengers (vanilla
@@ -126,9 +126,9 @@ vecta-core/src/entity/living_entity.rs,1078,/// equal to the base reward (see TO
 vecta-core/src/entity/living_entity.rs,1080,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
 vecta-core/src/entity/living_entity.rs,1099,// TODO: Drop non-mob equipment overrides once those foundations exist.
 vecta-core/src/entity/living_entity.rs,1401,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
-vecta-core/src/entity/living_entity.rs,1797,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/entity/living_entity.rs,2515,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
-vecta-core/src/entity/living_entity.rs,3124,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
+vecta-core/src/entity/living_entity.rs,1815,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/entity/living_entity.rs,2533,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
+vecta-core/src/entity/living_entity.rs,3142,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
 vecta-core/src/entity/mob/mod.rs,689,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
 vecta-core/src/entity/mob/mod.rs,776,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
 vecta-core/src/entity/mob/mod.rs,1069,// TODO: Apply EquipmentDrops enchantment value effects once damage
@@ -147,7 +147,6 @@ vecta-core/src/fluid/collision.rs,19,// TODO: Add occlusion cache for performanc
 vecta-core/src/fluid/mod.rs,7,"//! - TODO: Remaining entity fluid side effects: drowning, splash particles/sounds."
 vecta-core/src/fluid/mod.rs,8,"//! - TODO: Block item drops when water destroys blocks (cactus infrastructure merged, needs implementation)."
 vecta-core/src/fluid/mod.rs,9,//! - TODO: Lava random tick fire spread.
-vecta-core/src/inventory/slots/armor_slot.rs,70,"// TODO: Call player.onEquipItem(equipmentSlot, previous, stack) here"
 vecta-core/src/inventory/slots/crafting_slots.rs,69,// TODO: Enforce limited crafting and retain the recipe once player recipe books exist.
 vecta-core/src/inventory/slots/crafting_slots.rs,89,// TODO: Unlock the recipe and trigger RECIPE_CRAFTED once their foundations exist.
 vecta-core/src/inventory/slots/furnace_slots.rs,135,// TODO: Award crafted stats/recipes and trigger RECIPE_CRAFTED once supported.
@@ -187,12 +186,12 @@ vecta-core/src/player/mod.rs,1707,// TODO: Trigger advancement criteria.
 vecta-core/src/player/mod.rs,1708,// TODO: Increment the score of some objectives of this player.
 vecta-core/src/player/mod.rs,1714,// TODO: Handle team kill
 vecta-core/src/player/mod.rs,1793,// TODO: Tick stats even when the player has been dead for more than 20 ticks.
-vecta-core/src/player/mod.rs,2034,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/player/mod.rs,2031,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
 vecta-core/src/player/movement/mod.rs,690,// TODO: Add auto-spin exemption when riptide/spin attack state exists.
 vecta-core/src/player/movement/mod.rs,995,// TODO: Implement once controlled vehicle jumping and vehicle inventory interfaces exist.
 vecta-core/src/player/player_inventory/player_handlers.rs,256,// TODO: Implement container button click handling
 vecta-core/src/player/player_inventory/player_handlers.rs,540,// TODO: Implement slot state change handling
-vecta-core/src/player/player_inventory/player_handlers.rs,1212,// TODO: Check if player is alive (health > 0)
+vecta-core/src/player/player_inventory/player_handlers.rs,1206,// TODO: Check if player is alive (health > 0)
 vecta-core/src/player/sleep.rs,234,// TODO: trigger CriteriaTriggers.SLEPT_IN_BED once the foundation for advancements exist.
 vecta-core/src/player/stats_counter.rs,175,// TODO: Add score to the objectives having the criterion of this stat for the player.
 vecta-core/src/player/stats_counter.rs,181,// TODO: Reset score of the objectives having the criterion of this stat for the player.

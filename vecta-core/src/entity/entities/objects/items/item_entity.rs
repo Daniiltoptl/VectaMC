@@ -22,8 +22,8 @@ use crate::entity::damage::DamageSource;
 
 use crate::behavior::ITEM_BEHAVIORS;
 use crate::entity::{
-    DEFAULT_AIR_DRAG, Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntitySyncedData,
-    RemovalReason,
+    DEFAULT_AIR_DRAG, Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntityMovementEmission,
+    EntitySyncedData, RemovalReason,
 };
 use crate::inventory::container::Container;
 use crate::physics::MoverType;
@@ -532,6 +532,10 @@ impl Entity for ItemEntity {
 
     fn entity_type(&self) -> EntityTypeRef {
         self.entity_type
+    }
+
+    fn movement_emission(&self) -> EntityMovementEmission {
+        EntityMovementEmission::None
     }
 
     fn tick(self: Arc<Self>) {

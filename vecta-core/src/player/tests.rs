@@ -1833,3 +1833,6 @@ fn sword_does_not_destroy_blocks_in_creative() {
         "swords should not destroy blocks when player is in creative mode."
     );
 }
+
+#[path = "upstream_fixes_tests.rs"]
+mod upstream_fixes;

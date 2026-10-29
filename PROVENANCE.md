@@ -17,6 +17,22 @@ VectaMC основан на [SteelMC](https://github.com/Steel-Foundation/SteelM
 в `vecta`, пользовательское название — VectaMC. Названия SteelMC в этом документе
 и UPSTREAM.md указывают на происхождение кода.
 
+## Перенесённые исправления SteelMC · 2026-10-30
+
+После развилки отдельно адаптированы следующие upstream-коммиты под `vecta-*`
+и существующие Vecta menu/item contracts; это не полный merge ветки SteelMC.
+
+| Upstream commit | Изменение |
+| --- | --- |
+| [3e75305c4](https://github.com/Steel-Foundation/SteelMC/commit/3e75305c478e0ac2a0744a47876be56a61a9aaa2) | Подбор предметов в рассчитанной позиции игрока до восстановления позиции тика |
+| [feb5a7a10](https://github.com/Steel-Foundation/SteelMC/commit/feb5a7a10e6d716922580b976ed9dda6608a331f) | Movement emissions: убрать звуки шагов у предметов и других затронутых сущностей |
+| [1770402c2](https://github.com/Steel-Foundation/SteelMC/commit/1770402c217484f1e92038313ae4412a5e1f4a3b) | Звуки экипировки через меню, creative slot packet и использование предмета |
+
+Авторы этих исправлений: AshuraVie / AshuraV1 и CuzImClicks, как записано
+в исходных коммитах. Vanilla-эталон остаётся 26.3; данные и generated Rust
+этот перенос не меняет. Подробности проверок — в
+[отчёте переноса](planning/reviews/upstream-2026-10-30.md).
+
 ## Локальный ванильный эталон
 
 `update-minecraft-src.sh` вызывает `scripts/prepare_vanilla.py`. На Windows
