@@ -14,8 +14,11 @@
 
 Начальный запрос: [GEMINI_TASK.md](GEMINI_TASK.md). Поимённая инвентаризация:
 [planning/audit/README.md](planning/audit/README.md).
-Для длинного автономного сеанса: [очередь N00–N20](NIGHT_TASK.md)
-с зависимостями, проверками и форматом передачи на ревью.
+Для продолжения в WorkBuddy / DeepSeek: [актуальная очередь из 72 задач](NIGHT_TASK_03.md)
+и [готовый стартовый запрос](WORKBUDDY_START_03.md). В пакете указаны текущая база,
+зависимости, vanilla references, проверки и формат передачи на ревью.
+[N00–N20](NIGHT_TASK.md) и [сеанс 02](NIGHT_TASK_02.md) сохраняют предыдущие задания;
+их старые указания начать заново не заменяют актуальную историю реализации.
 
 - [objects.csv](planning/audit/objects.csv) — все 3105 записей текущего
   `classes.json`: 1658 предметов, 1286 блоков и 161 тип сущности, включая
@@ -45,7 +48,7 @@
 | Наблюдение | Где проверено | Связанные задачи |
 | --- | --- | --- |
 | Часть блок-сущностей сохраняет только NBT через fallback | `vecta-core/src/block_entity/registry.rs`, `entities/unimplemented.rs` | V06 |
-| Рамка ещё требует взаимодействий, дропа, карт и проверки опоры | `vecta-core/src/entity/entities/objects/display_ui/item_frame.rs` | V05, V08 |
+| Рамки поддерживают размещение, взаимодействия, опору, дроп и pick; отслеживание карт остаётся открытым | `vecta-core/src/entity/entities/objects/display_ui/item_frame.rs`, `planning/reviews/N03-N19.md` | V05, V08 |
 | End crystal содержит пропуски взрыва и связи с боем дракона | `vecta-core/src/entity/entities/objects/explosives/end_crystal.rs` | V07, V08 |
 | Chest minecart пока не даёт полноценные движение и контейнер | `vecta-core/src/entity/entities/objects/vehicles/chest_minecart.rs` | V08 |
 | Обработчики кнопок и состояния слотов меню имеют TODO | `vecta-core/src/player/player_inventory/player_handlers.rs` | V04 |
