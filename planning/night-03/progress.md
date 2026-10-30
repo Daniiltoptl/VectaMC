@@ -197,3 +197,74 @@ Not covered here: the lectern's `HAS_BOOK`/`POWERED` shape variants are already
 data-driven, page-turn sound is emitted through level event 1043 only (no
 explicit `SoundEvents.PAGE_TURN` call, matching vanilla), and a real client is
 still required to confirm the book render and the page buttons.
+
+## W03-04 — chiseled bookshelf: reproduced divergences
+
+Status: audited line by line and fixed; the implementation was **not** rewritten.
+
+Gap before: the block behavior gated both interactions on the *stored stack*
+(`bookshelf.item(slot).is_empty()`) while Vanilla gates them on the
+`slot_N_occupied` block-state property. The two normally agree because
+`updateState` recomputes every property from the contents, but
+`BlockItem.updateBlockEntityComponents` → `applyComponentsFromItemStack` →
+`applyImplicitComponents` copies the `minecraft:container` items **without**
+recomputing the properties. A bookshelf placed from such a stack therefore holds
+books that the block state calls absent, and the two implementations diverged:
+
+| case | Vanilla (state-gated) | Vecta before (content-gated) |
+| --- | --- | --- |
+| empty hand on a "free" occupied slot | `CONSUME`, book stays | book extracted into the inventory |
+| book in hand on a "free" occupied slot | `setItem` overwrites, hidden book destroyed | `TRY_WITH_EMPTY_HAND` → extraction |
+
+Also fixed: `useItemOn` checked the item tag before the block entity (Vanilla
+returns `PASS` when the block has no `ChiseledBookShelfBlockEntity`) and
+`useWithoutItem` skipped the pickup sound and the game event when the slot was
+empty.
+
+Vanilla sources used: `ChiseledBookShelfBlock` (`useItemOn`, `useWithoutItem`,
+`addBook`, `removeBook`, `getStateForPlacement`, `affectNeighborsAfterRemoval`,
+`getAnalogOutputSignal`), `ChiseledBookShelfBlockEntity` (`updateState`,
+`loadAdditional`/`saveAdditional`, `acceptsItemType`, `removeItem`, `setItem`,
+`canTakeItem`, `applyImplicitComponents`, `collectImplicitComponents`),
+`SelectableSlotContainer.getHitSlot`, `ListBackedContainer.canPlaceItem`,
+`BlockItem.updateBlockEntityComponents`, `Containers.dropContents` /
+`updateNeighboursAfterDestroy`, `ServerPlayerGameMode.useItemOn`.
+
+Vecta changes:
+- `behavior/blocks/container/chiseled_bookshelf_block.rs`: new
+  `OCCUPIED_PROPERTIES` table + `is_slot_occupied`; `use_item_on` now resolves the
+  block entity first, then the tag, then the hit slot, then the **state
+  property**; `use_without_item` gates on the state property, always plays the
+  pickup sound and always fires `BLOCK_CHANGE`.
+- `block_entity/entities/chiseled_bookshelf.rs`: `insert_book` no longer refuses
+  an occupied slot — Vanilla's `setItem` override writes unconditionally, so the
+  occupancy gate belongs to the block behavior only.
+
+Audited and already matching (no change): hit-region math for all four facings
+and both rows (`Mth.clamp(Mth.floor(px / (16/3|16/2)), 0, n-1)`, face-origin
+subtraction), `BOOKSHELF_BOOKS` tag gate, one-book insertion, enchanted-book
+insert/pickup sound selection, `removeItem` ignoring `count`, oversized stacks
+kept unclamped, `last_interacted_slot` + `Items` NBT round trip (including a
+reused target), `getLastInteractedSlot() + 1` comparator (14 for slot 5, 0 when
+never touched), `Containers.updateNeighboursAfterDestroy` →
+`updateNeighbourForOutputSignal`, `preRemoveSideEffects` → `dropContents` with
+Vanilla's per-item block-local offsets, `applyImplicitComponents` /
+`collectImplicitComponents` equivalence, and full-container (unsided) automation
+access because the block entity is a `Container`.
+
+Verification:
+- `cargo test --locked -p vecta-core --lib chiseled_bookshelf -j 1` → 17 passed.
+  New: stale-property gating for both interactions, off-hand insertion, removal
+  into a full inventory (drop at the player's feet), automation access through
+  the container ref publishing `slot_0_occupied`.
+- `cargo test --locked -p vecta-core --lib -j 1` → 2967 passed, 0 failed,
+  1 ignored.
+- `cargo clippy --locked -p vecta-core --all-targets --all-features -j 1 -- -D warnings`
+  → exit 0. `cargo fmt --all --check` → exit 0.
+
+Not covered here: `handle_pick_item_from_block` still carries
+`// TODO: If include_data, copy the block entity data into the picked item
+stack.`, so `collectImplicitComponents` has no consumer — creative pick-block
+returns a bookshelf without its `minecraft:container` component. That is a
+cross-cutting block-entity component gap (see `blockers.md`, B-W03-04), not a
+chiseled-bookshelf-specific defect.

@@ -7,7 +7,9 @@ use glam::DVec3;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
-use vecta_registry::blocks::properties::{BlockStateProperties, Direction, EnumProperty};
+use vecta_registry::blocks::properties::{
+    BlockStateProperties, BoolProperty, Direction, EnumProperty,
+};
 use vecta_registry::data_components::vanilla_components::CONTAINER;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::sound_event::SoundEventRef;
@@ -40,6 +42,16 @@ pub struct ChiseledBookShelfBlock {
 }
 
 const HORIZONTAL_FACING: &EnumProperty<Direction> = &BlockStateProperties::HORIZONTAL_FACING;
+
+/// `SLOT_0_OCCUPIED` … `SLOT_5_OCCUPIED`, in slot order.
+const OCCUPIED_PROPERTIES: [&BoolProperty; CHISELED_BOOKSHELF_SLOTS] = [
+    &BlockStateProperties::SLOT_0_OCCUPIED,
+    &BlockStateProperties::SLOT_1_OCCUPIED,
+    &BlockStateProperties::SLOT_2_OCCUPIED,
+    &BlockStateProperties::SLOT_3_OCCUPIED,
+    &BlockStateProperties::SLOT_4_OCCUPIED,
+    &BlockStateProperties::SLOT_5_OCCUPIED,
+];
 
 impl ChiseledBookShelfBlock {
     const PIXELS_PER_BLOCK_EDGE: f32 = 16.0;
@@ -86,6 +98,18 @@ impl ChiseledBookShelfBlock {
         let row = Self::section_index(1.0 - relative_hit.y, Self::ROW_COUNT);
         let column = Self::section_index(horizontal_fraction, Self::COLUMN_COUNT);
         Some(column + row * Self::COLUMN_COUNT as usize)
+    }
+
+    /// Returns whether Vanilla considers `slot` occupied.
+    ///
+    /// Vanilla gates both interactions on the `slot_N_occupied` block-state
+    /// property, never on the stored stack. The two normally agree because
+    /// `updateState` recomputes every property from the contents, but placing a
+    /// bookshelf from a `minecraft:container` component copies the items without
+    /// touching the properties, so the shelf starts out with contents that the
+    /// state claims are absent.
+    fn is_slot_occupied(state: BlockStateId, slot: usize) -> bool {
+        state.get_value(OCCUPIED_PROPERTIES[slot])
     }
 
     fn insert_sound(item: &ItemStack) -> SoundEventRef {
@@ -156,6 +180,13 @@ impl BlockBehavior for ChiseledBookShelfBlock {
         hit_result: &BlockHitResult,
         inv: &mut InventoryAccess,
     ) -> InteractionResult {
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return InteractionResult::Pass;
+        };
+        let Some(bookshelf) = block_entity.downcast_ref::<ChiseledBookShelfBlockEntity>() else {
+            return InteractionResult::Pass;
+        };
+
         let is_bookshelf_book = inv
             .with_item(|item| !item.is_empty() && item.item().has_tag(&ItemTag::BOOKSHELF_BOOKS));
         if !is_bookshelf_book {
@@ -165,13 +196,7 @@ impl BlockBehavior for ChiseledBookShelfBlock {
         let Some(slot) = Self::hit_slot(state, hit_result) else {
             return InteractionResult::Pass;
         };
-        let Some(block_entity) = world.get_block_entity(pos) else {
-            return InteractionResult::Pass;
-        };
-        let Some(bookshelf) = block_entity.downcast_ref::<ChiseledBookShelfBlockEntity>() else {
-            return InteractionResult::Pass;
-        };
-        if bookshelf.item(slot).is_some_and(|item| !item.is_empty()) {
+        if Self::is_slot_occupied(state, slot) {
             return InteractionResult::TryEmptyHandInteraction;
         }
 
@@ -203,23 +228,20 @@ impl BlockBehavior for ChiseledBookShelfBlock {
         hit_result: &BlockHitResult,
         _inv: &mut InventoryAccess,
     ) -> InteractionResult {
-        let Some(slot) = Self::hit_slot(state, hit_result) else {
-            return InteractionResult::Pass;
-        };
         let Some(block_entity) = world.get_block_entity(pos) else {
             return InteractionResult::Pass;
         };
         let Some(bookshelf) = block_entity.downcast_ref::<ChiseledBookShelfBlockEntity>() else {
             return InteractionResult::Pass;
         };
-        if bookshelf.item(slot).is_none_or(|item| item.is_empty()) {
+        let Some(slot) = Self::hit_slot(state, hit_result) else {
+            return InteractionResult::Pass;
+        };
+        if !Self::is_slot_occupied(state, slot) {
             return InteractionResult::Consume;
         }
 
         let removed = bookshelf.remove_book(slot);
-        if removed.is_empty() {
-            return InteractionResult::Consume;
-        }
         world.play_block_sound(
             Self::pickup_sound(&removed),
             pos,
@@ -298,9 +320,11 @@ mod tests {
 
     use super::*;
     use crate::behavior::PlacementOrientation;
+    use crate::block_entity::BlockEntity as _;
     use crate::bootstrap::init_globals;
     use crate::entity::entities::ItemEntity;
     use crate::inventory::container::Container as _;
+    use crate::inventory::lock::ContainerLockGuard;
     use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
 
     const TEST_POS: BlockPos = BlockPos::new(8, 64, 8);
@@ -331,6 +355,8 @@ mod tests {
     const DROP_SEARCH_MARGIN: f64 = 1.0;
     const SURVIVAL_STARTING_BOOK_COUNT: i32 = ChiseledBookShelfBlock::BOOKS_PER_INTERACTION + 1;
     const EXPECTED_ENCHANTED_BOOK_DROP_COUNT: i32 = ChiseledBookShelfBlock::BOOKS_PER_INTERACTION;
+    const MAIN_INVENTORY_SLOT_COUNT: usize = 36;
+    const FULL_STACK_COUNT: i32 = 64;
 
     fn state_facing(facing: Direction) -> BlockStateId {
         vanilla_blocks::CHISELED_BOOKSHELF
@@ -832,5 +858,319 @@ mod tests {
                 .sum::<i32>(),
             EXPECTED_ENCHANTED_BOOK_DROP_COUNT,
         );
+    }
+
+    /// Places a bookshelf the way `BlockItem` does for a stack that carries a
+    /// `minecraft:container` component.
+    fn place_with_component_book(
+        behavior: &ChiseledBookShelfBlock,
+        world: &Arc<World>,
+        state: BlockStateId,
+    ) {
+        let contents = ItemContainerContents::new(vec![Some(ItemStackTemplate::new(
+            &vanilla_items::WRITABLE_BOOK,
+        ))])
+        .expect("a single component slot is valid");
+        let mut placed_item = ItemStack::new(&vanilla_items::CHISELED_BOOKSHELF);
+        placed_item.set(CONTAINER, contents);
+        let is_secondary_use_active = false;
+        let source = PlacementSource::direct(
+            None,
+            InteractionHand::MainHand,
+            &mut placed_item,
+            PlacementOrientation::Directional {
+                direction: COMPONENT_PLACER_FACING,
+            },
+            is_secondary_use_active,
+        );
+        behavior.set_placed_by(state, world, TEST_POS, &source);
+    }
+
+    #[test]
+    fn automation_access_exposes_the_same_unsided_six_slot_container() {
+        init_globals();
+        let world_fixture = fresh_test_world("chiseled_bookshelf_automation");
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
+        assert!(world.set_block(
+            TEST_POS,
+            state_facing(INTERACTION_FACING),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let block_entity = world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity");
+        let bookshelf = block_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+
+        // Vanilla's block entity *is* a `Container`, so every automation face
+        // sees the same six slots and the same book-only placement policy.
+        let container_ref = bookshelf
+            .container_ref()
+            .expect("chiseled bookshelf exposes a container");
+        {
+            let mut guard = ContainerLockGuard::lock_all(&[&container_ref]);
+            let container = guard
+                .get(container_ref.container_id())
+                .expect("locked container should be readable");
+            assert_eq!(container.get_container_size(), CHISELED_BOOKSHELF_SLOTS);
+            assert!(
+                !container.can_place_item(TOP_LEFT_SLOT, &ItemStack::new(&vanilla_items::STONE))
+            );
+            assert!(container.can_place_item(TOP_LEFT_SLOT, &ItemStack::new(&vanilla_items::BOOK)));
+            assert!(guard.set_item(
+                container_ref.container_id(),
+                TOP_LEFT_SLOT,
+                ItemStack::new(&vanilla_items::BOOK),
+            ));
+        }
+
+        // Automation writes go through the same `updateState` path as a click.
+        assert!(
+            world
+                .get_block_state(TEST_POS)
+                .get_value(&BlockStateProperties::SLOT_0_OCCUPIED)
+        );
+        assert_eq!(bookshelf.last_interacted_slot(), TOP_LEFT_SLOT as i32);
+    }
+
+    #[test]
+    fn component_placed_bookshelf_gates_interactions_on_stale_occupied_properties() {
+        init_globals();
+        let world_fixture = fresh_test_world("chiseled_bookshelf_stale_properties");
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
+        let facing = COMPONENT_PLACER_FACING.opposite();
+        let state = state_facing(facing);
+        assert!(world.set_block(TEST_POS, state, UpdateFlags::UPDATE_ALL));
+        let behavior = ChiseledBookShelfBlock::new(&vanilla_blocks::CHISELED_BOOKSHELF);
+        let player = test_player(world);
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
+
+        place_with_component_book(&behavior, world, state);
+
+        // `applyImplicitComponents` copies the items without recomputing the
+        // occupied properties, so the shelf holds a book the state calls absent.
+        let placed_state = world.get_block_state(TEST_POS);
+        assert!(!placed_state.get_value(&BlockStateProperties::SLOT_0_OCCUPIED));
+        assert_eq!(
+            behavior.get_analog_output_signal(
+                placed_state,
+                world.as_ref(),
+                TEST_POS,
+                ARBITRARY_COMPARATOR_QUERY_DIRECTION,
+            ),
+            ChiseledBookShelfBlock::NO_COMPARATOR_OUTPUT,
+        );
+        let block_entity = world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity");
+        let bookshelf = block_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+        assert!(
+            bookshelf
+                .item(TOP_LEFT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::WRITABLE_BOOK))
+        );
+
+        // Empty hand on the "empty" slot: Vanilla returns CONSUME and keeps it.
+        player
+            .inventory
+            .lock()
+            .set_selected_item(ItemStack::empty());
+        assert_eq!(
+            behavior.use_without_item(
+                placed_state,
+                world,
+                TEST_POS,
+                &player,
+                &bookshelf_hit(facing, LEFT_COLUMN_HIT, TOP_ROW_HIT),
+                &mut inventory,
+            ),
+            InteractionResult::Consume,
+        );
+        assert!(
+            bookshelf
+                .item(TOP_LEFT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::WRITABLE_BOOK))
+        );
+
+        // A book in hand "inserts" into the same slot and destroys the hidden
+        // stack: only the stale property decides whether the slot is free, and
+        // Vanilla's `setItem` overwrites instead of rejecting the write.
+        player
+            .inventory
+            .lock()
+            .set_selected_item(ItemStack::with_count(
+                &vanilla_items::BOOK,
+                SURVIVAL_STARTING_BOOK_COUNT,
+            ));
+        assert_eq!(
+            behavior.use_item_on(
+                placed_state,
+                world,
+                TEST_POS,
+                &player,
+                InteractionHand::MainHand,
+                &bookshelf_hit(facing, LEFT_COLUMN_HIT, TOP_ROW_HIT),
+                &mut inventory,
+            ),
+            InteractionResult::Success,
+        );
+        assert!(
+            bookshelf
+                .item(TOP_LEFT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::BOOK))
+        );
+        assert!(
+            world
+                .get_block_state(TEST_POS)
+                .get_value(&BlockStateProperties::SLOT_0_OCCUPIED)
+        );
+        assert_eq!(bookshelf.last_interacted_slot(), TOP_LEFT_SLOT as i32);
+    }
+
+    #[test]
+    fn off_hand_books_are_inserted_from_the_off_hand_stack() {
+        init_globals();
+        let world_fixture = fresh_test_world("chiseled_bookshelf_off_hand");
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
+        let state = state_facing(INTERACTION_FACING);
+        assert!(world.set_block(TEST_POS, state, UpdateFlags::UPDATE_ALL));
+        let behavior = ChiseledBookShelfBlock::new(&vanilla_blocks::CHISELED_BOOKSHELF);
+        let player = test_player(world);
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::OffHand);
+
+        {
+            let mut player_inventory = player.inventory.lock();
+            player_inventory.set_selected_item(ItemStack::new(&vanilla_items::STONE));
+            player_inventory.set_item_in_hand(
+                InteractionHand::OffHand,
+                ItemStack::with_count(&vanilla_items::WRITTEN_BOOK, SURVIVAL_STARTING_BOOK_COUNT),
+            );
+        }
+
+        assert_eq!(
+            behavior.use_item_on(
+                state,
+                world,
+                TEST_POS,
+                &player,
+                InteractionHand::OffHand,
+                &bookshelf_hit(INTERACTION_FACING, RIGHT_COLUMN_HIT, BOTTOM_ROW_HIT),
+                &mut inventory,
+            ),
+            InteractionResult::Success,
+        );
+
+        {
+            let player_inventory = player.inventory.lock();
+            assert_eq!(
+                player_inventory
+                    .get_item_in_hand(InteractionHand::OffHand)
+                    .count(),
+                SURVIVAL_STARTING_BOOK_COUNT - ChiseledBookShelfBlock::BOOKS_PER_INTERACTION,
+            );
+            assert!(
+                player_inventory
+                    .get_item_in_hand(InteractionHand::MainHand)
+                    .is(&vanilla_items::STONE)
+            );
+        }
+        let block_entity = world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity");
+        let bookshelf = block_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+        assert!(
+            bookshelf
+                .item(BOTTOM_RIGHT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::WRITTEN_BOOK))
+        );
+        assert!(
+            world
+                .get_block_state(TEST_POS)
+                .get_value(&BlockStateProperties::SLOT_5_OCCUPIED)
+        );
+    }
+
+    #[test]
+    fn removal_into_a_full_inventory_drops_the_book_beside_the_shelf() {
+        init_globals();
+        let world_fixture = fresh_test_world("chiseled_bookshelf_full_inventory");
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
+        let state = state_facing(INTERACTION_FACING);
+        assert!(world.set_block(TEST_POS, state, UpdateFlags::UPDATE_ALL));
+        let behavior = ChiseledBookShelfBlock::new(&vanilla_blocks::CHISELED_BOOKSHELF);
+        let player = test_player(world);
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
+
+        let block_entity = world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity");
+        let bookshelf = block_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+        assert!(bookshelf.insert_book(
+            TOP_LEFT_SLOT,
+            ItemStack::new(&vanilla_items::ENCHANTED_BOOK),
+        ));
+        let occupied_state = world.get_block_state(TEST_POS);
+        assert!(occupied_state.get_value(&BlockStateProperties::SLOT_0_OCCUPIED));
+
+        {
+            let mut player_inventory = player.inventory.lock();
+            for slot in 0..MAIN_INVENTORY_SLOT_COUNT {
+                player_inventory.set_item(
+                    slot,
+                    ItemStack::with_count(&vanilla_items::STONE, FULL_STACK_COUNT),
+                );
+            }
+            player_inventory.set_item_in_hand(
+                InteractionHand::OffHand,
+                ItemStack::with_count(&vanilla_items::STONE, FULL_STACK_COUNT),
+            );
+        }
+
+        assert_eq!(
+            behavior.use_without_item(
+                occupied_state,
+                world,
+                TEST_POS,
+                &player,
+                &bookshelf_hit(INTERACTION_FACING, LEFT_COLUMN_HIT, TOP_ROW_HIT),
+                &mut inventory,
+            ),
+            InteractionResult::Success,
+        );
+
+        assert!(
+            player
+                .inventory
+                .lock()
+                .items()
+                .iter()
+                .all(|item| !item.is(&vanilla_items::ENCHANTED_BOOK))
+        );
+        // The drop happens at the player's feet, not at the shelf, so search the
+        // whole loaded chunk area shared by the player and the block.
+        let drop_search_area = WorldAabb::new(-16.0, -64.0, -16.0, 32.0, 320.0, 32.0);
+        let drops = world.get_entities_in_aabb_matching(&drop_search_area, |entity| {
+            entity.entity_type() == &vanilla_entities::ITEM
+        });
+        assert_eq!(drops.len(), 1);
+        let dropped = drops[0]
+            .downcast_ref::<ItemEntity>()
+            .expect("dropped entity should retain its concrete item type")
+            .get_item();
+        assert!(dropped.is(&vanilla_items::ENCHANTED_BOOK));
     }
 }

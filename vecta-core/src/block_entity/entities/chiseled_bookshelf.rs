@@ -141,7 +141,12 @@ impl ChiseledBookShelfBlockEntity {
         );
     }
 
-    /// Inserts a valid bookshelf book into an empty slot.
+    /// Stores a valid bookshelf book in `slot`, mirroring Vanilla's `setItem`.
+    ///
+    /// Vanilla's override writes the stack unconditionally: it neither checks the
+    /// `slot_N_occupied` properties nor rejects an already occupied slot, so a
+    /// caller that wants Vanilla's occupancy gate must check the block state
+    /// itself (see `ChiseledBookShelfBlock::use_item_on`).
     #[must_use]
     pub fn insert_book(&self, slot: usize, item: ItemStack) -> bool {
         if slot >= CHISELED_BOOKSHELF_SLOTS
@@ -152,12 +157,6 @@ impl ChiseledBookShelfBlockEntity {
         }
 
         let mut guard = ContainerLockGuard::lock_all(&[&self.container_ref]);
-        let Some(container) = guard.get(self.container_ref.container_id()) else {
-            return false;
-        };
-        if !container.get_item(slot).is_empty() {
-            return false;
-        }
         guard.set_item(self.container_ref.container_id(), slot, item)
     }
 
@@ -436,12 +435,14 @@ mod tests {
                 .map(|item| item.count()),
             Some(OVERSIZED_TEST_STACK_COUNT),
         );
+        // Vanilla's `setItem` override replaces the slot contents instead of
+        // rejecting an already occupied slot.
         let replacement = ItemStack::new(&vanilla_items::BOOK);
-        assert!(!bookshelf.insert_book(INTERACTION_TEST_SLOT, replacement));
+        assert!(bookshelf.insert_book(INTERACTION_TEST_SLOT, replacement));
 
         let removed = bookshelf.remove_book(INTERACTION_TEST_SLOT);
-        assert!(removed.is(&vanilla_items::WRITTEN_BOOK));
-        assert_eq!(removed.count(), OVERSIZED_TEST_STACK_COUNT);
+        assert!(removed.is(&vanilla_items::BOOK));
+        assert_eq!(removed.count(), MAX_BOOKS_PER_SLOT);
         assert_eq!(
             bookshelf.last_interacted_slot(),
             INTERACTION_TEST_SLOT as i32,
