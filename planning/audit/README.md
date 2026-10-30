@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `2f7e3980e8fb62a65b821dc39d3e537e64cc0eb6`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `4fb61ced82adef004a814050a8b671a9194bef08`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -11,7 +11,7 @@
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
 | items | 1658 | 1278 |
-| blocks | 1286 | 1032 |
+| blocks | 1286 | 1033 |
 | entities | 161 | 26 |
 
 Полный поимённый каталог, включая уже зарегистрированные объекты: [objects.csv](objects.csv).
@@ -19,7 +19,7 @@
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 253.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 250.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -61,7 +61,6 @@
 | `BrewingStandBlock` | `brewing_stand` |
 | `CalibratedSculkSensorBlock` | `calibrated_sculk_sensor` |
 | `CartographyTableBlock` | `cartography_table` |
-| `ChestBlock` | `chest` |
 | `CommandBlock` | `chain_command_block`, `command_block`, `repeating_command_block` |
 | `CopperGolemStatueBlock` | `waxed_copper_golem_statue`, `waxed_exposed_copper_golem_statue`, `waxed_oxidized_copper_golem_statue`, `waxed_weathered_copper_golem_statue` |
 | `CrafterBlock` | `crafter` |

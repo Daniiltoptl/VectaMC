@@ -75,7 +75,6 @@ vecta-core/src/block_entity/entities/beacon.rs,402,// TODO: Trigger the CONSTRUC
 vecta-core/src/block_entity/entities/bell.rs,199,// TODO: make bell sleep when not used
 vecta-core/src/block_entity/entities/brushable.rs,227,// TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
 vecta-core/src/block_entity/entities/potent_sulfur.rs,279,"// TODO: Add nausea ticker (WET / DORMANT states, every 10 ticks) after the mob-effect refactor adds timed instances and sync."
-vecta-core/src/block_entity/mod.rs,488,// TODO: Include stored block-entity components once Vecta has Vanilla's
 vecta-core/src/chunk/chunk_map/mod.rs,1332,"// TODO: Vecta records vanilla's FLAG_KEEP_DIMENSION_ACTIVE, but has no"
 vecta-core/src/chunk/paletted_container.rs,523,//TODO: Use a nonEmpty counter?
 vecta-core/src/chunk_saver/ram_only.rs,17,/// TODO:
@@ -150,7 +149,6 @@ vecta-core/src/fluid/mod.rs,9,//! - TODO: Lava random tick fire spread.
 vecta-core/src/inventory/slots/crafting_slots.rs,69,// TODO: Enforce limited crafting and retain the recipe once player recipe books exist.
 vecta-core/src/inventory/slots/crafting_slots.rs,89,// TODO: Unlock the recipe and trigger RECIPE_CRAFTED once their foundations exist.
 vecta-core/src/inventory/slots/furnace_slots.rs,135,// TODO: Award crafted stats/recipes and trigger RECIPE_CRAFTED once supported.
-vecta-core/src/inventory/slots/result_slot.rs,96,// TODO: Track the crafted count and run ITEM_CRAFTED/item callbacks.
 vecta-core/src/player/advancement/mod.rs,64,//TODO: register advancement listener
 vecta-core/src/player/advancement/mod.rs,97,//TODO: unregister advancement listener
 vecta-core/src/player/advancement/rewards.rs,37,//TODO grant recipes and functions when implemented
@@ -163,7 +161,6 @@ vecta-core/src/player/game_mode/block_breaking.rs,354,"// TODO: Check for GameMa
 vecta-core/src/player/game_mode/block_breaking.rs,559,// TODO: Apply efficiency enchantment
 vecta-core/src/player/game_mode/block_breaking.rs,560,// TODO: Apply haste/mining fatigue effects
 vecta-core/src/player/game_mode/block_breaking.rs,561,// TODO: Apply underwater/in-air penalties
-vecta-core/src/player/game_mode/block_interaction.rs,248,"// TODO: If include_data, copy the block entity data into the picked item stack."
 vecta-core/src/player/game_mode/entity_interaction.rs,22,// TODO: Support direct sound holders when entity sound playback can send them.
 vecta-core/src/player/game_mode/entity_interaction.rs,445,"// TODO: Apply crits, sweep attacks, and sounds."
 vecta-core/src/player/game_mode/entity_interaction.rs,532,// TODO: Open entity menu providers in spectator once that foundation exists.
@@ -211,30 +208,30 @@ vecta-registry/src/blocks/properties.rs,992,//TODO: These got quickly implemente
 vecta-registry/src/game_events.rs,18,// TODO: GameEventListenerRegistry per Chunk Section
 vecta-registry/src/item_stack.rs,288,// TODO: Trigger ITEM_DURABILITY_CHANGED advancement criteria
 vecta-registry/src/item_stack.rs,293,// TODO: Call onEquippedItemBroken callback which:
-vecta-registry/src/item_stack.rs,700,// TODO: Implement when damage component system is ready
-vecta-registry/src/item_stack.rs,712,// TODO: Implement when enchantment registry and system are ready
-vecta-registry/src/item_stack.rs,727,// TODO: Implement when enchantment registry and system are ready
-vecta-registry/src/item_stack.rs,742,// TODO: Implement when block entity system is ready
-vecta-registry/src/item_stack.rs,754,// TODO: Implement block state copying
-vecta-registry/src/item_stack.rs,761,// TODO: Implement component parsing from JSON
-vecta-registry/src/item_stack.rs,806,// TODO: Implement exploration map creation
-vecta-registry/src/item_stack.rs,815,// TODO: Implement name setting
-vecta-registry/src/item_stack.rs,829,// TODO: Implement potion type setting
-vecta-registry/src/item_stack.rs,839,// TODO: Implement stew effect setting
-vecta-registry/src/item_stack.rs,886,// TODO: Implement when entity/block entity name access is available
-vecta-registry/src/item_stack.rs,893,// TODO: Implement lore setting
-vecta-registry/src/item_stack.rs,905,// TODO: Implement container contents setting
-vecta-registry/src/item_stack.rs,916,// TODO: Implement container contents modification
-vecta-registry/src/item_stack.rs,922,// TODO: Implement loot table reference setting
-vecta-registry/src/item_stack.rs,933,// TODO: Implement attribute modifier setting
-vecta-registry/src/item_stack.rs,943,// TODO: Implement player head texture filling
-vecta-registry/src/item_stack.rs,954,// TODO: Implement custom data copying
-vecta-registry/src/item_stack.rs,964,// TODO: Implement banner pattern setting
-vecta-registry/src/item_stack.rs,974,// TODO: Implement firework setting
-vecta-registry/src/item_stack.rs,983,// TODO: Implement firework explosion setting
-vecta-registry/src/item_stack.rs,994,// TODO: Implement book cover setting
-vecta-registry/src/item_stack.rs,1004,// TODO: Implement written book pages setting
-vecta-registry/src/item_stack.rs,1014,// TODO: Implement writable book pages setting
+vecta-registry/src/item_stack.rs,714,// TODO: Implement when damage component system is ready
+vecta-registry/src/item_stack.rs,726,// TODO: Implement when enchantment registry and system are ready
+vecta-registry/src/item_stack.rs,741,// TODO: Implement when enchantment registry and system are ready
+vecta-registry/src/item_stack.rs,756,// TODO: Implement when block entity system is ready
+vecta-registry/src/item_stack.rs,768,// TODO: Implement block state copying
+vecta-registry/src/item_stack.rs,775,// TODO: Implement component parsing from JSON
+vecta-registry/src/item_stack.rs,820,// TODO: Implement exploration map creation
+vecta-registry/src/item_stack.rs,829,// TODO: Implement name setting
+vecta-registry/src/item_stack.rs,843,// TODO: Implement potion type setting
+vecta-registry/src/item_stack.rs,853,// TODO: Implement stew effect setting
+vecta-registry/src/item_stack.rs,900,// TODO: Implement when entity/block entity name access is available
+vecta-registry/src/item_stack.rs,907,// TODO: Implement lore setting
+vecta-registry/src/item_stack.rs,919,// TODO: Implement container contents setting
+vecta-registry/src/item_stack.rs,930,// TODO: Implement container contents modification
+vecta-registry/src/item_stack.rs,936,// TODO: Implement loot table reference setting
+vecta-registry/src/item_stack.rs,947,// TODO: Implement attribute modifier setting
+vecta-registry/src/item_stack.rs,957,// TODO: Implement player head texture filling
+vecta-registry/src/item_stack.rs,968,// TODO: Implement custom data copying
+vecta-registry/src/item_stack.rs,978,// TODO: Implement banner pattern setting
+vecta-registry/src/item_stack.rs,988,// TODO: Implement firework setting
+vecta-registry/src/item_stack.rs,997,// TODO: Implement firework explosion setting
+vecta-registry/src/item_stack.rs,1008,// TODO: Implement book cover setting
+vecta-registry/src/item_stack.rs,1018,// TODO: Implement written book pages setting
+vecta-registry/src/item_stack.rs,1028,// TODO: Implement writable book pages setting
 vecta-registry/src/loot_table/conditions.rs,303,// TODO: Implement when world position data is available in context
 vecta-registry/src/loot_table/conditions.rs,336,// TODO: Implement when scoreboard system is available
 vecta-registry/src/loot_table/conditions.rs,340,// TODO: Implement condition registry lookup
