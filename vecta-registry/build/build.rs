@@ -80,6 +80,7 @@ mod poi_types;
 mod position_source_types;
 mod potions;
 mod recipes;
+mod slot_displays;
 mod sound_events;
 mod sound_types;
 mod structure;
@@ -145,6 +146,7 @@ const INSTRUMENTS: &str = "instruments";
 const DIALOGS: &str = "dialogs";
 const DIALOG_TAGS: &str = "dialog_tags";
 const MENU_TYPES: &str = "menu_types";
+const SLOT_DISPLAYS: &str = "slot_displays";
 const MOB_EFFECTS: &str = "mob_effects";
 const MAP_DECORATION_TYPES: &str = "map_decoration_types";
 const POTIONS: &str = "potions";
@@ -234,6 +236,7 @@ pub fn main() {
         (dialogs::build(), DIALOGS),
         (tags::dialog(), DIALOG_TAGS),
         (menu_types::build(), MENU_TYPES),
+        (slot_displays::build(), SLOT_DISPLAYS),
         (mob_effects::build(), MOB_EFFECTS),
         (map_decoration_types::build(), MAP_DECORATION_TYPES),
         (potions::build(), POTIONS),

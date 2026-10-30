@@ -16,7 +16,9 @@ pub use crafting::{
     ShapelessRecipe, ShieldDecorationRecipe, TransmuteRecipe,
 };
 pub use display::{
-    RecipePropertySet, RecipePropertySetKey, SingleInputEntry, SlotDisplay, SlotDisplayKind,
+    CustomSlotDisplay, RecipePropertySet, RecipePropertySetKey, SingleInputEntry, SlotDisplay,
+    SlotDisplayCodec, SlotDisplayKind, SlotDisplayType, SlotDisplayTypeRef,
+    SlotDisplayTypeRegistry,
 };
 pub use ingredient::Ingredient;
 pub use properties::{

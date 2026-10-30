@@ -16,7 +16,7 @@ use vecta_registry::recipe::{
     FireworkRocketRecipe, FireworkStarFadeRecipe, FireworkStarRecipe, Ingredient,
     PositionedCraftingInput, RecipePropertySet, RecipePropertySetKey, ShieldDecorationRecipe,
     SingleInputEntry, SingleItemRecipeInput, SlotDisplay, SmithingRecipe, SmithingRecipeInput,
-    StonecuttingRecipe, TypedRecipeRef, vanilla_recipe_types,
+    StonecuttingRecipe, TypedRecipeRef, UntypedRecipeRef, vanilla_recipe_types,
 };
 use vecta_registry::trim_pattern::TrimPatternRef;
 use vecta_registry::{
@@ -733,7 +733,7 @@ pub fn synchronized_stonecutter_recipes() -> Vec<SingleInputEntry> {
     REGISTRY
         .recipes
         .iter()
-        .filter_map(|recipe| recipe.downcast_data::<StonecuttingRecipe>())
+        .filter_map(UntypedRecipeRef::downcast_data::<StonecuttingRecipe>)
         .map(|recipe| {
             SingleInputEntry::from_ingredient(
                 &recipe.ingredient,

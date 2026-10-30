@@ -297,6 +297,9 @@ pub mod vanilla_dialog_tags;
 #[path = "generated/vanilla_menu_types.rs"]
 pub mod vanilla_menu_types;
 
+#[path = "generated/vanilla_slot_displays.rs"]
+pub mod vanilla_slot_displays;
+
 #[expect(warnings)]
 #[rustfmt::skip]
 #[path = "generated/vanilla_mob_effects.rs"]

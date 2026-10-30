@@ -16,53 +16,57 @@ use crate::registry::RegistryEntry as _;
 use crate::trim_pattern::TrimPattern;
 use crate::{ItemStackTemplate, REGISTRY, RegistryExt, RegistryHolder, RegistryHolderSet};
 
-/// Registry id of a `SlotDisplay` variant.
-///
-/// The order is `SlotDisplays.bootstrap` in the 26.3 sources
-/// (`world/item/crafting/display/SlotDisplays.java`); the wire format is
-/// `ByteBufCodecs.registry(Registries.SLOT_DISPLAY).dispatch(...)`.
+mod types;
+pub use types::{
+    CustomSlotDisplay, SlotDisplayCodec, SlotDisplayType, SlotDisplayTypeRef,
+    SlotDisplayTypeRegistry,
+};
+
+#[cfg(test)]
+mod tests;
+
+/// Built-in payload codecs. Network IDs belong to the slot display registry.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(i32)]
 pub enum SlotDisplayKind {
     /// `minecraft:empty`.
-    Empty = 0,
+    Empty,
     /// `minecraft:any_fuel`.
-    AnyFuel = 1,
+    AnyFuel,
     /// `minecraft:with_any_potion`.
-    WithAnyPotion = 2,
+    WithAnyPotion,
     /// `minecraft:only_with_component`.
-    OnlyWithComponent = 3,
+    OnlyWithComponent,
     /// `minecraft:item`.
-    Item = 4,
+    Item,
     /// `minecraft:item_stack`.
-    ItemStack = 5,
+    ItemStack,
     /// `minecraft:tag`.
-    Tag = 6,
+    Tag,
     /// `minecraft:dyed`.
-    Dyed = 7,
+    Dyed,
     /// `minecraft:smithing_trim`.
-    SmithingTrim = 8,
+    SmithingTrim,
     /// `minecraft:with_remainder`.
-    WithRemainder = 9,
+    WithRemainder,
     /// `minecraft:composite`.
-    Composite = 10,
+    Composite,
 }
 
 impl SlotDisplayKind {
-    const fn from_id(id: i32) -> Option<Self> {
-        match id {
-            0 => Some(Self::Empty),
-            1 => Some(Self::AnyFuel),
-            2 => Some(Self::WithAnyPotion),
-            3 => Some(Self::OnlyWithComponent),
-            4 => Some(Self::Item),
-            5 => Some(Self::ItemStack),
-            6 => Some(Self::Tag),
-            7 => Some(Self::Dyed),
-            8 => Some(Self::SmithingTrim),
-            9 => Some(Self::WithRemainder),
-            10 => Some(Self::Composite),
-            _ => None,
+    pub(crate) const fn display_type(self) -> SlotDisplayTypeRef {
+        use crate::vanilla_slot_displays as types;
+        match self {
+            Self::Empty => &types::EMPTY,
+            Self::AnyFuel => &types::ANY_FUEL,
+            Self::WithAnyPotion => &types::WITH_ANY_POTION,
+            Self::OnlyWithComponent => &types::ONLY_WITH_COMPONENT,
+            Self::Item => &types::ITEM,
+            Self::ItemStack => &types::ITEM_STACK,
+            Self::Tag => &types::TAG,
+            Self::Dyed => &types::DYED,
+            Self::SmithingTrim => &types::SMITHING_TRIM,
+            Self::WithRemainder => &types::WITH_REMAINDER,
+            Self::Composite => &types::COMPOSITE,
         }
     }
 }
@@ -103,7 +107,7 @@ pub enum SlotDisplay {
         /// The material display.
         material: Box<SlotDisplay>,
         /// The trim pattern.
-        pattern: RegistryHolder<TrimPattern>,
+        pattern: Box<RegistryHolder<TrimPattern>>,
     },
     /// `input` paired with its crafting remainder.
     WithRemainder {
@@ -114,13 +118,15 @@ pub enum SlotDisplay {
     },
     /// Concatenation of several displays.
     Composite(Vec<SlotDisplay>),
+    /// A registered extension's typed payload, dispatched by its own codec.
+    Custom(CustomSlotDisplay),
 }
 
 impl SlotDisplay {
-    /// Returns the registry kind written on the wire.
+    /// Returns the built-in payload kind, if this is a vanilla display.
     #[must_use]
-    pub const fn kind(&self) -> SlotDisplayKind {
-        match self {
+    pub const fn kind(&self) -> Option<SlotDisplayKind> {
+        Some(match self {
             Self::Empty => SlotDisplayKind::Empty,
             Self::AnyFuel => SlotDisplayKind::AnyFuel,
             Self::WithAnyPotion(_) => SlotDisplayKind::WithAnyPotion,
@@ -132,13 +138,23 @@ impl SlotDisplay {
             Self::SmithingTrim { .. } => SlotDisplayKind::SmithingTrim,
             Self::WithRemainder { .. } => SlotDisplayKind::WithRemainder,
             Self::Composite(_) => SlotDisplayKind::Composite,
+            Self::Custom(_) => return None,
+        })
+    }
+
+    /// Returns the registered discriminator and codec for this payload.
+    #[must_use]
+    pub const fn display_type(&self) -> SlotDisplayTypeRef {
+        match self {
+            Self::Custom(display) => display.display_type(),
+            _ => match self.kind() {
+                Some(kind) => kind.display_type(),
+                None => unreachable!(),
+            },
         }
     }
-}
 
-impl WriteTo for SlotDisplay {
-    fn write(&self, writer: &mut impl Write) -> Result<()> {
-        VarInt(self.kind() as i32).write(writer)?;
+    fn write_vanilla_payload(&self, writer: &mut impl Write) -> Result<()> {
         match self {
             Self::Empty | Self::AnyFuel => Ok(()),
             Self::WithAnyPotion(display) => display.write(writer),
@@ -172,14 +188,11 @@ impl WriteTo for SlotDisplay {
                 remainder.write(writer)
             }
             Self::Composite(displays) => displays.write(writer),
+            Self::Custom(_) => Err(Error::other("Custom display passed to a vanilla codec")),
         }
     }
-}
 
-impl ReadFrom for SlotDisplay {
-    fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
-        let kind = SlotDisplayKind::from_id(VarInt::read(data)?.0)
-            .ok_or_else(|| Error::other("Unknown slot display kind"))?;
+    fn read_vanilla_payload(kind: SlotDisplayKind, data: &mut Cursor<&[u8]>) -> Result<Self> {
         Ok(match kind {
             SlotDisplayKind::Empty => Self::Empty,
             SlotDisplayKind::AnyFuel => Self::AnyFuel,
@@ -214,7 +227,7 @@ impl ReadFrom for SlotDisplay {
             SlotDisplayKind::SmithingTrim => {
                 let base = Box::new(Self::read(data)?);
                 let material = Box::new(Self::read(data)?);
-                let pattern = RegistryHolder::read(data)?;
+                let pattern = Box::new(RegistryHolder::read(data)?);
                 Self::SmithingTrim {
                     base,
                     material,
@@ -238,6 +251,30 @@ impl ReadFrom for SlotDisplay {
                 Self::Composite(displays)
             }
         })
+    }
+}
+
+impl WriteTo for SlotDisplay {
+    fn write(&self, writer: &mut impl Write) -> Result<()> {
+        let (id, display_type) = REGISTRY
+            .slot_displays
+            .registered_entry_with_id(self.display_type())
+            .ok_or_else(|| Error::other("Slot display type is not its registered value"))?;
+        let id = i32::try_from(id).map_err(|_| Error::other("Slot display id overflow"))?;
+        VarInt(id).write(writer)?;
+        display_type.write_payload(self, writer)
+    }
+}
+
+impl ReadFrom for SlotDisplay {
+    fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
+        let id = usize::try_from(VarInt::read(data)?.0)
+            .map_err(|_| Error::other("Negative slot display id"))?;
+        let display_type = REGISTRY
+            .slot_displays
+            .by_id(id)
+            .ok_or_else(|| Error::other(format!("Unknown slot display id: {id}")))?;
+        display_type.read_payload(data)
     }
 }
 

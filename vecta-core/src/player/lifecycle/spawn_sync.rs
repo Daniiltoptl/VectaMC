@@ -1,5 +1,9 @@
 use vecta_protocol::packets::game::{CUpdateRecipes, CommonPlayerSpawnInfo};
 
+use crate::inventory::recipe_manager::{
+    synchronized_item_properties, synchronized_stonecutter_recipes,
+};
+
 use super::{
     Arc, BlockBreakingManager, CContainerClose, CGameEvent, CRespawn, CSetDefaultSpawnPosition,
     CSetHeldSlot, CSetPassengers, DVec3, Entity, GameEventType, MenuRemovalStatus,
@@ -288,9 +292,8 @@ impl Player {
             // Vanilla `PlayerList.placeNewPlayer` sends the recipe list once on
             // login; a respawn or world change does not resend it.
             self.send_packet(CUpdateRecipes {
-                item_sets: crate::inventory::recipe_manager::synchronized_item_properties(),
-                stonecutter_recipes:
-                    crate::inventory::recipe_manager::synchronized_stonecutter_recipes(),
+                item_sets: synchronized_item_properties(),
+                stonecutter_recipes: synchronized_stonecutter_recipes(),
             });
         }
         self.send_time_sync(world);
