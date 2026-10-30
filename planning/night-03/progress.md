@@ -118,3 +118,82 @@ Not covered here: client-side pattern list sync (same missing recipe/display
 foundation as W03-01, see `blockers.md`), `ResultSlot` crafted accounting
 (W03-06), and the loom's banner save/load round-trip through item components
 (already component-based, no menu state involved).
+
+## W03-03 — lectern: book, pages, taking it back, redstone
+
+Status: implemented and verified server-side. Real-client rendering is untested
+(no client harness here); the lectern menu has no player slots, so only the book
+slot and the page data slot are synced.
+
+Gap before: `minecraft:lectern` had no block entity (the block entity type
+existed in the registry with no factory, so every lectern loaded as an
+`UnimplementedBlockEntity`), no block behavior and no menu. Books could not be
+placed, read or taken back, and the comparator output was always 0.
+
+Vanilla sources used:
+- `world/level/block/LecternBlock.java` (`getStateForPlacement` with the
+  creative `block_entity_data` check, `useItemOn` / `useWithoutItem` result
+  matrix, `tryPlaceBook` + `placeBook`, `resetBookState`, `signalPageChange` →
+  two-tick `POWERED` impulse with level event 1043, `ownSignal` /
+  `getDirectSignal` / `getAnalogOutputSignal`, `tick`, `affectNeighborsAfterRemoval`).
+- `world/level/block/entity/LecternBlockEntity.java` (`bookAccess` container
+  semantics, `dataAccess` page slot, `setBook` / `setPage` / `getPageCount` /
+  `getRedstoneSignal`, NBT `Book` + `Page`, `preRemoveSideEffects` drop in front
+  of the block).
+- `world/inventory/LecternMenu.java` (single slot, `DATA_COUNT = 1`, button ids
+  1/2/3 and `100 + page`, `setData` → `setPage` → broadcast, `stillValid`).
+
+Vecta changes:
+- `block_entity/entities/lectern.rs`: `LecternBlockEntity` +
+  `LecternBookContainer`. The container owns the book, the page, the page count
+  and the pending `has_book` / page-impulse flags, and publishes them through
+  `ContainerRef::owned_by_block_entity_with_callback`, so no world access ever
+  happens under the container mutex. `set_item` is a no-op and `can_place_item`
+  rejects everything, exactly like vanilla's `bookAccess`.
+- `inventory/menu/kinds/lectern_menu.rs`: `lectern(...)` builder (one restricted
+  slot + page data slot, `minecraft:lectern` layout of exactly one slot) and
+  `LecternKind` with `click_menu_button` (prev / next / take / jump),
+  `on_tick` page mirroring for several viewers, `still_valid` (container valid
+  and a book present) and an empty `quick_move`. Page reads and writes go
+  through the guard the hooks already hold, because re-locking the book
+  container would deadlock.
+- `behavior/blocks/container/lectern_block.rs`: placement facing + creative
+  `has_book`, the full `useItemOn` / `useWithoutItem` matrix, book placement with
+  page resolution, menu open + `INTERACT_WITH_LECTERN`, the two-tick powered
+  impulse, own/direct/analog signals and the neighbor update below.
+- `world/events.rs`: `drop_item_stack_at(position, item)` for vanilla's
+  single-entity drop with default throw velocity, used by the lectern's book
+  drop in front of the block.
+- Registered the block entity factory and exported the new modules.
+
+Written-content resolution reuses the fixed snapshot path: the placed copy is
+taken out of the inventory *before* resolving, and resolution never runs while
+an inventory lock is held. Block behaviors only receive `&Player`, so the
+resolution source is the console fallback with the player as the entity
+override; that only affects selector/score placeholders inside an unresolved
+book at the moment it is placed, which the item path resolves identically when
+the book is read in hand. Load-time resolution (`resolveBook(book, null)` in
+vanilla) is not implemented because a block entity has no server handle here;
+books are already resolved by the time they are saved, so the practical
+difference is nil.
+
+Verified vanilla quirks kept on purpose:
+- `getPageCount` returns 0 for a book-less lectern and `Mth.clamp(page, 0, -1)`
+  therefore loads `Page = -1`, while `onBookItemRemove` resets it to 0. Both are
+  reproduced and asserted.
+- `getRedstoneSignal` reports 14 for a book-less lectern; `LecternBlock`
+  gates it behind `has_book`, which is why the comparator reads 0.
+
+Verification:
+- `cargo test --locked -p vecta-core --lib lectern -j 1` → 21 passed (8 block
+  entity, 6 block behavior, 7 menu: clamps at both ends, jump buttons, invalid
+  ids, take book + permission, two viewers, no placement, drop on break).
+- `cargo test --locked -p vecta-core --lib -j 1` → 2963 passed, 0 failed,
+  1 ignored.
+- `cargo clippy --locked -p vecta-core --all-targets --all-features -j 1 -- -D warnings`
+  → exit 0. `cargo fmt --all --check` → exit 0.
+
+Not covered here: the lectern's `HAS_BOOK`/`POWERED` shape variants are already
+data-driven, page-turn sound is emitted through level event 1043 only (no
+explicit `SoundEvents.PAGE_TURN` call, matching vanilla), and a real client is
+still required to confirm the book render and the page buttons.

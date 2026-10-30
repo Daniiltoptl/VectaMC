@@ -86,6 +86,41 @@ impl World {
         }
     }
 
+    /// Drops a single item entity at an exact position with vanilla's default
+    /// throw velocity.
+    ///
+    /// Mirrors `new ItemEntity(level, x, y, z, stack)` followed by
+    /// `setDefaultPickUpDelay()`: one entity for the whole stack, with no
+    /// scattering and no splitting. Block entities use this when vanilla drops a
+    /// stack from a specific point instead of spreading it over the block, like
+    /// the lectern dropping its book in front of the block.
+    pub fn drop_item_stack_at(self: &Arc<Self>, position: DVec3, item: ItemStack) {
+        use crate::entity::next_entity_id;
+        use vecta_registry::vanilla_entities;
+
+        if item.is_empty() {
+            return;
+        }
+
+        let velocity = DVec3::new(
+            rand::random::<f64>() * 0.2 - 0.1,
+            0.2,
+            rand::random::<f64>() * 0.2 - 0.1,
+        );
+        let entity = Arc::new(ItemEntity::with_item_and_velocity(
+            &vanilla_entities::ITEM,
+            next_entity_id(),
+            position,
+            item,
+            velocity,
+            Arc::downgrade(self),
+        ));
+        entity.set_default_pickup_delay();
+        if let Err(error) = self.try_add_entity(entity) {
+            log::warn!("Failed to drop item stack entity: {error}");
+        }
+    }
+
     /// Drops an item stack at the given position with scatter behavior.
     ///
     /// Mirrors vanilla's `Containers.dropItemStack`. Splits large stacks into
