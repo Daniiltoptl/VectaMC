@@ -10,11 +10,11 @@ use vecta_utils::Identifier;
 use vecta_utils::codec::VarInt;
 use vecta_utils::serial::{ReadFrom, WriteTo};
 
-use crate::items::ItemRef;
+use crate::items::{Item, ItemRef};
 use crate::recipe::Ingredient;
 use crate::registry::RegistryEntry as _;
-use crate::trim_pattern::TrimPatternRef;
-use crate::{ItemStackTemplate, REGISTRY, RegistryExt};
+use crate::trim_pattern::TrimPattern;
+use crate::{ItemStackTemplate, REGISTRY, RegistryExt, RegistryHolder, RegistryHolderSet};
 
 /// Registry id of a `SlotDisplay` variant.
 ///
@@ -87,8 +87,8 @@ pub enum SlotDisplay {
     Item(ItemRef),
     /// A full item stack template.
     ItemStack(ItemStackTemplate),
-    /// Every item of a tag.
-    Tag(Identifier),
+    /// Every item of a named or direct holder set.
+    Tag(RegistryHolderSet<Item>),
     /// `target` dyed with the dye stacks of `dye`.
     Dyed {
         /// The dye display.
@@ -103,7 +103,7 @@ pub enum SlotDisplay {
         /// The material display.
         material: Box<SlotDisplay>,
         /// The trim pattern.
-        pattern: TrimPatternRef,
+        pattern: RegistryHolder<TrimPattern>,
     },
     /// `input` paired with its crafting remainder.
     WithRemainder {
@@ -153,11 +153,7 @@ impl WriteTo for SlotDisplay {
             }
             Self::Item(item) => write_item_id(item, writer),
             Self::ItemStack(template) => template.write(writer),
-            Self::Tag(tag) => {
-                // `ByteBufCodecs.holderSet`: a named set writes `0` then the tag id.
-                VarInt(0).write(writer)?;
-                tag.write(writer)
-            }
+            Self::Tag(tag) => tag.write(writer),
             Self::Dyed { dye, target } => {
                 dye.write(writer)?;
                 target.write(writer)
@@ -169,14 +165,7 @@ impl WriteTo for SlotDisplay {
             } => {
                 base.write(writer)?;
                 material.write(writer)?;
-                let id = REGISTRY
-                    .trim_patterns
-                    .id_from_key(&pattern.key)
-                    .ok_or_else(|| {
-                        Error::other(format!("Unknown trim pattern: {}", pattern.key))
-                    })?;
-                VarInt(i32::try_from(id).map_err(|_| Error::other("Trim pattern id overflow"))?)
-                    .write(writer)
+                pattern.write(writer)
             }
             Self::WithRemainder { input, remainder } => {
                 input.write(writer)?;
@@ -216,15 +205,7 @@ impl ReadFrom for SlotDisplay {
                 Self::Item(item)
             }
             SlotDisplayKind::ItemStack => Self::ItemStack(ItemStackTemplate::read(data)?),
-            SlotDisplayKind::Tag => {
-                let count = VarInt::read(data)?.0;
-                if count != 0 {
-                    return Err(Error::other(format!(
-                        "Tag slot display must use a named holder set, got {count}"
-                    )));
-                }
-                Self::Tag(Identifier::read(data)?)
-            }
+            SlotDisplayKind::Tag => Self::Tag(RegistryHolderSet::read(data)?),
             SlotDisplayKind::Dyed => {
                 let dye = Box::new(Self::read(data)?);
                 let target = Box::new(Self::read(data)?);
@@ -233,12 +214,7 @@ impl ReadFrom for SlotDisplay {
             SlotDisplayKind::SmithingTrim => {
                 let base = Box::new(Self::read(data)?);
                 let material = Box::new(Self::read(data)?);
-                let id = usize::try_from(VarInt::read(data)?.0)
-                    .map_err(|_| Error::other("Negative trim pattern id"))?;
-                let pattern = REGISTRY
-                    .trim_patterns
-                    .by_id(id)
-                    .ok_or_else(|| Error::other(format!("Unknown trim pattern id: {id}")))?;
+                let pattern = RegistryHolder::read(data)?;
                 Self::SmithingTrim {
                     base,
                     material,
@@ -272,14 +248,31 @@ impl ReadFrom for SlotDisplay {
 #[derive(Debug, Clone)]
 pub struct SingleInputEntry {
     /// Ingredient that selects this entry for the held input.
-    pub input: Ingredient,
+    pub input: RegistryHolderSet<Item>,
     /// The preview shown for the result.
     pub option_display: SlotDisplay,
 }
 
+impl SingleInputEntry {
+    /// Builds a wire entry from a registered recipe's ingredient and preview.
+    #[must_use]
+    pub fn from_ingredient(input: &Ingredient, option_display: SlotDisplay) -> Self {
+        let input = match input {
+            Ingredient::Empty => RegistryHolderSet::Direct(Vec::new()),
+            Ingredient::Item(item) => RegistryHolderSet::Direct(vec![*item]),
+            Ingredient::Tag(tag) => RegistryHolderSet::Tag(tag.clone()),
+            Ingredient::Choice(items) => RegistryHolderSet::Direct(items.to_vec()),
+        };
+        Self {
+            input,
+            option_display,
+        }
+    }
+}
+
 impl WriteTo for SingleInputEntry {
     fn write(&self, writer: &mut impl Write) -> Result<()> {
-        write_ingredient_holder_set(&self.input, writer)?;
+        self.input.write(writer)?;
         self.option_display.write(writer)
     }
 }
@@ -287,33 +280,9 @@ impl WriteTo for SingleInputEntry {
 impl ReadFrom for SingleInputEntry {
     fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
         Ok(Self {
-            input: read_ingredient_holder_set(data)?,
+            input: RegistryHolderSet::read(data)?,
             option_display: SlotDisplay::read(data)?,
         })
-    }
-}
-
-/// Vanilla `Ingredient.CONTENTS_STREAM_CODEC`: `ByteBufCodecs.holderSet(ITEM)`.
-fn write_ingredient_holder_set(ingredient: &Ingredient, writer: &mut impl Write) -> Result<()> {
-    match ingredient {
-        Ingredient::Empty => VarInt(1).write(writer),
-        Ingredient::Tag(tag) => {
-            VarInt(0).write(writer)?;
-            tag.write(writer)
-        }
-        Ingredient::Item(item) => {
-            VarInt(2).write(writer)?;
-            write_item_id(item, writer)
-        }
-        Ingredient::Choice(items) => {
-            let count = i32::try_from(items.len())
-                .map_err(|_| Error::other("Ingredient has too many items"))?;
-            VarInt(count + 1).write(writer)?;
-            for item in *items {
-                write_item_id(item, writer)?;
-            }
-            Ok(())
-        }
     }
 }
 
@@ -321,35 +290,6 @@ fn write_ingredient_holder_set(ingredient: &Ingredient, writer: &mut impl Write)
 fn write_item_id(item: ItemRef, writer: &mut impl Write) -> Result<()> {
     let id = i32::try_from(item.id()).map_err(|_| Error::other("Item id overflow"))?;
     VarInt(id).write(writer)
-}
-
-fn read_ingredient_holder_set(data: &mut Cursor<&[u8]>) -> Result<Ingredient> {
-    let count = VarInt::read(data)?.0 - 1;
-    if count == -1 {
-        return Ok(Ingredient::Tag(Identifier::read(data)?));
-    }
-    if count < 0 {
-        return Err(Error::other("Invalid ingredient holder set size"));
-    }
-
-    let mut items = Vec::with_capacity(usize::try_from(count).unwrap_or(0).min(64));
-    for _ in 0..count {
-        let id =
-            usize::try_from(VarInt::read(data)?.0).map_err(|_| Error::other("Negative item id"))?;
-        items.push(
-            REGISTRY
-                .items
-                .by_id(id)
-                .ok_or_else(|| Error::other(format!("Unknown item id: {id}")))?,
-        );
-    }
-    match items.len() {
-        0 => Ok(Ingredient::Empty),
-        1 => Ok(Ingredient::Item(items[0])),
-        _ => Err(Error::other(
-            "Direct multi-item ingredients are not representable by Ingredient::Choice",
-        )),
-    }
 }
 
 /// Vanilla `RecipePropertySet`: the item set a property-set key selects.

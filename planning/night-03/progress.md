@@ -1,5 +1,11 @@
 # Night 03 — progress
 
+Codex follow-up: [recipe codec corrections](../reviews/W03-01-codec-fixes.md)
+replace the trim-pattern and item holder codecs with the existing shared types.
+Builds, runtime tests and Clippy for that follow-up are **deferred by the owner**;
+the earlier results below do not validate the new diff. Handwritten
+`slot_display` registry IDs remain an open foundation issue.
+
 Base: `codex/night-vanilla-02` tip `7db788bc7c44b12bf31842a6f3c0176a5d3f0d93`
 (`0.16.1+mc26.3`, reference `minecraft-src` 26.3 / 5037 files).
 Work branch: `codex/night-vanilla-03`.

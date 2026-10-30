@@ -734,9 +734,11 @@ pub fn synchronized_stonecutter_recipes() -> Vec<SingleInputEntry> {
         .recipes
         .iter()
         .filter_map(|recipe| recipe.downcast_data::<StonecuttingRecipe>())
-        .map(|recipe| SingleInputEntry {
-            input: recipe.ingredient.clone(),
-            option_display: SlotDisplay::ItemStack(recipe.result.clone()),
+        .map(|recipe| {
+            SingleInputEntry::from_ingredient(
+                &recipe.ingredient,
+                SlotDisplay::ItemStack(recipe.result.clone()),
+            )
         })
         .collect()
 }
@@ -779,7 +781,7 @@ mod sync_tests {
 
         let input_item = synced[0]
             .input
-            .get_items()
+            .entries()
             .first()
             .copied()
             .expect("the first entry must accept at least one item");
@@ -787,7 +789,7 @@ mod sync_tests {
 
         let client: Vec<_> = synced
             .iter()
-            .filter(|entry| entry.input.test(&stack))
+            .filter(|entry| entry.input.contains(stack.item()))
             .collect();
         let server: Vec<_> = REGISTRY
             .recipes

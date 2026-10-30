@@ -35,7 +35,11 @@ Remaining, not blocked by architecture but by scope:
   `SlotDisplayKind` because no `slot_display` entry exists in
   `vecta-registry/build_assets/`, and the SteelExtractor checkout is not present
   on this machine. If a `slot_display` extractor output is added later, the enum
-  should be generated from it instead.
+  should be generated from it instead. Codex review treats this as an unresolved
+  foundation issue under AGENTS, not an approved temporary implementation.
+  The owner does not know a local extractor path. See
+  [codec follow-up](../reviews/W03-01-codec-fixes.md); that follow-up fixes payloads
+  using existing holder types but does not replace these handwritten kind IDs.
 
 Not blocked: server-authoritative stonecutter selection, result, consumption,
 quick-move, and now the client-visible recipe list for the stonecutter.

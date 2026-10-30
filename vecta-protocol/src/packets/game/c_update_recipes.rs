@@ -21,6 +21,7 @@ pub struct CUpdateRecipes {
 mod tests {
     use super::*;
     use vecta_registry::recipe::{Ingredient, SlotDisplay};
+    use vecta_registry::vanilla_item_tags::ItemTag;
     use vecta_registry::{ItemStackTemplate, RegistryEntry as _, vanilla_items};
     use vecta_utils::serial::WriteTo as _;
 
@@ -76,13 +77,15 @@ mod tests {
     #[test]
     fn stonecutter_entry_writes_tag_ingredient_then_item_stack_display() {
         registry();
-        let tag = Identifier::new("minecraft", "stone_tool_materials");
+        let tag = ItemTag::WOOL;
         let result = ItemStackTemplate::new(&vanilla_items::STONECUTTER);
         let mut packet = empty_packet();
-        packet.stonecutter_recipes.push(SingleInputEntry {
-            input: Ingredient::Tag(tag.clone()),
-            option_display: SlotDisplay::ItemStack(result.clone()),
-        });
+        packet
+            .stonecutter_recipes
+            .push(SingleInputEntry::from_ingredient(
+                &Ingredient::Tag(tag.clone()),
+                SlotDisplay::ItemStack(result.clone()),
+            ));
 
         // `ByteBufCodecs.holderSet` writes `0` for a named set, then the tag id;
         // `SlotDisplay.STREAM_CODEC` writes the `item_stack` kind, then the template.

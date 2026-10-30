@@ -1,5 +1,15 @@
 # Изменения VectaMC
 
+## 2026-10-30 · Recipe codecs после ревью — проверки отложены
+
+- Trim pattern в SlotDisplay использует общий holder codec: registry ID + 1
+  и inline-значения.
+- TagSlotDisplay и ингредиент SingleInputEntry используют общий holder-set
+  codec, включая прямые списки из нескольких предметов.
+- Потребители и существующие тестовые вызовы адаптированы к типам.
+- Сборки, тесты и Clippy отложены по запросу владельца; ручные ID slot_display
+  остаются открытым вопросом. [Подробности](planning/reviews/W03-01-codec-fixes.md).
+
 ## 2026-10-30 · Список рецептов для клиента (камнерез)
 
 - Клиент получает `ClientboundUpdateRecipesPacket` при входе: наборы свойств
