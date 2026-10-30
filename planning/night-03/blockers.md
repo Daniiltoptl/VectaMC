@@ -1,42 +1,59 @@
 # Night 03 — blockers
 
-## B-W03-01 — client never receives the recipe display list
+## B-W03-01 — client recipe list: resolved for the stonecutter, not for the recipe book
 
-Checked:
-- Vecta `vecta-protocol/src/packets/game/` has no `ClientboundUpdateRecipes`
-  packet (108 packet files, no `c_update_recipes`); nothing sends
-  `ClientboundUpdateRecipesPacket` at login.
-- `rg SlotDisplay|slot_display` over the workspace → no hits, so neither
-  `SlotDisplay` nor `RecipeDisplay` variants exist as Rust types.
-- Vanilla `ClientboundUpdateRecipesPacket` carries the property-set map, the
-  `SelectableRecipe.SingleInputSet<StonecutterRecipe>` list and the per-recipe
-  displays; `StonecutterMenu` only filters that client-side list locally.
+Status: **the packet is implemented and sent.** This section records what the
+26.3 sources actually require, because the previous text over-stated the
+dependency.
 
-Missing: `SlotDisplay` (empty/any_fuel/item/item_stack/tag/smithing_trim/
-with_remainder/composite), `RecipeDisplay` (crafting_shaped, crafting_shapeless,
-furnace, stonecutter, smithing, brewing, ...), the `Ingredient` holder-set stream
-codec, `RecipePropertySet` sync, and the login-time send. This is a shared
-protocol foundation, not a stonecutter-only detail.
+Checked in the local 26.3 sources:
 
-Risk of guessing: a hand-rolled codec that disagrees with 26.3 would desync or
-disconnect real clients, and there is no client in this environment to verify
-against.
+- `network/protocol/game/ClientboundUpdateRecipesPacket.java` carries exactly two
+  fields: `Map<ResourceKey<RecipePropertySet>, RecipePropertySet> itemSets` and
+  `SelectableRecipe.SingleInputSet<StonecutterRecipe> stonecutterRecipes`.
+- `SelectableRecipe.noRecipeCodec()` writes **only** `optionDisplay`; the recipe
+  field is encoded as `Optional.empty()`. `RecipeDisplay` is therefore *not* part
+  of this packet, and no `RecipeDisplay` variants are needed to send it.
+- The chain is `Ingredient.CONTENTS_STREAM_CODEC` (= `ByteBufCodecs.holderSet(ITEM)`)
+  → `SlotDisplay.STREAM_CODEC` (= `ByteBufCodecs.registry(SLOT_DISPLAY).dispatch(...)`).
+- `StonecutterRecipe.resultDisplay()` is `SlotDisplay.ItemStackSlotDisplay(result)`,
+  so every stonecutter entry is `item_stack` (kind 5) plus an item stack template.
 
-Server-side consequence: `handle_container_button_click`, recipe selection,
-result computation, consumption, quick-move and close all work and are covered
-by tests, but a real 26.3 client shows an empty stonecutter recipe grid because
-it never received the list.
+Implemented in this branch: `SlotDisplay`, `SingleInputEntry`,
+`RecipePropertySet`/`RecipePropertySetKey` in `vecta-registry/src/recipe/display.rs`,
+`CUpdateRecipes` in `vecta-protocol`, the `finalizeRecipeLoading`-equivalent
+collection in `inventory/recipe_manager.rs`, and the login-time send in
+`player/lifecycle/spawn_sync.rs`.
 
-Needed decision/output: approve building the `ClientboundUpdateRecipesPacket`
-foundation (SlotDisplay/RecipeDisplay/Ingredient codecs + login send) as its own
-stage, or confirm that recipe-list sync stays out of scope for now.
+Remaining, not blocked by architecture but by scope:
 
-Blocks: full client-visible W03-01 acceptance, W03-02 (loom pattern list),
-W03-65 (recipe book / knowledge book), and any recipe-book driven UI.
+- The **recipe book** (W03-65) still needs the full `RecipeDisplay` family and the
+  recipe-book packets. Only the two display kinds that the update-recipes packet
+  can carry are exercised today.
+- `slot_display` kind ids are the built-in registration order from
+  `world/item/crafting/display/SlotDisplays.java`. They live in Rust as
+  `SlotDisplayKind` because no `slot_display` entry exists in
+  `vecta-registry/build_assets/`, and the SteelExtractor checkout is not present
+  on this machine. If a `slot_display` extractor output is added later, the enum
+  should be generated from it instead.
 
-Not blocked: server-authoritative recipe selection, result, consumption and
-quick-move for the stonecutter (implemented), and the enchanting-table/lectern
-button paths that do not need the display list.
+Not blocked: server-authoritative stonecutter selection, result, consumption,
+quick-move, and now the client-visible recipe list for the stonecutter.
+
+## B-W03-01b — loom does not depend on the recipe packet (previous text was wrong)
+
+`LoomMenu.selectablePatterns` is built server-side only:
+
+- `getSelectablePatterns(patternStack)` returns `BannerPatternTags.NO_ITEM_REQUIRED`
+  when the pattern slot is empty, or the stack's `minecraft:provides_banner_patterns`
+  component otherwise.
+- `clickMenuButton` indexes that list; nothing arrives over the wire.
+
+The client rebuilds the same list from its own synced registries and tags, so the
+only network requirement is the tag packet. Vecta already sends
+`ClientboundUpdateTagsPacket` with `BANNER_PATTERN_REGISTRY` tags
+(`server/registry_cache.rs::build_tags_packet`), so the loom's client path was
+never blocked by the missing recipe packet. The earlier blocker entry was wrong.
 
 ## B-W03-04 — block entities never publish implicit item components
 
@@ -68,3 +85,29 @@ decision to keep pick-block contents out of scope.
 Blocks: full W03-04 pick-block acceptance, the same round trip for every
 container block entity implemented later (chest W03-10..12, hopper W03-14,
 dropper W03-17).
+
+## B-W03-05 — `vecta-core` test binaries cannot be linked in this session
+
+Checked:
+- `cargo test -p vecta-core --lib <filter>` fails during codegen with
+  `memory allocation of 160432144 bytes failed` (repeatable, 5 attempts, both
+  from bash and PowerShell).
+- `cargo check -p vecta-core --lib --tests` succeeds, so the sources and tests
+  are type-correct; the failure is resource-related, not a diagnostic.
+- System state at the time: commit charge 44.8 GB of a 47.9 GB limit
+  (32 GB RAM + 16 GB pagefile on `D:`), 12 GB physical free. A `qemu-system-x86_64`
+  VM holds ~16.5 GB of commit; `idea64`, two `java` processes and the rest of the
+  desktop take the remainder.
+- `vecta-registry` and `vecta-protocol` test binaries build and run normally.
+
+Not caused by this branch: no dependency, toolchain or profile change is involved.
+
+Workaround attempted: `--config 'build.rustflags=["-Zthreads=2"]'` (the repo's own
+`-Zthreads=0` lets rustc use all 12 cores). Result recorded in `progress.md`.
+
+Needed from the owner: free commit charge (close the VM) so the `vecta-core`
+test binary links, or accept that this session's core-level results rest on
+type-checking plus the protocol/registry suites.
+
+Blocks: running any `vecta-core` unit test, including the existing suite, in this
+session. It does not block writing or type-checking code.

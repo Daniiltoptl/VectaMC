@@ -329,3 +329,69 @@ W03-06 and W03-65, and `ResultSlot::on_take` already carries that TODO), and the
 client recipe-book preview (B-W03-01). The result slot also has no
 `setRecipeUsed` equivalent, so the smithing recipe is not recorded for
 advancements yet.
+
+## W03-01 (client path) — `ClientboundUpdateRecipesPacket`
+
+Status: implemented; the packet is built, encoded and sent on login. The wire
+format is covered by tests. The `vecta-core` runtime test for the collection
+functions could not be linked in this session (see `blockers.md`, B-W03-05).
+
+Gap before: `blockers.md` claimed the packet needed the whole `RecipeDisplay`
+family. Reading `ClientboundUpdateRecipesPacket.java` and `SelectableRecipe.java`
+shows the packet carries only a property-set map and
+`SingleInputSet<StonecutterRecipe>` entries, and `SelectableRecipe.noRecipeCodec()`
+writes **only** the `SlotDisplay`; the recipe itself is `Optional.empty()`.
+`RecipeDisplay` is not on this wire at all.
+
+Vanilla sources used:
+- `network/protocol/game/ClientboundUpdateRecipesPacket.java` (two fields and
+  their codecs).
+- `world/item/crafting/RecipePropertySet.java` (`Item.STREAM_CODEC` list; the
+  nine `TYPE_KEY` entries).
+- `world/item/crafting/SelectableRecipe.java` (`noRecipeCodec` chain,
+  `SingleInputEntry`, `SingleInputSet`).
+- `world/item/crafting/Ingredient.java` (`CONTENTS_STREAM_CODEC` =
+  `ByteBufCodecs.holderSet(ITEM)`).
+- `world/item/crafting/display/SlotDisplay.java` + `SlotDisplays.java` (variant
+  payloads and built-in registration order).
+- `world/item/crafting/StonecutterRecipe.java` (`resultDisplay()` returns
+  `SlotDisplay.ItemStackSlotDisplay(result)`).
+- `world/item/crafting/RecipeManager.java` (`finalizeRecipeLoading`,
+  `RECIPE_PROPERTY_SETS`, the stonecutter list build).
+- `server/players/PlayerList.java` (sent once in `placeNewPlayer`, after the held
+  slot and before the permission level).
+
+Vecta changes:
+- `vecta-registry/src/recipe/display.rs`: `SlotDisplay` (all eleven kinds) with
+  `WriteTo`/`ReadFrom`, `SingleInputEntry`, `RecipePropertySet`,
+  `RecipePropertySetKey`, and the holder-set/ingredient encoding.
+- `vecta-protocol/src/packets/game/c_update_recipes.rs`: `CUpdateRecipes`
+  (`C_UPDATE_RECIPES` id was already generated).
+- `vecta-core/src/inventory/recipe_manager.rs`: `synchronized_item_properties`
+  (one pass over `REGISTRY.recipes` in registration order, mirroring
+  `finalizeRecipeLoading`) and `synchronized_stonecutter_recipes`.
+- `vecta-core/src/player/lifecycle/spawn_sync.rs`: send on `InitialJoin` only;
+  respawn and world change do not resend, matching `placeNewPlayer` versus
+  `respawn`.
+
+Verification:
+- `cargo test -p vecta-protocol --lib c_update_recipes -j 1` → **4 passed**:
+  empty packet (two zero counts), property-set entry (key then item ids),
+  stonecutter entry (named holder set, `item_stack` kind 5, template), composite
+  display. Expected bytes are written out by hand from the vanilla codec rules.
+- `cargo check -p vecta-core --lib --tests -j 1` → exit 0 (sources and tests
+  type-check).
+- `cargo test -p vecta-core --lib sync_tests` → **not run**: the test binary
+  cannot be linked in this session (B-W03-05).
+
+Known limitations:
+- `slot_display` kind ids are a Rust enum mirroring `SlotDisplays.bootstrap`
+  because no `slot_display` extractor output exists in the repo and the
+  SteelExtractor checkout is absent. This is the one place where a built-in
+  registry order is transcribed; it is not a guess, but it is not extracted data.
+- The property-set map and the stonecutter list are recomputed on every login
+  instead of being cached at load time like Vanilla's `RecipeManager` fields.
+  Correct, but wasteful for many simultaneous joins.
+- Brewing property sets are sent empty because Vecta loads no brewing recipes.
+- Only `SlotDisplay::ItemStack` is ever produced today; the other kinds are
+  encoded/decoded but unused until the recipe book (W03-65).

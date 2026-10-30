@@ -12,9 +12,10 @@ use vecta_registry::data_components::vanilla_components::{
 };
 use vecta_registry::items::ItemRef;
 use vecta_registry::recipe::{
-    BookCloningRecipe, CraftingInput, CraftingRecipe, DyeRecipe, FireworkRocketRecipe,
-    FireworkStarFadeRecipe, FireworkStarRecipe, Ingredient, PositionedCraftingInput,
-    ShieldDecorationRecipe, SingleItemRecipeInput, SmithingRecipe, SmithingRecipeInput,
+    BookCloningRecipe, CookingRecipe, CraftingInput, CraftingRecipe, DyeRecipe,
+    FireworkRocketRecipe, FireworkStarFadeRecipe, FireworkStarRecipe, Ingredient,
+    PositionedCraftingInput, RecipePropertySet, RecipePropertySetKey, ShieldDecorationRecipe,
+    SingleInputEntry, SingleItemRecipeInput, SlotDisplay, SmithingRecipe, SmithingRecipeInput,
     StonecuttingRecipe, TypedRecipeRef, vanilla_recipe_types,
 };
 use vecta_registry::trim_pattern::TrimPatternRef;
@@ -22,6 +23,7 @@ use vecta_registry::{
     DyeColor, ItemStackTemplate, REGISTRY, RegistryExt as _, RegistryHolder,
     TaggedRegistryExt as _, item_stack::ItemStack, vanilla_enchantment_tags, vanilla_items,
 };
+use vecta_utils::Identifier;
 
 use crate::inventory::container::CraftingContainer;
 
@@ -645,6 +647,163 @@ mod tests {
                     .is_none(),
                 "generation {generation} is outside the default 0..=1 range"
             );
+        }
+    }
+}
+
+/// Vanilla `RecipeManager.getSynchronizedItemProperties`.
+///
+/// Mirrors `finalizeRecipeLoading`: one pass over the recipe registry in
+/// registration order, collecting the ingredient of every recipe that feeds a
+/// `RecipePropertySet` key. Vecta loads no brewing recipes yet, so both brewing
+/// sets stay empty — which is what Vanilla sends for a datapack that has none.
+#[must_use]
+pub fn synchronized_item_properties() -> Vec<(Identifier, RecipePropertySet)> {
+    let mut smithing_template: Vec<&Ingredient> = Vec::new();
+    let mut smithing_base: Vec<&Ingredient> = Vec::new();
+    let mut smithing_addition: Vec<&Ingredient> = Vec::new();
+    let mut furnace_input: Vec<&Ingredient> = Vec::new();
+    let mut blast_furnace_input: Vec<&Ingredient> = Vec::new();
+    let mut smoker_input: Vec<&Ingredient> = Vec::new();
+    let mut campfire_input: Vec<&Ingredient> = Vec::new();
+
+    for recipe in REGISTRY.recipes.iter() {
+        if let Some(smithing) = recipe.downcast_data::<SmithingRecipe>() {
+            match smithing {
+                SmithingRecipe::Transform(transform) => {
+                    if let Some(template) = &transform.template {
+                        smithing_template.push(template);
+                    }
+                    smithing_base.push(&transform.base);
+                    if let Some(addition) = &transform.addition {
+                        smithing_addition.push(addition);
+                    }
+                }
+                SmithingRecipe::Trim(trim) => {
+                    smithing_template.push(&trim.template);
+                    smithing_base.push(&trim.base);
+                    smithing_addition.push(&trim.addition);
+                }
+            }
+            continue;
+        }
+
+        let Some(cooking) = recipe.downcast_data::<CookingRecipe>() else {
+            continue;
+        };
+        let recipe_type = recipe.recipe_type().key.clone();
+        if recipe_type == *vanilla_recipe_types::SMELTING.key() {
+            furnace_input.push(&cooking.ingredient);
+        } else if recipe_type == *vanilla_recipe_types::BLASTING.key() {
+            blast_furnace_input.push(&cooking.ingredient);
+        } else if recipe_type == *vanilla_recipe_types::SMOKING.key() {
+            smoker_input.push(&cooking.ingredient);
+        } else if recipe_type == *vanilla_recipe_types::CAMPFIRE_COOKING.key() {
+            campfire_input.push(&cooking.ingredient);
+        }
+    }
+
+    RecipePropertySetKey::ALL
+        .into_iter()
+        .map(|key| {
+            let ingredients: &[&Ingredient] = match key {
+                RecipePropertySetKey::SmithingTemplate => &smithing_template,
+                RecipePropertySetKey::SmithingBase => &smithing_base,
+                RecipePropertySetKey::SmithingAddition => &smithing_addition,
+                RecipePropertySetKey::FurnaceInput => &furnace_input,
+                RecipePropertySetKey::BlastFurnaceInput => &blast_furnace_input,
+                RecipePropertySetKey::SmokerInput => &smoker_input,
+                RecipePropertySetKey::CampfireInput => &campfire_input,
+                RecipePropertySetKey::BrewingInput | RecipePropertySetKey::BrewingReagent => &[],
+            };
+            (
+                key.identifier(),
+                RecipePropertySet::from_ingredients(ingredients.iter().copied()),
+            )
+        })
+        .collect()
+}
+
+/// Vanilla `RecipeManager.getSynchronizedStonecutterRecipes`.
+///
+/// Registration order is preserved so the client's filtered list has the same
+/// indices as the server's `StonecutterMenu.setupRecipeList`.
+#[must_use]
+pub fn synchronized_stonecutter_recipes() -> Vec<SingleInputEntry> {
+    REGISTRY
+        .recipes
+        .iter()
+        .filter_map(|recipe| recipe.downcast_data::<StonecuttingRecipe>())
+        .map(|recipe| SingleInputEntry {
+            input: recipe.ingredient.clone(),
+            option_display: SlotDisplay::ItemStack(recipe.result.clone()),
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod sync_tests {
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::recipe::{SingleItemRecipeInput, SlotDisplay, vanilla_recipe_types};
+    use vecta_registry::{REGISTRY, init_vanilla_registry};
+
+    use super::{synchronized_item_properties, synchronized_stonecutter_recipes};
+
+    #[test]
+    fn synchronized_item_properties_cover_every_vanilla_key() {
+        init_vanilla_registry();
+
+        let sets = synchronized_item_properties();
+
+        assert_eq!(sets.len(), 9, "Vanilla synchronizes nine property sets");
+        let smithing_base = sets
+            .iter()
+            .find(|(key, _)| key.path == "smithing_base")
+            .map(|(_, set)| set)
+            .expect("smithing_base must be synchronized");
+        assert!(
+            !smithing_base.items().is_empty(),
+            "vanilla ships smithing recipes with a base ingredient"
+        );
+    }
+
+    /// The client filters the received list by the held input and shows the
+    /// results by index, so the synced order has to match the server's own
+    /// `StonecutterMenu.setupRecipeList` order.
+    #[test]
+    fn synchronized_stonecutter_list_matches_server_selection_order() {
+        init_vanilla_registry();
+
+        let synced = synchronized_stonecutter_recipes();
+        assert!(!synced.is_empty(), "vanilla ships stonecutting recipes");
+
+        let input_item = synced[0]
+            .input
+            .get_items()
+            .first()
+            .copied()
+            .expect("the first entry must accept at least one item");
+        let stack = ItemStack::new(input_item);
+
+        let client: Vec<_> = synced
+            .iter()
+            .filter(|entry| entry.input.test(&stack))
+            .collect();
+        let server: Vec<_> = REGISTRY
+            .recipes
+            .matching(
+                &vanilla_recipe_types::STONECUTTING,
+                &SingleItemRecipeInput::new(stack),
+            )
+            .collect();
+
+        assert!(!client.is_empty());
+        assert_eq!(client.len(), server.len());
+        for (entry, recipe) in client.iter().zip(&server) {
+            let SlotDisplay::ItemStack(template) = &entry.option_display else {
+                panic!("stonecutter displays must be item stacks");
+            };
+            assert_eq!(template, &recipe.data().result);
         }
     }
 }

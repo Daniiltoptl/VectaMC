@@ -1,4 +1,4 @@
-use vecta_protocol::packets::game::CommonPlayerSpawnInfo;
+use vecta_protocol::packets::game::{CUpdateRecipes, CommonPlayerSpawnInfo};
 
 use super::{
     Arc, BlockBreakingManager, CContainerClose, CGameEvent, CRespawn, CSetDefaultSpawnPosition,
@@ -177,6 +177,7 @@ impl Player {
             packet_rotation,
             relatives,
             true,
+            matches!(reason, ResetReason::InitialJoin),
         );
 
         // Add to world / re-enter chunk tracking
@@ -227,6 +228,7 @@ impl Player {
             rotation,
             RelativeMovement::NONE,
             false,
+            false,
         );
     }
 
@@ -244,6 +246,7 @@ impl Player {
         packet_rotation: (f32, f32),
         relatives: RelativeMovement,
         resend_player_context: bool,
+        send_recipes: bool,
     ) -> Arc<World> {
         let world = self.get_world();
 
@@ -267,7 +270,7 @@ impl Player {
             );
         }
         self.reset_flying_ticks();
-        self.send_spawn_state_packets(&world);
+        self.send_spawn_state_packets(&world, send_recipes);
         self.reset_sent_info();
         if resend_player_context {
             self.server().resend_player_context(self);
@@ -276,11 +279,20 @@ impl Player {
         world
     }
 
-    fn send_spawn_state_packets(&self, world: &World) {
+    fn send_spawn_state_packets(&self, world: &World, send_recipes: bool) {
         self.send_abilities();
         self.send_packet(CSetHeldSlot {
             slot: i32::from(self.inventory.lock().get_selected_slot()),
         });
+        if send_recipes {
+            // Vanilla `PlayerList.placeNewPlayer` sends the recipe list once on
+            // login; a respawn or world change does not resend it.
+            self.send_packet(CUpdateRecipes {
+                item_sets: crate::inventory::recipe_manager::synchronized_item_properties(),
+                stonecutter_recipes:
+                    crate::inventory::recipe_manager::synchronized_stonecutter_recipes(),
+            });
+        }
         self.send_time_sync(world);
         self.send_packet(world.initialize_border_packet());
         self.send_default_spawn_position(world);

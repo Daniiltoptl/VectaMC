@@ -1,6 +1,7 @@
 //! Typed, plugin-extensible recipe registries and vanilla recipe data.
 
 mod crafting;
+mod display;
 mod ingredient;
 mod properties;
 mod registry;
@@ -13,6 +14,9 @@ pub use crafting::{
     DyeRecipe, FireworkRocketRecipe, FireworkStarFadeRecipe, FireworkStarRecipe, ImbueRecipe,
     MapExtendingRecipe, MapRecipeData, PositionedCraftingInput, RepairItemRecipe, ShapedRecipe,
     ShapelessRecipe, ShieldDecorationRecipe, TransmuteRecipe,
+};
+pub use display::{
+    RecipePropertySet, RecipePropertySetKey, SingleInputEntry, SlotDisplay, SlotDisplayKind,
 };
 pub use ingredient::Ingredient;
 pub use properties::{
