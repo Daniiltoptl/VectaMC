@@ -62,7 +62,8 @@ Patch/команды воспроизведения: [scripts/steel-extractor](.
 
 ## Проверки
 
-`cargo test --locked --workspace -j 1` на окончательных исходниках — **exit 0,
+Для изменений до load-context follow-up на `2f7e3980e`:
+`cargo test --locked --workspace -j 1` — **exit 0,
 3885 passed / 0 failed / 18 ignored**, включая doctests. Сборка — 7m13s.
 В составе этого прогона: core 2978 passed / 0 failed / 1 ignored,
 registry 424 passed, protocol 81 passed. Все 9 новых тестов прошли, включая
@@ -91,6 +92,8 @@ audit — 3105 objects / 49 block entity types / 253 source markers.
 ## Оставшееся
 
 - Вопрос NBT load уточнён в [последующем изменении](lectern-load-context.md).
+  Оно прошло пять новых тестов и полный workspace: 3890 passed / 0 failed /
+  18 ignored на `015152051`; блокер проверки B-W03-07 закрыт.
   Владелец выбрал отдельный контекст чтения. При обычном disk load vanilla
   ещё не привязывает сущность к ServerLevel и не разрешает книгу; контекст
   нужен при обновлении уже живой блок-сущности командами.

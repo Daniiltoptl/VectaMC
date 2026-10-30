@@ -3,6 +3,10 @@
 Дата: 2026-10-30. Ветка `codex/night-vanilla-03`, база `2f7e3980e`.
 Версия workspace и локальных vanilla sources: Minecraft Java 26.3.
 
+Финальная runtime-проверка закрыта на `015152051`: пять новых тестов прошли,
+полный workspace — **3890 passed / 0 failed / 18 ignored**, exit 0.
+Код реализации — `1f114ffb8`; после него менялась только документация.
+
 Владелец выбрал отдельный контекст чтения при загрузке блок-сущностей.
 Новая ссылка из `World` на `Server` не добавлялась.
 
@@ -72,7 +76,13 @@ page count до захвата container mutex, затем записывает 
 - `python -m unittest discover -s scripts` — 4 passed.
 - `python scripts/audit_vanilla.py` — 3105 objects, 49 block entity types,
   253 source markers.
-- `cargo test --locked --workspace -j 1` — **не завершён, тесты не запущены**:
+- `cargo test --locked -p vecta-core --lib book_resolution::lectern_load -j 1`
+  — **5 passed / 0 failed**, exit 0; сборка 2m30s.
+  Лог: `codex-lectern-load-tests-resumed.log`.
+- `cargo test --locked --workspace -j 1` — **3890 passed / 0 failed / 18 ignored**,
+  exit 0, включая doctests; сборка 4m12s, core 2983 passed / 1 ignored.
+  Лог: `codex-lectern-load-workspace-resumed.log`.
+- Предыдущая попытка `cargo test --locked --workspace -j 1` не завершилась:
   во время LLVM codegen `memory allocation of 278544 bytes failed`; с OOM
   завершился и PowerShell (exit -532462766). Лог: `codex-lectern-load-workspace.log`.
 
@@ -86,22 +96,25 @@ page count до захвата container mutex, затем записывает 
 чтение реестра подтвердило сохранение. Прежнее значение сохранено вне репозитория
 в `D:\CodexBuilds\logs\pagefile-before-2026-10-30.json`.
 После изменения активный файл всё ещё 1.33 ГБ, commit limit всё ещё 33.23 ГБ:
-**для применения нужна перезагрузка Windows**. Перезагрузка не выполнялась,
-приложения владельца не закрывались. Сборка и её настройки не менялись;
-тот же memory-heavy build до применения настройки не повторяется.
+для применения настройки нужна перезагрузка Windows. Перезагрузка не выполнялась,
+приложения владельца не закрывались. Затем владелец сообщил об освобождении
+ресурсов и явно попросил продолжить без перезагрузки. Перед запуском лимит
+оставался 33.23 ГБ, свободный commit — 9.27 ГБ, свободная RAM — 16.38 ГБ.
+При этих условиях сначала узкие тесты, затем полный workspace завершились
+успешно без изменения toolchain, rustflags, profiles или зависимостей.
 
 Промежуточный узкий прогон: 4 passed / 1 failed из-за продвижения часов зависимого
 мира тестовой fixture; ошибка подготовки исправлена. Ранее исправлена также
 установка позиции после регистрации игрока. После этих прогонов отрицательный
 case уточнён по CompilableString/NbtContents: неверная синтаксически NBT path
 не служит vanilla-примером runtime-ошибки, поэтому используется валидный score
-selector с двумя игроками. **Эти промежуточные результаты не подтверждают
-окончательный diff; все пять текущих runtime-тестов ещё требуется выполнить.**
+selector с двумя игроками. Промежуточные результаты не подтверждали
+окончательный diff; последующие успешные прогоны выше проверяют его полностью
+в пределах unit/integration/doctest suite.
 
-Последний полный зелёный baseline 3885 passed / 0 failed / 18 ignored относится
-к `2f7e3980e`, не к этому изменению. После освобождения commit сначала выполнить
-узкий фильтр `book_resolution::lectern_load` (должно исполниться пять тестов),
-затем полный workspace suite. Использовать прежние `-j 1`, target/temp на D: и
+Предыдущий baseline 3885 passed / 0 failed / 18 ignored относится к `2f7e3980e`.
+Новый подтверждённый baseline — 3890 passed / 0 failed / 18 ignored на
+`015152051`. Использованы прежние `-j 1`, target/temp на D: и
 `CARGO_INCREMENTAL=0`, без перебора toolchains, rustflags и profiles.
 
 Логи: `D:\CodexBuilds\logs\codex-lectern-load-*`.

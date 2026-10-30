@@ -146,12 +146,16 @@ disk/worldgen loading does not resolve the book. The context belongs to NBT
 updates of already attached block entities (setblock/fill/execute store), not
 an automatic resolution pass at chunk activation.
 
-## B-W03-07 — current load-context runtime verification blocked by commit limit
+## B-W03-07 — load-context runtime verification — CLOSED
 
-The live NBT read-context implementation and all its test code pass workspace
-Clippy/type-check. Final runtime verification is pending: the workspace build
-failed during LLVM codegen with `memory allocation of 278544 bytes failed`,
-and PowerShell also exited with OOM.
+Closed on `015152051`: the five final load-context tests passed; the full
+workspace completed with **3890 passed / 0 failed / 18 ignored**, exit 0.
+Logs: `codex-lectern-load-tests-resumed.log` and
+`codex-lectern-load-workspace-resumed.log` under `D:\CodexBuilds\logs`.
+Clippy/type-check had already passed for the same Rust source.
+
+Earlier the workspace build failed during LLVM codegen with
+`memory allocation of 278544 bytes failed`, and PowerShell also exited with OOM.
 
 Read-only diagnostics: GlobalMemoryStatusEx commit limit 33.23 GB, free commit
 11.21 GB, free physical memory 16.61 GB; `D:\pagefile.sys` is 1.33 GB. This differs
@@ -160,12 +164,13 @@ The owner subsequently explicitly approved a 16 GB D: pagefile on 2026-10-30.
 The persisted `PagingFiles` entry is now `D:\pagefile.sys 16384 16384`, verified
 by registry read-back; the previous `1361 16384` setting was backed up outside
 the repository. The active file remains 1.33 GB and commit limit remains
-33.23 GB: **a Windows restart is required before retrying the build**.
-No restart or closure of owner applications was performed. Toolchain,
-dependencies, profiles and rustflags remain unchanged.
+33.23 GB: a Windows restart is still required to activate that setting.
+The owner subsequently reported freeing resources and explicitly requested
+another test run without restarting. The pre-run free commit was 9.27 GB;
+both narrow and full runs succeeded. No restart or closure of owner applications
+was performed. Toolchain, dependencies, profiles and rustflags remain unchanged.
 
-The 3885-test green baseline belongs to `2f7e3980e`. The final read-context diff
-does not have a green full-suite result. See
+The 3885-test baseline belongs to `2f7e3980e`; the newer 3890-test result covers
+the final read-context diff. See
 [the load-context report](../reviews/lectern-load-context.md) for exact commands
-and the limits of intermediate test results. Resume with the five load-context
-tests after the resource condition changes, then run the workspace suite.
+and remaining non-runtime scope. The next gameplay stage is W03-06.
