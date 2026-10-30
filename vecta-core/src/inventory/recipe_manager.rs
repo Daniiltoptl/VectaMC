@@ -1,21 +1,26 @@
 //! Recipe matching and crafting-grid interpretation.
 
+use vecta_registry::data_components::components::ArmorTrim;
 use vecta_registry::data_components::vanilla_components::{
     BANNER_PATTERNS, BASE_COLOR, DYE, DYED_COLOR, ENCHANTMENTS, FIREWORK_EXPLOSION, FIREWORKS,
-    MAP_POST_PROCESSING, MAX_DAMAGE, POT_DECORATIONS, POTION_CONTENTS, WRITTEN_BOOK_CONTENT,
+    MAP_POST_PROCESSING, MAX_DAMAGE, POT_DECORATIONS, POTION_CONTENTS, PROVIDES_TRIM_MATERIAL,
+    TRIM, WRITTEN_BOOK_CONTENT,
 };
 use vecta_registry::data_components::vanilla_components::{
     DyedItemColor, FireworkExplosion, FireworkExplosionShape, Fireworks, ItemEnchantments,
     MapPostProcessing, PotDecorations,
 };
+use vecta_registry::items::ItemRef;
 use vecta_registry::recipe::{
     BookCloningRecipe, CraftingInput, CraftingRecipe, DyeRecipe, FireworkRocketRecipe,
-    FireworkStarFadeRecipe, FireworkStarRecipe, PositionedCraftingInput, ShieldDecorationRecipe,
-    SingleItemRecipeInput, StonecuttingRecipe, TypedRecipeRef, vanilla_recipe_types,
+    FireworkStarFadeRecipe, FireworkStarRecipe, Ingredient, PositionedCraftingInput,
+    ShieldDecorationRecipe, SingleItemRecipeInput, SmithingRecipe, SmithingRecipeInput,
+    StonecuttingRecipe, TypedRecipeRef, vanilla_recipe_types,
 };
+use vecta_registry::trim_pattern::TrimPatternRef;
 use vecta_registry::{
-    DyeColor, ItemStackTemplate, REGISTRY, RegistryExt as _, TaggedRegistryExt as _,
-    item_stack::ItemStack, vanilla_enchantment_tags, vanilla_items,
+    DyeColor, ItemStackTemplate, REGISTRY, RegistryExt as _, RegistryHolder,
+    TaggedRegistryExt as _, item_stack::ItemStack, vanilla_enchantment_tags, vanilla_items,
 };
 
 use crate::inventory::container::CraftingContainer;
@@ -27,6 +32,130 @@ pub type CraftingRecipeRef = TypedRecipeRef<CraftingRecipe, CraftingInput>;
 
 /// Typed reference to one registered stonecutting recipe.
 pub type StonecuttingRecipeRef = TypedRecipeRef<StonecuttingRecipe, SingleItemRecipeInput>;
+
+/// Typed reference to one registered smithing recipe.
+pub type SmithingRecipeRef = TypedRecipeRef<SmithingRecipe, SmithingRecipeInput>;
+
+/// Finds the first matching smithing recipe in deterministic registry order.
+#[must_use]
+pub fn find_smithing_recipe(input: &SmithingRecipeInput) -> Option<SmithingRecipeRef> {
+    REGISTRY
+        .recipes
+        .find_match(&vanilla_recipe_types::SMITHING, input)
+}
+
+/// Interprets passive vanilla smithing data for a concrete three-slot input.
+///
+/// Mirrors `SmithingTransformRecipe.assemble` (the result template with the
+/// base item's component patch) and `SmithingTrimRecipe.assemble` (the base
+/// item with the addition's trim material and the recipe's pattern).
+#[must_use]
+pub fn assemble_smithing(recipe: SmithingRecipeRef, input: &SmithingRecipeInput) -> ItemStack {
+    match recipe.data() {
+        SmithingRecipe::Transform(recipe) => recipe
+            .result
+            .apply(recipe.result.count(), input.base.components_patch()),
+        SmithingRecipe::Trim(recipe) => apply_trim(&input.base, &input.addition, recipe.pattern),
+    }
+}
+
+/// Mirrors `SmithingTrimRecipe.applyTrim`.
+fn apply_trim(base: &ItemStack, material_item: &ItemStack, pattern: TrimPatternRef) -> ItemStack {
+    let Some(material) = material_item.get(PROVIDES_TRIM_MATERIAL) else {
+        return ItemStack::empty();
+    };
+    let new_trim = ArmorTrim::new(
+        material.material().clone(),
+        RegistryHolder::reference(pattern),
+    );
+    if base.get(TRIM) == Some(&new_trim) {
+        return ItemStack::empty();
+    }
+
+    let mut trimmed = base.copy_with_count(1);
+    trimmed.set(TRIM, new_trim);
+    trimmed
+}
+
+/// Items that at least one smithing recipe accepts in each input role.
+///
+/// Vanilla derives `RecipePropertySet.SMITHING_TEMPLATE` / `SMITHING_BASE` /
+/// `SMITHING_ADDITION` from every loaded recipe in `finalizeRecipeLoading` and
+/// uses them as the three `ItemCombinerMenuSlotDefinition` placement
+/// predicates. Vecta has no property-set registry, so the same sets are derived
+/// here from the registered recipes.
+pub struct SmithingItemTests {
+    template: Vec<ItemRef>,
+    base: Vec<ItemRef>,
+    addition: Vec<ItemRef>,
+}
+
+impl SmithingItemTests {
+    /// Collects the accepted items of each role across every smithing recipe.
+    #[must_use]
+    pub fn collect() -> Self {
+        let mut tests = Self {
+            template: Vec::new(),
+            base: Vec::new(),
+            addition: Vec::new(),
+        };
+        for recipe in REGISTRY
+            .recipes
+            .by_type(&vanilla_recipe_types::SMITHING)
+            .iter()
+        {
+            let (template, base, addition) = match recipe.data() {
+                SmithingRecipe::Transform(recipe) => (
+                    recipe.template.as_ref(),
+                    Some(&recipe.base),
+                    recipe.addition.as_ref(),
+                ),
+                SmithingRecipe::Trim(recipe) => (
+                    Some(&recipe.template),
+                    Some(&recipe.base),
+                    Some(&recipe.addition),
+                ),
+            };
+            extend_items(&mut tests.template, template);
+            extend_items(&mut tests.base, base);
+            extend_items(&mut tests.addition, addition);
+        }
+        tests
+    }
+
+    /// Whether `stack` may be placed in the template slot.
+    #[must_use]
+    pub fn accepts_template(&self, stack: &ItemStack) -> bool {
+        accepts(&self.template, stack)
+    }
+
+    /// Whether `stack` may be placed in the base slot.
+    #[must_use]
+    pub fn accepts_base(&self, stack: &ItemStack) -> bool {
+        accepts(&self.base, stack)
+    }
+
+    /// Whether `stack` may be placed in the addition slot.
+    #[must_use]
+    pub fn accepts_addition(&self, stack: &ItemStack) -> bool {
+        accepts(&self.addition, stack)
+    }
+}
+
+fn accepts(items: &[ItemRef], stack: &ItemStack) -> bool {
+    !stack.is_empty() && items.contains(&stack.item)
+}
+
+fn extend_items(target: &mut Vec<ItemRef>, ingredient: Option<&Ingredient>) {
+    let Some(ingredient) = ingredient else {
+        return;
+    };
+    for item in ingredient.get_items() {
+        if !target.contains(&item) {
+            target.push(item);
+        }
+    }
+}
 
 /// Updates a result container from the first matching crafting recipe.
 pub fn slot_changed_crafting_grid<R: Container>(crafting: &CraftingContainer, result: &mut R) {

@@ -11,6 +11,7 @@ mod grindstone_block;
 mod lectern_block;
 mod loom_block;
 mod shulker_box_block;
+mod smithing_table_block;
 mod stonecutter_block;
 
 pub use anvil_block::*;
@@ -26,4 +27,5 @@ pub use grindstone_block::*;
 pub use lectern_block::*;
 pub use loom_block::*;
 pub use shulker_box_block::*;
+pub use smithing_table_block::*;
 pub use stonecutter_block::*;

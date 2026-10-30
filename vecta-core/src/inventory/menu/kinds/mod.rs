@@ -12,6 +12,7 @@ mod inventory_menu;
 mod lectern_menu;
 mod loom_menu;
 mod shulker_box_menu;
+mod smithing_menu;
 mod stonecutter_menu;
 
 pub use anvil_menu::{AnvilKind, anvil};
@@ -26,4 +27,5 @@ pub use inventory_menu::{INVENTORY_MENU_CONTAINER_ID, InventoryKind, inventory_m
 pub use lectern_menu::{LecternKind, lectern};
 pub use loom_menu::{LoomKind, loom};
 pub use shulker_box_menu::{ShulkerBoxKind, shulker_box};
+pub use smithing_menu::{SmithingKind, smithing};
 pub use stonecutter_menu::{StonecutterKind, stonecutter};

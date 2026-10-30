@@ -268,3 +268,64 @@ stack.`, so `collectImplicitComponents` has no consumer — creative pick-block
 returns a bookshelf without its `minecraft:container` component. That is a
 cross-cutting block-entity component gap (see `blockers.md`, B-W03-04), not a
 chiseled-bookshelf-specific defect.
+
+## W03-05 — smithing table: upgrades and trims
+
+Status: implemented end to end (menu + block + assembly); server-authoritative.
+
+Gap before: `minecraft:smithing_table` had no block behavior and no menu, and the
+`SmithingRecipe` data in `vecta-registry` was passive — nothing called `assemble`,
+nothing derived the three input predicates, and there was no trim assembly.
+
+Vanilla sources used: `SmithingMenu` (slot layout, `createInputSlotDefinitions`,
+`onTake`, `shrinkStackInSlot`, `slotsChanged`/`hasRecipeError`,
+`canMoveIntoInputSlots`, `canTakeItemForPickAll`), `ItemCombinerMenu`
+(`slotsChanged` → `createResult` only for the input container, `removed` →
+`clearContainer`, `stillValid`, `quickMoveStack` branch order), `SmithingTableBlock`
+(menu provider + `container.upgrade` title + `INTERACT_WITH_SMITHING_TABLE`),
+`SmithingTransformRecipe.assemble` → `TransmuteRecipe.createWithOriginalComponents`,
+`SmithingTrimRecipe.assemble` → `applyTrim`, `RecipeManager.RECIPE_PROPERTY_SETS`
+(`SMITHING_TEMPLATE` / `SMITHING_BASE` / `SMITHING_ADDITION`).
+
+Vecta changes:
+- `inventory/recipe_manager.rs`: `SmithingRecipeRef`, `find_smithing_recipe`,
+  `assemble_smithing` (transform = result template + base component patch; trim =
+  `apply_trim` with `provides_trim_material` + the recipe's pattern, empty when the
+  trim is unchanged), and `SmithingItemTests::collect()` which derives the three
+  role item sets from every registered smithing recipe the way
+  `finalizeRecipeLoading` does (no `RecipePropertySet` registry exists here).
+- `inventory/slots/smithing_slots.rs`: `SmithingResultHandler` — shrinks one item
+  from slots 0/1/2, notifies the inputs, plays `levelEvent(1044)`.
+- `inventory/menu/kinds/smithing_menu.rs` + `tests.rs`: `SMITHING` menu with three
+  per-slot restricted inputs, virtual result, `hasRecipeError` data slot 0,
+  `slots_changed` recompute, `still_valid` (block + 4.0), `removed` clears the
+  result, `canTakeItemForPickAll` excluding the result, and vanilla's
+  `quickMoveStack` order including `canMoveIntoInputSlots`.
+- `behavior/blocks/container/smithing_table_block.rs`: placement state, menu open
+  with the `container.upgrade` title and the interaction stat.
+
+Verified vanilla quirks kept on purpose:
+- The result is recomputed from the *current* three inputs on every change, so a
+  swapped base changes the result before any take (tested).
+- Re-applying the same material+pattern yields an empty result (`applyTrim`'s
+  equality check), while a different pattern re-trims (tested).
+- `hasRecipeError` is 1 only when all three inputs are filled *and* the result is
+  empty; it is not an "invalid recipe" flag.
+
+Verification:
+- `cargo test --locked -p vecta-core --lib smithing -j 1` → 7 passed (upgrade with
+  carried damage/custom name, take consumes one from each input, trim
+  material+pattern, identical trim refused / different pattern applied,
+  mismatched template+base → error flag, base swap before take, full-inventory
+  quick-move).
+- `cargo test --locked -p vecta-core --lib -j 1` → 2974 passed, 0 failed,
+  1 ignored.
+- `cargo clippy --locked -p vecta-core --all-targets --all-features -j 1 -- -D warnings`
+  → exit 0. `cargo fmt --all --check` → exit 0.
+
+Not covered here: `onTake`'s `carried.onCraftedBy` and
+`resultSlots.awardUsedRecipes` (crafted-count / `ITEM_CRAFTED` / recipe awards are
+W03-06 and W03-65, and `ResultSlot::on_take` already carries that TODO), and the
+client recipe-book preview (B-W03-01). The result slot also has no
+`setRecipeUsed` equivalent, so the smithing recipe is not recorded for
+advancements yet.
