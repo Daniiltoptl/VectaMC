@@ -19,7 +19,7 @@
   <a href="#сборка">Сборка</a> ·
   <a href="ROADMAP.md">План разработки</a> ·
   <a href="VANILLA_PLAN.md">Ванильные задачи</a> ·
-  <a href="NIGHT_TASK_03.md">Пакет для WorkBuddy</a> ·
+  <a href="NIGHT_TASK_04.md">Пакет для WorkBuddy</a> ·
   <a href="CHANGELOG.md">Изменения</a> ·
   <a href="PROVENANCE.md">Происхождение</a>
 </p>
