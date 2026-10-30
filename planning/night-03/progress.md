@@ -4,6 +4,9 @@ Lectern NBT follow-up: [explicit load read context](../reviews/lectern-load-cont
 The owner selected a separate read context. Initial disk/worldgen decoding
 precedes Vanilla level binding and leaves pages unresolved; live command NBT
 updates receive the context explicitly. No World-to-Server link was added.
+Runtime checks remain blocked by B-W03-07. With explicit owner approval, the
+D: pagefile setting was changed to 16 GB; the active file/commit limit did not
+grow yet. Windows must be restarted before resuming the heavy test build.
 
 Codex follow-up: [current review](../reviews/night-03-follow-up.md).
 The owner resumed verification after the earlier codec-only commit. The

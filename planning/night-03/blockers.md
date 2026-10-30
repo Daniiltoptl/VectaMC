@@ -156,10 +156,13 @@ and PowerShell also exited with OOM.
 Read-only diagnostics: GlobalMemoryStatusEx commit limit 33.23 GB, free commit
 11.21 GB, free physical memory 16.61 GB; `D:\pagefile.sys` is 1.33 GB. This differs
 from the earlier ~48 GB limit. No VM was found and disk space is available.
-No applications, pagefile settings, toolchain, dependencies, profiles or
-rustflags were changed. The owner has been asked whether to increase the D:
-pagefile to 16 GB, free memory themselves, or defer runtime checks. Permission
-has not been received; do not treat elapsed time as agreement.
+The owner subsequently explicitly approved a 16 GB D: pagefile on 2026-10-30.
+The persisted `PagingFiles` entry is now `D:\pagefile.sys 16384 16384`, verified
+by registry read-back; the previous `1361 16384` setting was backed up outside
+the repository. The active file remains 1.33 GB and commit limit remains
+33.23 GB: **a Windows restart is required before retrying the build**.
+No restart or closure of owner applications was performed. Toolchain,
+dependencies, profiles and rustflags remain unchanged.
 
 The 3885-test green baseline belongs to `2f7e3980e`. The final read-context diff
 does not have a green full-suite result. See
