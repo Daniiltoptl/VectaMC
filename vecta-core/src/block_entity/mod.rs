@@ -49,10 +49,15 @@ use std::{
 
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::{
-    block_entity_type::BlockEntityTypeRef, data_components::DataComponentMap, item_stack::ItemStack,
+    block_entity_type::BlockEntityTypeRef,
+    data_components::{
+        ComponentPatchEntry, DataComponentMap,
+        vanilla_components::{BLOCK_ENTITY_DATA, BLOCK_STATE},
+    },
+    item_stack::ItemStack,
 };
 use vecta_utils::{
-    BlockPos, BlockStateId, ErasedType,
+    BlockPos, BlockStateId, ErasedType, Identifier,
     locks::{SyncMutex, SyncRwLock},
 };
 
@@ -311,11 +316,15 @@ impl BlockEntityBase {
             }),
             None => DataComponentMap::new(),
         };
-        *self.components.write() = components;
+        self.set_stored_components(components);
     }
 
-    fn stored_components(&self) -> DataComponentMap {
+    pub(crate) fn stored_components(&self) -> DataComponentMap {
         self.components.read().clone()
+    }
+
+    pub(crate) fn set_stored_components(&self, components: DataComponentMap) {
+        *self.components.write() = components;
     }
 
     pub(crate) fn is_valid_container_for(&self, player: &Player) -> bool {
@@ -485,10 +494,7 @@ pub trait BlockEntity: ErasedType + Send + Sync {
 
     /// Saves command-visible data together with vanilla block-entity metadata.
     fn save_with_full_metadata(&self) -> NbtCompound {
-        // TODO: Include stored block-entity components once Vecta has Vanilla's
-        // block-entity component foundation. NBT predicates targeting the
-        // `components` field cannot match exactly until then.
-        let mut nbt = self.save_custom_only();
+        let mut nbt = self.save_without_metadata();
         let pos = self.get_block_pos();
         nbt.insert("id", self.get_type().key.to_string());
         nbt.insert("x", pos.x());
@@ -528,12 +534,50 @@ pub trait BlockEntity: ErasedType + Send + Sync {
         None
     }
 
-    /// Called in `BlockItem.place` before `placedState.getBlock().setPlacedBy`
-    #[expect(
-        unused_variables,
-        reason = "default trait impl; parameters used by overrides"
-    )]
-    fn apply_components_from_item(&self, item: &ItemStack) {}
+    /// Applies the item components this block entity owns and returns the
+    /// component keys it consumed.
+    ///
+    /// Mirrors Vanilla `BlockEntity.applyImplicitComponents` together with the
+    /// implicit-type tracking in `applyComponents`: every key a block entity
+    /// reads here is stripped from the components it stores explicitly.
+    fn apply_implicit_components(&self, _item: &ItemStack) -> Vec<Identifier> {
+        Vec::new()
+    }
+
+    /// Adds the components this block entity stores implicitly.
+    ///
+    /// Mirrors Vanilla `BlockEntity.collectImplicitComponents`.
+    fn collect_implicit_components(&self, _components: &mut DataComponentMap) {}
+
+    /// Discards NBT fields that already travel in item components.
+    ///
+    /// Mirrors Vanilla `BlockEntity.removeComponentsFromTag`, which keeps a
+    /// picked block item from duplicating data that a component already holds.
+    fn remove_components_from_tag(&self, _nbt: &mut NbtCompound) {}
+
+    /// Called in `BlockItem.place` before `placedState.getBlock().setPlacedBy`.
+    ///
+    /// Mirrors Vanilla `BlockEntity.applyComponentsFromItemStack`: the block
+    /// entity applies what it owns implicitly and keeps the remaining explicit
+    /// components, excluding `minecraft:block_entity_data` and
+    /// `minecraft:block_state`, which describe the placement rather than the
+    /// block entity.
+    fn apply_components_from_item(&self, item: &ItemStack) {
+        let consumed = self.apply_implicit_components(item);
+        let mut stored = DataComponentMap::new();
+        for (key, entry) in item.components_patch().iter() {
+            if consumed.contains(key)
+                || *key == *BLOCK_ENTITY_DATA.key()
+                || *key == *BLOCK_STATE.key()
+            {
+                continue;
+            }
+            if let ComponentPatchEntry::Set(data) = entry {
+                stored.set_raw(key.clone(), data.clone());
+            }
+        }
+        self.base().set_stored_components(stored);
+    }
 }
 
 /// Final block-entity common-state operations.

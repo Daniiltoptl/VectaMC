@@ -10,7 +10,6 @@ use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::blocks::properties::{
     BlockStateProperties, BoolProperty, Direction, EnumProperty,
 };
-use vecta_registry::data_components::vanilla_components::CONTAINER;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::stat::vanilla_stat_types;
@@ -23,7 +22,7 @@ use vecta_utils::{BlockPos, BlockStateId, Downcast as _};
 
 use crate::behavior::{
     BlockBehavior, BlockEntityCreation, BlockHitResult, BlockPlaceContext, InteractionResult,
-    InventoryAccess, PlacementSource,
+    InventoryAccess,
 };
 use crate::block_entity::BLOCK_ENTITIES;
 use crate::block_entity::entities::{CHISELED_BOOKSHELF_SLOTS, ChiseledBookShelfBlockEntity};
@@ -134,40 +133,6 @@ impl BlockBehavior for ChiseledBookShelfBlock {
                 .default_state()
                 .set_value(HORIZONTAL_FACING, context.horizontal_direction().opposite()),
         )
-    }
-
-    fn set_placed_by(
-        &self,
-        _state: BlockStateId,
-        world: &Arc<World>,
-        pos: BlockPos,
-        source: &PlacementSource<'_>,
-    ) {
-        let component_items = source.with_item(|item| {
-            item.get(CONTAINER).map(|contents| {
-                contents
-                    .items()
-                    .iter()
-                    .take(CHISELED_BOOKSHELF_SLOTS)
-                    .map(|item| {
-                        item.as_ref().map_or_else(
-                            ItemStack::empty,
-                            vecta_registry::ItemStackTemplate::create,
-                        )
-                    })
-                    .collect::<Vec<_>>()
-            })
-        });
-        let Some(component_items) = component_items else {
-            return;
-        };
-        let Some(block_entity) = world.get_block_entity(pos) else {
-            return;
-        };
-        let Some(bookshelf) = block_entity.downcast_ref::<ChiseledBookShelfBlockEntity>() else {
-            return;
-        };
-        bookshelf.apply_container_items(component_items);
     }
 
     fn use_item_on(
@@ -310,18 +275,24 @@ impl BlockBehavior for ChiseledBookShelfBlock {
 mod tests {
     use std::sync::Arc;
 
+    use text_components::TextComponent;
     use uuid::Uuid;
+    use vecta_protocol::packets::game::SPickItemFromBlock;
     use vecta_registry::ItemStackTemplate;
     use vecta_registry::blocks::shapes::is_shape_full_block;
     use vecta_registry::data_components::components::ItemContainerContents;
+    use vecta_registry::data_components::vanilla_components::{
+        BLOCK_ENTITY_DATA, CONTAINER, CUSTOM_NAME,
+    };
     use vecta_registry::{vanilla_blocks, vanilla_entities};
     use vecta_utils::types::{GameType, UpdateFlags};
     use vecta_utils::{ChunkPos, WorldAabb};
 
     use super::*;
-    use crate::behavior::PlacementOrientation;
+    use crate::behavior::{PlacementOrientation, PlacementSource};
     use crate::block_entity::BlockEntity as _;
     use crate::bootstrap::init_globals;
+    use crate::entity::Entity as _;
     use crate::entity::entities::ItemEntity;
     use crate::inventory::container::Container as _;
     use crate::inventory::lock::ContainerLockGuard;
@@ -733,7 +704,6 @@ mod tests {
         insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
         let state = state_facing(COMPONENT_PLACER_FACING.opposite());
         assert!(world.set_block(TEST_POS, state, UpdateFlags::UPDATE_ALL));
-        let behavior = ChiseledBookShelfBlock::new(&vanilla_blocks::CHISELED_BOOKSHELF);
 
         let contents = ItemContainerContents::new(vec![
             Some(ItemStackTemplate::new(&vanilla_items::BOOK)),
@@ -751,17 +721,10 @@ mod tests {
                     .map(ChiseledBookShelfBlockEntity::last_interacted_slot)
             })
             .expect("placed chiseled bookshelf should have its concrete block entity");
-        let is_secondary_use_active = false;
-        let source = PlacementSource::direct(
-            None,
-            InteractionHand::MainHand,
-            &mut placed_item,
-            PlacementOrientation::Directional {
-                direction: COMPONENT_PLACER_FACING,
-            },
-            is_secondary_use_active,
-        );
-        behavior.set_placed_by(state, world, TEST_POS, &source);
+        world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity")
+            .apply_components_from_item(&placed_item);
 
         let block_entity = world
             .get_block_entity(TEST_POS)
@@ -787,6 +750,101 @@ mod tests {
         assert_eq!(
             bookshelf.last_interacted_slot(),
             initial_last_interacted_slot,
+        );
+    }
+
+    #[test]
+    fn picking_a_filled_shelf_and_placing_it_restores_its_books() {
+        init_globals();
+        let world_fixture = fresh_test_world("chiseled_bookshelf_pick_place_round_trip");
+        let world = &world_fixture.world;
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(TEST_POS));
+        let state = state_facing(INTERACTION_FACING);
+        assert!(world.set_block(TEST_POS, state, UpdateFlags::UPDATE_ALL));
+
+        let block_entity = world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity");
+        let bookshelf = block_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+        assert!(bookshelf.insert_book(TOP_LEFT_SLOT, ItemStack::new(&vanilla_items::BOOK)));
+        assert!(bookshelf.insert_book(
+            TOP_RIGHT_SLOT,
+            ItemStack::new(&vanilla_items::ENCHANTED_BOOK),
+        ));
+
+        let player =
+            TestPlayerBuilder::new(Arc::clone(world), "ShelfPicker", TEST_PLAYER_ENTITY_ID).build();
+        player.base().set_position_local(DVec3::new(
+            f64::from(TEST_POS.x()) + 0.5,
+            f64::from(TEST_POS.y()),
+            f64::from(TEST_POS.z()) + 0.5,
+        ));
+        player.restore_game_modes(GameType::Creative, None);
+
+        player.handle_pick_item_from_block(SPickItemFromBlock {
+            pos: TEST_POS,
+            include_data: true,
+        });
+
+        let picked = {
+            let inventory = player.inventory.lock();
+            inventory.get_selected_item().clone()
+        };
+        assert!(picked.is(&vanilla_items::CHISELED_BOOKSHELF));
+        let contents = picked
+            .get(CONTAINER)
+            .expect("the picked shelf carries its container component");
+        assert!(
+            contents.items()[TOP_LEFT_SLOT]
+                .as_ref()
+                .is_some_and(|item| item.item().key == vanilla_items::BOOK.key)
+        );
+        assert!(
+            contents.items()[TOP_RIGHT_SLOT]
+                .as_ref()
+                .is_some_and(|item| item.item().key == vanilla_items::ENCHANTED_BOOK.key)
+        );
+        let data = picked
+            .get(BLOCK_ENTITY_DATA)
+            .expect("the picked shelf keeps its block-entity data");
+        assert!(
+            data.data().as_compound().get("Items").is_none(),
+            "contents travel in the component, not in the item's NBT"
+        );
+
+        let placed_pos = BlockPos::new(TEST_POS.x() + 2, TEST_POS.y(), TEST_POS.z());
+        assert!(world.set_block(placed_pos, state, UpdateFlags::UPDATE_ALL));
+        let placed_entity = world
+            .get_block_entity(placed_pos)
+            .expect("the second shelf should have a block entity");
+        let mut named = picked.clone();
+        named.set(CUSTOM_NAME, TextComponent::plain("Library"));
+        placed_entity.apply_components_from_item(&named);
+        let placed_shelf = placed_entity
+            .downcast_ref::<ChiseledBookShelfBlockEntity>()
+            .expect("registered chiseled bookshelf should use its concrete block entity");
+        assert!(
+            placed_shelf
+                .item(TOP_LEFT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::BOOK))
+        );
+        assert!(
+            placed_shelf
+                .item(TOP_RIGHT_SLOT)
+                .is_some_and(|item| item.is(&vanilla_items::ENCHANTED_BOOK))
+        );
+
+        // The consumed container component is not stored again; the explicit
+        // name is, and the full metadata exposes it as the `components` field.
+        let stored = placed_entity.base().stored_components();
+        assert!(!stored.has(CONTAINER));
+        assert!(stored.has(CUSTOM_NAME));
+        let metadata = placed_entity.save_with_full_metadata();
+        assert!(
+            metadata.get("components").is_some(),
+            "full metadata must expose stored block-entity components"
         );
     }
 
@@ -862,28 +920,17 @@ mod tests {
 
     /// Places a bookshelf the way `BlockItem` does for a stack that carries a
     /// `minecraft:container` component.
-    fn place_with_component_book(
-        behavior: &ChiseledBookShelfBlock,
-        world: &Arc<World>,
-        state: BlockStateId,
-    ) {
+    fn place_with_component_book(world: &Arc<World>) {
         let contents = ItemContainerContents::new(vec![Some(ItemStackTemplate::new(
             &vanilla_items::WRITABLE_BOOK,
         ))])
         .expect("a single component slot is valid");
         let mut placed_item = ItemStack::new(&vanilla_items::CHISELED_BOOKSHELF);
         placed_item.set(CONTAINER, contents);
-        let is_secondary_use_active = false;
-        let source = PlacementSource::direct(
-            None,
-            InteractionHand::MainHand,
-            &mut placed_item,
-            PlacementOrientation::Directional {
-                direction: COMPONENT_PLACER_FACING,
-            },
-            is_secondary_use_active,
-        );
-        behavior.set_placed_by(state, world, TEST_POS, &source);
+        world
+            .get_block_entity(TEST_POS)
+            .expect("placed chiseled bookshelf should have a block entity")
+            .apply_components_from_item(&placed_item);
     }
 
     #[test]
@@ -949,7 +996,7 @@ mod tests {
         let mut inventory =
             InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
 
-        place_with_component_book(&behavior, world, state);
+        place_with_component_book(world);
 
         // `applyImplicitComponents` copies the items without recomputing the
         // occupied properties, so the shelf holds a book the state calls absent.

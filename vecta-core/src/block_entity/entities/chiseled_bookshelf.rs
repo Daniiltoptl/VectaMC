@@ -10,13 +10,17 @@ use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use vecta_registry::ItemStackTemplate;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty};
+use vecta_registry::data_components::DataComponentMap;
 use vecta_registry::data_components::components::ItemContainerContents;
+use vecta_registry::data_components::vanilla_components::CONTAINER;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::vanilla_block_entity_types;
 use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::{vanilla_blocks, vanilla_game_events};
 use vecta_utils::types::UpdateFlags;
-use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, locks::SyncMutex};
+use vecta_utils::{
+    BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
+};
 
 use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::inventory::container::Container;
@@ -220,6 +224,46 @@ impl ChiseledBookShelfBlockEntity {
 impl BlockEntity for ChiseledBookShelfBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
+        // Vanilla copies the container component, including an absent one,
+        // which clears every slot of the shelf.
+        let items = item.get(CONTAINER).map_or_else(
+            || vec![ItemStack::empty(); CHISELED_BOOKSHELF_SLOTS],
+            |contents| {
+                contents
+                    .items()
+                    .iter()
+                    .take(CHISELED_BOOKSHELF_SLOTS)
+                    .map(|item| {
+                        item.as_ref()
+                            .map_or_else(ItemStack::empty, ItemStackTemplate::create)
+                    })
+                    .collect()
+            },
+        );
+        self.apply_container_items(items);
+        vec![CONTAINER.key().clone()]
+    }
+
+    fn collect_implicit_components(&self, components: &mut DataComponentMap) {
+        match self.collect_container_component() {
+            Ok(contents) => {
+                components.set(CONTAINER, Some(contents));
+            }
+            Err(error) => {
+                log::warn!(
+                    "failed to collect the container component of the chiseled bookshelf at {:?}: {error}",
+                    self.get_block_pos()
+                );
+            }
+        }
+    }
+
+    fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
+        // Contents travel in the container component, not in the item's NBT.
+        nbt.remove(ITEMS_NBT_KEY);
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {

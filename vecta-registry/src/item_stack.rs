@@ -483,6 +483,20 @@ impl ItemStack {
         }
     }
 
+    /// Sets a type-erased component value in this item's patch.
+    ///
+    /// Used when the component type is only known by its registry key, for
+    /// example when copying components collected from a block entity.
+    /// Returns `false` if the key is unregistered or the data does not match
+    /// the registered type.
+    pub fn set_raw(&mut self, key: Identifier, data: ComponentData) -> bool {
+        if self.prototype().get_raw(&key) == Some(&data) {
+            self.patch.clear_raw(&key);
+            return true;
+        }
+        self.patch.set_raw(key, data)
+    }
+
     /// Removes a component from this item (marks it as removed in the patch).
     /// This will hide the component even if it exists in the prototype.
     pub fn remove<T: 'static>(&mut self, component: DataComponentType<T>) {

@@ -462,3 +462,47 @@ stonecutter,smithing}_menu.rs`, `player/stats_counter.rs` (`Player::get_stat`).
   `MAP_POST_PROCESSING`, но потребителя нет.
 - `ItemStack.onCraftedBySystem` — crafter, W04-030.
 - `RecipeCraftingHolder.awardUsedRecipes` — W04-008/010 (книга рецептов).
+
+## W04-011..014 (частично) — implicit components блок-сущностей и pick-block с данными
+
+Связь: закрывает B-W03-04 в части общего hook и первого настоящего consumer.
+
+Что теперь делает игрок:
+- Средний клик в креативе по книжной полке с книгами даёт предмет с теми же
+  книгами в `minecraft:container`; установка этого предмета возвращает книги.
+- NBT предмета (`minecraft:block_entity_data`) не дублирует содержимое: поле
+  `Items` снимается через `removeComponentsFromTag`, как в 26.3.
+- `/data get block` снова показывает поле `components`, включая custom name,
+  который был на предмете при установке.
+
+Java 26.3: `BlockEntity.applyComponentsFromItemStack/applyComponents/
+collectComponents/applyImplicitComponents/collectImplicitComponents/
+removeComponentsFromTag`, `saveWithFullMetadata`/`saveWithoutMetadata`/
+`saveCustomOnly`, `ServerGamePacketListenerImpl.handlePickItemFromBlock` и
+`addBlockDataToItem`, `BlockItem.setBlockEntityData`/`updateBlockEntityComponents`,
+`ChiseledBookShelfBlockEntity` (container + discard `Items`),
+`BaseContainerBlockEntity` (контракт CONTAINER).
+
+Vecta paths: `block_entity/mod.rs` (хуки, `stored_components`/
+`set_stored_components`, `save_with_full_metadata` с `components`),
+`block_entity/entities/chiseled_bookshelf.rs`,
+`behavior/blocks/container/chiseled_bookshelf_block.rs` (`set_placed_by` больше
+не применяет компонент), `player/game_mode/block_interaction.rs`
+(`add_block_data_to_item`), `vecta-registry` `item_stack.rs` (`set_raw`),
+`patch.rs` (`clear_raw`).
+
+Общий контракт: `apply_components_from_item` теперь сам применяет implicit
+часть и сохраняет оставшийся patch, исключая `block_entity_data` и
+`block_state`. Книжная полка — первый consumer; shulker box, табличка и голова
+пока переопределяют `apply_components_from_item` целиком и будут переведены на
+`apply_implicit_components` отдельным шагом W04-012/014.
+
+Проверки: `cargo test -p vecta-core --lib chiseled_bookshelf` — 18 passed,
+включая новый round-trip pick → place; полный core suite и clippy — в отчёте.
+
+Незакрытое:
+- W04-012 остаётся частичной: `updateCustomBlockEntityTag` (BLOCK_ENTITY_DATA →
+  NBT) по-прежнему применяется per-block (`set_placed_by` жукбокса, лектерна,
+  табличек), общего placement-пути для NBT нет.
+- W04-014 частично: save-сторона (`save_with_full_metadata` с `components`)
+  готова; owned/borrowed load и chunk unload/load ещё не покрыты регрессией.

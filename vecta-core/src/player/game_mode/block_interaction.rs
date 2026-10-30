@@ -1,4 +1,34 @@
 use super::{block_breaking::BlockBreakAction, *};
+use vecta_registry::data_components::components::{BlockEntityData, CustomData};
+use vecta_registry::data_components::vanilla_components::BLOCK_ENTITY_DATA;
+
+/// Copies a block entity's components and custom NBT onto a picked item.
+///
+/// Mirrors Vanilla `ServerGamePacketListenerImpl.addBlockDataToItem`: the
+/// custom NBT loses the fields that already travel in components, and the
+/// block entity's stored and implicit components are applied to the stack.
+fn add_block_data_to_item(item_stack: &mut ItemStack, block_entity: &dyn BlockEntity) {
+    let mut nbt = block_entity.save_custom_only();
+    block_entity.remove_components_from_tag(&mut nbt);
+    if !nbt.is_empty()
+        && let Some(data) = CustomData::try_from_compound(nbt)
+    {
+        let data = match item_stack.get(BLOCK_ENTITY_DATA) {
+            Some(existing) => existing.data().merged_with(&data),
+            None => data,
+        };
+        item_stack.set(
+            BLOCK_ENTITY_DATA,
+            BlockEntityData::new(block_entity.get_type(), data),
+        );
+    }
+
+    let mut components = block_entity.base().stored_components();
+    block_entity.collect_implicit_components(&mut components);
+    for (key, data) in components.iter() {
+        item_stack.set_raw(key.clone(), data.clone());
+    }
+}
 
 impl Player {
     /// Sends block update packets for a position and its neighbor.
@@ -235,8 +265,8 @@ impl Player {
 
         let include_data = self.has_infinite_materials() && packet.include_data;
 
-        let Some(item_stack) =
-            behavior.get_clone_item_stack(block, state, block_entity, include_data)
+        let Some(mut item_stack) =
+            behavior.get_clone_item_stack(block, state, block_entity.clone(), include_data)
         else {
             return;
         };
@@ -245,7 +275,9 @@ impl Player {
             return;
         }
 
-        // TODO: If include_data, copy the block entity data into the picked item stack.
+        if include_data && let Some(block_entity) = block_entity.as_deref() {
+            add_block_data_to_item(&mut item_stack, block_entity);
+        }
 
         self.try_pick_item(item_stack);
     }
