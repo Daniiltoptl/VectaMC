@@ -52,12 +52,14 @@ W04-022..030.
 - `da8b47084` — feat(block-entities): collect and apply implicit item
   components (W04-011..013)
 - `4fb61ced8` — feat(chest): implement the single chest container (W04-021)
+- `e12315b7e` — docs: record the W04 continuation results and refresh the audit
+  (этот отчёт, README и перегенерированный audit; Rust-код не менялся)
 - Чужой файл `planning/night-01/report.md` остался незакоммиченным и не
   staged; других dirty paths нет.
 
 ## Проверки
 
-Полный набор на итоговом HEAD (`4fb61ced8`), логи в `D:/CodexBuilds/logs`:
+Полный набор на кодовом tip `4fb61ced8` (следующий коммит — только документация), логи в `D:/CodexBuilds/logs`:
 
 | Команда | Результат |
 | --- | --- |
