@@ -199,6 +199,60 @@ fn quick_move_crafts_until_the_input_runs_out() {
 }
 
 #[test]
+fn quick_move_drops_the_result_that_does_not_fit_and_consumes_only_one_input() {
+    use crate::entity::entities::ItemEntity;
+    use vecta_registry::REGISTRY;
+    use vecta_registry::recipe::{SingleItemRecipeInput, vanilla_recipe_types};
+
+    let (world_fixture, player, _pos, mut menu) = test_stonecutter("stonecutter_partial_result");
+    put_input(
+        &mut menu,
+        &player,
+        ItemStack::with_count(&vanilla_items::STONE, 3),
+    );
+    let index = REGISTRY
+        .recipes
+        .matching(
+            &vanilla_recipe_types::STONECUTTING,
+            &SingleItemRecipeInput::new(ItemStack::new(&vanilla_items::STONE)),
+        )
+        .position(|recipe| recipe.data().result.count() > 1)
+        .expect("stone has a recipe producing multiple items");
+    assert!(menu.click_menu_button(
+        &player,
+        i32::try_from(index).expect("recipe index fits i32")
+    ));
+    let result = slot_item(&menu, RESULT_SLOT);
+    let max_count = result.max_stack_size();
+    {
+        let mut inventory = player.inventory.lock();
+        for slot in 0..36 {
+            inventory.set_item(slot, ItemStack::with_count(&vanilla_items::DIRT, 64));
+        }
+        inventory.set_item(8, result.copy_with_count(max_count - 1));
+    }
+
+    menu.clicked(Click::QuickMove { slot: RESULT_SLOT }, &player)
+        .expect("quick move should be handled");
+
+    assert_eq!(player.inventory.lock().get_item(8).count(), max_count);
+    assert_eq!(slot_item(&menu, INPUT_SLOT).count(), 2);
+    assert_eq!(slot_item(&menu, RESULT_SLOT).count(), result.count());
+    let drops = world_fixture
+        .world
+        .get_entities_in_aabb_matching(&player.bounding_box().inflate(4.0), |entity| {
+            entity.downcast_ref::<ItemEntity>().is_some()
+        });
+    assert_eq!(drops.len(), 1);
+    let dropped = drops[0]
+        .downcast_ref::<ItemEntity>()
+        .expect("result was dropped as an item")
+        .get_item();
+    assert_eq!(dropped.item(), result.item());
+    assert_eq!(dropped.count(), result.count() - 1);
+}
+
+#[test]
 fn button_packet_requires_the_current_container_id() {
     init_vanilla_registry();
     init_behaviors();

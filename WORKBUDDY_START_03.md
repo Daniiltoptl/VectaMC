@@ -7,20 +7,24 @@
 Работаем над VectaMC — Minecraft Java сервером на Rust. Продолжай настоящую
 разработку vanilla 26.3 в `C:\Users\My comp\Desktop\Vecta`.
 
-Полный новый пакет — **`NIGHT_TASK_03.md`**, 72 игровые задачи с зависимостями,
+Полный пакет — **`NIGHT_TASK_03.md`**, 72 игровые задачи с зависимостями,
 vanilla references и приёмкой. Прочитай его целиком и выполняй. Это очередь
 для длинного сеанса и последующих продолжений, а не повод снова написать план.
 
 Сначала прочитай AGENTS.md и свежие ревью, особенно
-`planning/reviews/N03-N19.md`. Актуальная база — tip `codex/night-vanilla-02`,
-содержащий игровой fix `ac8c2d7887046748c2050513b36e56df5af972bf` и документацию
-нового пакета. Создай от актуального состояния `codex/night-vanilla-03` или
-продолжай её, если это уже проверенное продолжение той же работы. Не откатывай
-к старому SHA/ночному отчёту, не повторяй реализацию мешков, книг и entity pick.
+`planning/reviews/night-03-follow-up.md`, затем `planning/night-03/progress.md`
+и `planning/night-03/blockers.md`. Актуальная база — **текущий tip `codex/night-vanilla-03`**.
+Ветка уже существует и содержит W03-01..05, recipe sync и исправления Codex.
+Сохрани фактические branch/HEAD/status; не создавай её заново от Night 02,
+не откатывай к старому SHA/отчёту и не повторяй уже существующую реализацию.
 
-**Начинай с W03-01: настоящий обработчик кнопок меню и полностью рабочий камнерез.**
-Затем loom, lectern, smithing, result accounting, menu lifecycle, chest/double
-chest, hopper/dropper и остальные доступные этапы из очереди. Не останавливайся
+**Следующий основной этап — W03-06: result accounting и item callbacks.**
+Затем menu lifecycle, chest/double chest, hopper/dropper и остальные доступные
+этапы. W03-01..05 уже имеют серверную реализацию и тесты; это не означает
+полную ванильную готовность этих областей. Для NBT-load книг кафедры открыт
+архитектурный вопрос B-W03-06: решения владельца пока нет, не угадывай его.
+Исправления потери остатка камнереза, контекста размещения книги и codec bugs
+сохрани. Не останавливайся
 после первого успешного пункта или одного часа: закончил → узкие тесты →
 проверенный коммит → push своей ветки → следующий независимый этап.
 
@@ -37,9 +41,16 @@ local vanilla 26.3, data/build scripts и tests, затем зафиксируй
 На этой Windows машине все Cargo commands с **`-j 1`**:
 `CARGO_TARGET_DIR=D:\CodexBuilds\VectaMC`, `CARGO_INCREMENTAL=0`,
 `TMP/TEMP=D:\CodexBuilds\tmp` после проверки путей/места.
-Known checked baseline: 3820 passed, 0 failed, 18 ignored. Не запускать его
+Known checked baseline после ревью: **3885 passed, 0 failed, 18 ignored**.
+Clippy workspace/all-targets/all-features с `-D warnings` завершился exit 0;
+отдельное предупреждение Cargo о mimalloc при dhat-heap описано в ревью.
+Не запускать baseline
 заново без причины до первого изменения; после изменений узкие tests и полный
 suite/Clippy перед итоговой передачей. Нулевой найденный test filter не pass.
+
+SteelExtractor теперь есть: `D:\CodexBuilds\SteelExtractor`, версия 26.3.
+Для slot_display используй `scripts/steel-extractor/README.md` и реальный output;
+ручные числовые ID уже заменены typed registry, не возвращай их обратно.
 
 Чужой `planning/night-01/report.md` оставь нетронутым и вне своих коммитов.
 Не редактируй generated Rust/extracted JSON вручную. Не принимай EULA,
@@ -47,8 +58,9 @@ suite/Clippy перед итоговой передачей. Нулевой на
 force-push, merge или push в main. Пушь только свои проверенные изменения в origin.
 
 Журнал вести в `planning/night-03/`, без пустых файлов вместо реализации.
-В конце создай report.md с actual commits, checks и статусами задач, затем
+В конце создай отчёт продолжения `report-next.md` с actual commits, checks и
+статусами задач, сохранив исторический `report.md`, затем
 обязательно дай **обычный текстовый ответ** с тем, что заработало, результатами
 проверок, веткой/коммитом, ссылкой на отчёт и следующим ID. Одних файлов недостаточно.
 
-Не отвечай только обещанием/планом. Проверь состояние репозитория и начинай W03-01.
+Не отвечай только обещанием/планом. Проверь состояние репозитория и начинай W03-06.

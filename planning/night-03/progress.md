@@ -1,10 +1,13 @@
 # Night 03 — progress
 
-Codex follow-up: [recipe codec corrections](../reviews/W03-01-codec-fixes.md)
-replace the trim-pattern and item holder codecs with the existing shared types.
-Builds, runtime tests and Clippy for that follow-up are **deferred by the owner**;
-the earlier results below do not validate the new diff. Handwritten
-`slot_display` registry IDs remain an open foundation issue.
+Codex follow-up: [current review](../reviews/night-03-follow-up.md).
+The owner resumed verification after the earlier codec-only commit. The
+`slot_display` registry has now been extracted with SteelExtractor for 26.3;
+generated typed entries replace handwritten numeric IDs. Regression tests cover
+the three holder/ingredient codec fixes. The current review also corrects a
+partial stonecutter quick-move result loss and the lectern's placement-time
+book resolution context. See the linked report for actual check results and
+remaining scope; the historical stage logs below are not full-parity claims.
 
 Base: `codex/night-vanilla-02` tip `7db788bc7c44b12bf31842a6f3c0176a5d3f0d93`
 (`0.16.1+mc26.3`, reference `minecraft-src` 26.3 / 5037 files).
@@ -14,8 +17,9 @@ Untouched foreign change: `planning/night-01/report.md` (never staged here).
 
 ## W03-01 — container button clicks + working stonecutter
 
-Status: implemented and verified server-side; client recipe-list sync is a
-separate missing foundation (see `blockers.md`).
+Status: server menu implemented and tested. Recipe-list sync was added later in
+this branch; see the current review and `blockers.md`. A real-client session is
+still untested.
 
 Gap before: `Player::handle_container_button_click` only logged and carried a
 TODO. There was no stonecutter block behavior, no stonecutter menu kind, and no
@@ -172,16 +176,16 @@ Vecta changes:
   drop in front of the block.
 - Registered the block entity factory and exported the new modules.
 
-Written-content resolution reuses the fixed snapshot path: the placed copy is
-taken out of the inventory *before* resolving, and resolution never runs while
-an inventory lock is held. Block behaviors only receive `&Player`, so the
-resolution source is the console fallback with the player as the entity
-override; that only affects selector/score placeholders inside an unresolved
-book at the moment it is placed, which the item path resolves identically when
-the book is read in hand. Load-time resolution (`resolveBook(book, null)` in
-vanilla) is not implemented because a block entity has no server handle here;
-books are already resolved by the time they are saved, so the practical
-difference is nil.
+Written-content resolution runs on a snapshot before taking any inventory
+locks. Codex review corrected the source to use the placing player, the lectern
+world and its center. The original console/spawn fallback could resolve `@s`
+and relative block NBT incorrectly; the entity override only supplied a default
+scoreboard name and did not fix selectors.
+
+Load-time resolution (`resolveBook(book, null)` in vanilla) remains open because
+block entities have no server read context. Saved or command-created unresolved
+books are possible, so this omission cannot be called unobservable. See B-W03-06
+for the pending architecture question.
 
 Verified vanilla quirks kept on purpose:
 - `getPageCount` returns 0 for a book-less lectern and `Mth.clamp(page, 0, -1)`

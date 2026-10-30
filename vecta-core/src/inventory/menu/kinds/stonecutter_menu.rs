@@ -239,6 +239,10 @@ impl MenuKind for StonecutterKind {
         if let Some(remainder) = behavior.slots()[slot_index].on_take(guard, &remaining, player) {
             player.add_item_or_drop_with_guard(guard, remainder, Prediction::Predicted);
         }
+        if self.result.contains(slot_index) && !remaining.is_empty() {
+            let _ =
+                guard.run_unlocked(|| player.drop_item(remaining, false, Prediction::Predicted));
+        }
         Some(clicked)
     }
 }

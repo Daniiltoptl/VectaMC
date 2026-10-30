@@ -2200,7 +2200,7 @@ blocks,large_fern,DoublePlantBlock,yes,audit_existing_implementation
 blocks,lava,LiquidBlock,yes,audit_existing_implementation
 blocks,lava_cauldron,LavaCauldronBlock,yes,audit_existing_implementation
 blocks,leaf_litter,LeafLitterBlock,yes,audit_existing_implementation
-blocks,lectern,LecternBlock,no,check_specialization_or_shared_path
+blocks,lectern,LecternBlock,yes,audit_existing_implementation
 blocks,lever,LeverBlock,yes,audit_existing_implementation
 blocks,light,LightBlock,no,check_specialization_or_shared_path
 blocks,light_blue_banner,BannerBlock,yes,audit_existing_implementation
@@ -2263,7 +2263,7 @@ blocks,lime_wool,Block,no,generic_or_separate_path
 blocks,lime_wool_slab,SlabBlock,yes,audit_existing_implementation
 blocks,lime_wool_stairs,StairBlock,yes,audit_existing_implementation
 blocks,lodestone,Block,no,generic_or_separate_path
-blocks,loom,LoomBlock,no,check_specialization_or_shared_path
+blocks,loom,LoomBlock,yes,audit_existing_implementation
 blocks,magenta_banner,BannerBlock,yes,audit_existing_implementation
 blocks,magenta_bed,BedBlock,yes,audit_existing_implementation
 blocks,magenta_candle,CandleBlock,yes,audit_existing_implementation
@@ -2664,7 +2664,7 @@ blocks,skeleton_wall_skull,WallSkullBlock,yes,audit_existing_implementation
 blocks,slime_block,SlimeBlock,yes,audit_existing_implementation
 blocks,small_amethyst_bud,AmethystClusterBlock,yes,audit_existing_implementation
 blocks,small_dripleaf,SmallDripleafBlock,yes,audit_existing_implementation
-blocks,smithing_table,SmithingTableBlock,no,check_specialization_or_shared_path
+blocks,smithing_table,SmithingTableBlock,yes,audit_existing_implementation
 blocks,smoker,SmokerBlock,yes,audit_existing_implementation
 blocks,smooth_basalt,Block,no,generic_or_separate_path
 blocks,smooth_quartz,Block,no,generic_or_separate_path
@@ -2719,7 +2719,7 @@ blocks,stone_button,ButtonBlock,yes,audit_existing_implementation
 blocks,stone_pressure_plate,PressurePlateBlock,yes,audit_existing_implementation
 blocks,stone_slab,SlabBlock,yes,audit_existing_implementation
 blocks,stone_stairs,StairBlock,yes,audit_existing_implementation
-blocks,stonecutter,StonecutterBlock,no,check_specialization_or_shared_path
+blocks,stonecutter,StonecutterBlock,yes,audit_existing_implementation
 blocks,straw_bed,StrawBedBlock,yes,audit_existing_implementation
 blocks,stripped_acacia_log,RotatedPillarBlock,yes,audit_existing_implementation
 blocks,stripped_acacia_wood,RotatedPillarBlock,yes,audit_existing_implementation

@@ -189,9 +189,8 @@ vecta-core/src/player/mod.rs,1793,// TODO: Tick stats even when the player has b
 vecta-core/src/player/mod.rs,2031,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
 vecta-core/src/player/movement/mod.rs,690,// TODO: Add auto-spin exemption when riptide/spin attack state exists.
 vecta-core/src/player/movement/mod.rs,995,// TODO: Implement once controlled vehicle jumping and vehicle inventory interfaces exist.
-vecta-core/src/player/player_inventory/player_handlers.rs,256,// TODO: Implement container button click handling
-vecta-core/src/player/player_inventory/player_handlers.rs,540,// TODO: Implement slot state change handling
-vecta-core/src/player/player_inventory/player_handlers.rs,1206,// TODO: Check if player is alive (health > 0)
+vecta-core/src/player/player_inventory/player_handlers.rs,555,// TODO: Implement slot state change handling
+vecta-core/src/player/player_inventory/player_handlers.rs,1221,// TODO: Check if player is alive (health > 0)
 vecta-core/src/player/sleep.rs,234,// TODO: trigger CriteriaTriggers.SLEPT_IN_BED once the foundation for advancements exist.
 vecta-core/src/player/stats_counter.rs,175,// TODO: Add score to the objectives having the criterion of this stat for the player.
 vecta-core/src/player/stats_counter.rs,181,// TODO: Reset score of the objectives having the criterion of this stat for the player.

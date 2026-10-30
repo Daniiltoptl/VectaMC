@@ -30,7 +30,7 @@ hanging_sign,yes,acacia_hanging_sign acacia_wall_hanging_sign bamboo_hanging_sig
 hopper,no,hopper
 jigsaw,no,jigsaw
 jukebox,yes,jukebox
-lectern,no,lectern
+lectern,yes,lectern
 mob_spawner,no,spawner
 piston,yes,moving_piston
 potent_sulfur,yes,potent_sulfur

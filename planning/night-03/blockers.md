@@ -30,16 +30,16 @@ Remaining, not blocked by architecture but by scope:
 - The **recipe book** (W03-65) still needs the full `RecipeDisplay` family and the
   recipe-book packets. Only the two display kinds that the update-recipes packet
   can carry are exercised today.
-- `slot_display` kind ids are the built-in registration order from
-  `world/item/crafting/display/SlotDisplays.java`. They live in Rust as
-  `SlotDisplayKind` because no `slot_display` entry exists in
-  `vecta-registry/build_assets/`, and the SteelExtractor checkout is not present
-  on this machine. If a `slot_display` extractor output is added later, the enum
-  should be generated from it instead. Codex review treats this as an unresolved
-  foundation issue under AGENTS, not an approved temporary implementation.
-  The owner does not know a local extractor path. See
-  [codec follow-up](../reviews/W03-01-codec-fixes.md); that follow-up fixes payloads
-  using existing holder types but does not replace these handwritten kind IDs.
+
+Resolved in the Codex follow-up: the former handwritten `slot_display` IDs.
+SteelExtractor at `40e72f994d54edd619e3338fe431d7e938bf0db0` was checked out to
+`D:\CodexBuilds\SteelExtractor`. A dedicated task bootstraps only built-in
+registries and produces `slot_displays.json` for 26.3 without starting a server.
+Its output is copied unchanged to `vecta-registry/build_assets/`; Rust generates
+typed registration order and dispatches through the assigned registry IDs.
+The extractor patch and reproduction commands are in
+[`scripts/steel-extractor`](../../scripts/steel-extractor/README.md).
+`SlotDisplayKind` now selects built-in payload codecs, without numeric IDs.
 
 Not blocked: server-authoritative stonecutter selection, result, consumption,
 quick-move, and now the client-visible recipe list for the stonecutter.
@@ -90,7 +90,13 @@ Blocks: full W03-04 pick-block acceptance, the same round trip for every
 container block entity implemented later (chest W03-10..12, hopper W03-14,
 dropper W03-17).
 
-## B-W03-05 — `vecta-core` test binaries cannot be linked in this session
+## B-W03-05 — historical core test memory blocker: resolved in the Codex follow-up
+
+Current verification (2026-10-30): `cargo test --locked -p vecta-core --lib -j 1`
+completed, **2978 passed, 0 failed, 1 ignored**. The VM process was absent when
+the follow-up began; Codex did not stop applications or change memory/pagefile,
+Cargo flags, profiles, dependencies, or toolchain settings. The facts below
+describe the earlier WorkBuddy session, not a current request to close the VM.
 
 Checked:
 - `cargo test -p vecta-core --lib <filter>` fails during codegen with
@@ -117,9 +123,21 @@ Workarounds attempted, all failed:
 The pagefile is capped at ~15.3 GB (`D://pagefile.sys`), so the commit ceiling
 stays near 47.5 GB regardless of free disk space.
 
-Needed from the owner: free commit charge (close the VM) so the `vecta-core`
-test binary links, or accept that this session's core-level results rest on
-type-checking plus the protocol/registry suites.
+At that time freeing commit charge was required to execute core tests.
+The later successful runtime suite supersedes the type-check-only limitation.
 
-Blocks: running any `vecta-core` unit test, including the existing suite, in this
-session. It does not block writing or type-checking code.
+## B-W03-06 — lectern book resolution during NBT load needs a server read context
+
+Vanilla `LecternBlockEntity.loadAdditional` resolves written book pages through
+`resolveBook(book, null)` when attached to a server level. Vecta currently loads
+the component unchanged. Placement-time context has been corrected separately.
+
+Verified: `World` stores no server reference, `BlockEntity::load_additional`
+receives only NBT, and `CommandTextResolver` needs server selectors, scoreboard
+and domain command storage. `with_entity_override` is only a default score name,
+not a replacement for that context.
+
+An architecture question is pending with the owner: pass a dedicated read
+context through loading (recommended), add a weak server reference to World,
+or explicitly defer this scope. No console/spawn fallback or guessed service
+access was added. Other checks and independent fixes can proceed.

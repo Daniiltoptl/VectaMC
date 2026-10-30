@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `7db788bc7c44b12bf31842a6f3c0176a5d3f0d93`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `15f73baf9eb004836fa5602c812fe4bbf14fc6f9`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -11,7 +11,7 @@
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
 | items | 1658 | 1278 |
-| blocks | 1286 | 1028 |
+| blocks | 1286 | 1032 |
 | entities | 161 | 26 |
 
 Полный поимённый каталог, включая уже зарегистрированные объекты: [objects.csv](objects.csv).
@@ -19,7 +19,7 @@
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 254.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 253.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -79,19 +79,15 @@
 | `InfestedRotatedPillarBlock` | `infested_deepslate` |
 | `JigsawBlock` | `jigsaw` |
 | `LeavesBlock` | `spruce_leaves` |
-| `LecternBlock` | `lectern` |
 | `LightBlock` | `light` |
-| `LoomBlock` | `loom` |
 | `NyliumBlock` | `crimson_nylium`, `warped_nylium` |
 | `SculkBlock` | `sculk` |
 | `SculkCatalystBlock` | `sculk_catalyst` |
 | `SculkSensorBlock` | `sculk_sensor` |
 | `SculkShriekerBlock` | `sculk_shrieker` |
 | `ShelfBlock` | `acacia_shelf`, `bamboo_shelf`, `birch_shelf`, `cherry_shelf`, `crimson_shelf`, `dark_oak_shelf`, `jungle_shelf`, `mangrove_shelf`, `oak_shelf`, `pale_oak_shelf`, `poplar_shelf`, `spruce_shelf`, `warped_shelf` |
-| `SmithingTableBlock` | `smithing_table` |
 | `SnifferEggBlock` | `sniffer_egg` |
 | `SpawnerBlock` | `spawner` |
-| `StonecutterBlock` | `stonecutter` |
 | `StructureBlock` | `structure_block` |
 | `StructureVoidBlock` | `structure_void` |
 | `TestBlock` | `test_block` |

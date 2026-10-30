@@ -37,6 +37,7 @@ use crate::{
         execution::{CommandSource, CommandTextResolver},
         sender::CommandSender,
     },
+    entity::Entity as _,
     inventory::{lock::ContainerRef, menu::kinds::lectern},
     player::Player,
     world::{LevelReader, SignalQueryContext, World},
@@ -74,7 +75,7 @@ impl LecternBlock {
         // Snapshot the stack without the inventory lock: resolving book pages can
         // read the inventory and the world, and must not run under that lock.
         let placed = inv.with_item(|stack| stack.copy_with_count(1));
-        let placed = Self::resolve_book(placed, player);
+        let placed = Self::resolve_book(placed, world, pos, player);
 
         if let Some(block_entity) = world.get_block_entity(pos)
             && let Some(lectern) = block_entity.downcast_ref::<LecternBlockEntity>()
@@ -90,11 +91,14 @@ impl LecternBlock {
 
     /// Resolves a written book's pages before it becomes readable on the lectern.
     ///
-    /// Block behaviors only see `&Player`, so the resolution source is the
-    /// console fallback with this player as the entity override. That is the same
-    /// snapshot-based path the written book item uses, and it never runs while an
-    /// inventory lock is held.
-    fn resolve_book(stack: ItemStack, player: &Player) -> ItemStack {
+    /// Selectors and relative NBT coordinates use the lectern's world and center,
+    /// with the placing player as the source entity and unrestricted text access.
+    fn resolve_book(
+        stack: ItemStack,
+        world: &Arc<World>,
+        pos: BlockPos,
+        player: &Player,
+    ) -> ItemStack {
         let Some(content) = stack
             .get(WRITTEN_BOOK_CONTENT)
             .filter(|content| !content.resolved())
@@ -106,7 +110,19 @@ impl LecternBlock {
             return stack;
         };
 
-        let source = CommandSource::new(CommandSender::Console, server);
+        let Some(source_player) = world.players.get_by_entity_id(player.id()) else {
+            log::warn!("Cannot resolve a lectern book without its placing player in the world");
+            return stack;
+        };
+        let source = CommandSource::new(CommandSender::Console, server).with_entity(source_player);
+        let source = match source.with_world(Arc::clone(world)) {
+            Ok(source) => source,
+            Err(error) => {
+                log::warn!("Cannot create the lectern book resolution context: {error:?}");
+                return stack;
+            }
+        };
+        let source = source.with_position(pos.get_center().into());
         let resolver = CommandTextResolver::with_entity_override(&source, player);
         let resolved_content = content
             .resolve(&resolver)
@@ -309,7 +325,6 @@ mod tests {
 
     use super::*;
     use crate::bootstrap::init_globals;
-    use crate::entity::Entity as _;
     use crate::entity::entities::ItemEntity;
     use crate::test_support::{
         TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,

@@ -17,6 +17,7 @@ use vecta_registry::data_components::vanilla_components::{
     WRITABLE_BOOK_CONTENT, WRITTEN_BOOK_CONTENT,
 };
 use vecta_registry::item_stack::ItemStack;
+use vecta_registry::level_events::SOUND_PAGE_TURN;
 use vecta_registry::vanilla_block_entity_types;
 use vecta_registry::{vanilla_blocks, vanilla_game_events};
 use vecta_utils::types::UpdateFlags;
@@ -29,8 +30,6 @@ use crate::world::{LevelReader as _, World, game_event::GameEventContext};
 
 /// Vanilla `LecternBlock.PAGE_CHANGE_IMPULSE_TICKS`.
 const PAGE_CHANGE_IMPULSE_TICKS: i32 = 2;
-/// Vanilla `LevelEvent.SOUND_PAGE_TURN`.
-const SOUND_PAGE_TURN: i32 = 1043;
 /// Vanilla `LecternBlockEntity.SLOT_BOOK`.
 pub const LECTERN_BOOK_SLOT: usize = 0;
 /// Vanilla `LecternBlockEntity.NUM_SLOTS`.
