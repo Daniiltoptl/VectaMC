@@ -102,8 +102,16 @@ Checked:
 
 Not caused by this branch: no dependency, toolchain or profile change is involved.
 
-Workaround attempted: `--config 'build.rustflags=["-Zthreads=2"]'` (the repo's own
-`-Zthreads=0` lets rustc use all 12 cores). Result recorded in `progress.md`.
+Workarounds attempted, all failed:
+
+1. `--config 'build.rustflags=["-Zthreads=2"]'` (the repo's `-Zthreads=0` lets
+   rustc use all 12 cores). This got past the first OOM and compiled 156 crates,
+   then the build stalled with an idle `rustc` and was stopped after 27 minutes.
+2. `CARGO_PROFILE_TEST_DEBUG=0` — same `memory allocation of 2097152 bytes failed`.
+3. Retried the default flags after `D:` was freed to 85 GB — same failure.
+
+The pagefile is capped at ~15.3 GB (`D://pagefile.sys`), so the commit ceiling
+stays near 47.5 GB regardless of free disk space.
 
 Needed from the owner: free commit charge (close the VM) so the `vecta-core`
 test binary links, or accept that this session's core-level results rest on
