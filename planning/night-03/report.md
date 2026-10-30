@@ -8,15 +8,16 @@
 | --- | --- |
 | Ветка | `codex/night-vanilla-03` |
 | Стартовый HEAD | `e92ea3715b37d6b51c9e77a6d4e5f0f826f7236b` |
-| Итоговый HEAD | `535c9cdaf` |
-| Push | выполнен, `e92ea3715..535c9cdaf`, exit 0 |
+| Итоговый HEAD | tip ветки `codex/night-vanilla-03`; последний игровой коммит — `8e58b7a7e`, дальше только docs-коммиты этого отчёта |
+| Push | выполнен, `e92ea3715..` tip ветки, exit 0 |
 
 Коммиты этого сеанса:
 
 - `8e58b7a7e` — `feat(recipes): send the client recipe list on login (W03-01 client path)`
 - `535c9cdaf` — `docs(night-03): record the client recipe path and the linker blocker`
+- далее — только правки `planning/night-03/` из этого отчёта
 
-Compare: <https://github.com/Daniiltoptl/VectaMC/compare/e92ea3715...535c9cdaf>
+Compare: <https://github.com/Daniiltoptl/VectaMC/compare/e92ea3715...codex/night-vanilla-03>
 
 Незакоммиченные пути: `planning/night-01/report.md` — **чужое изменение**, не
 трогалось, не стейджилось, не откатывалось. Своих грязных путей нет.
