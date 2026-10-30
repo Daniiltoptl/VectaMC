@@ -90,11 +90,10 @@ audit — 3105 objects / 49 block entity types / 253 source markers.
 
 ## Оставшееся
 
-- Разрешение неразрешённых книг при NBT load кафедры: в vanilla оно использует
-  server context без player. У Vecta `World`/`BlockEntity` не имеют доступа к
-  server scoreboard/command storage/selector context. Проверены load path,
-  поля World, CommandSource и CommandTextResolver. Владельцу задан узкий вопрос
-  о проведении контекста; решение не подменяется console/spawn fallback.
+- Вопрос NBT load уточнён в [последующем изменении](lectern-load-context.md).
+  Владелец выбрал отдельный контекст чтения. При обычном disk load vanilla
+  ещё не привязывает сущность к ServerLevel и не разрешает книгу; контекст
+  нужен при обновлении уже живой блок-сущности командами.
 - `ResultSlot` crafted count / ITEM_CRAFTED / item callbacks и recipe awards
   остаются W03-06/W03-65. Это касается и новых рабочих станций.
 - Block-entity implicit components / includeData pick-block остаются B-W03-04.

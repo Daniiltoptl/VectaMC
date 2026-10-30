@@ -25,8 +25,11 @@
 
 pub(crate) mod block_state_nbt;
 pub mod entities;
+mod load_context;
 mod registry;
 mod storage;
+
+pub use load_context::BlockEntityLoadContext;
 
 use simdnbt::FromNbtTag;
 use simdnbt::borrow::{
@@ -418,9 +421,23 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// chunk data from the server.
     fn load_additional(&self, nbt: &BorrowedNbtCompound<'_>);
 
-    /// Loads entity-specific data and the base block-entity component map.
-    fn load_with_components(&self, nbt: &BorrowedNbtCompound<'_>) {
+    /// Loads data into an attached entity with explicit server read access.
+    /// Implementations without server-dependent fields use their ordinary decoder.
+    fn load_additional_with_context(
+        &self,
+        nbt: &BorrowedNbtCompound<'_>,
+        _context: &BlockEntityLoadContext,
+    ) {
         self.load_additional(nbt);
+    }
+
+    /// Loads entity-specific data and the base block-entity component map.
+    fn load_with_components(
+        &self,
+        nbt: &BorrowedNbtCompound<'_>,
+        context: &BlockEntityLoadContext,
+    ) {
+        self.load_additional_with_context(nbt, context);
         self.base().load_components(nbt);
     }
 
@@ -429,11 +446,15 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// `simdnbt` keeps its read-facing representation borrowed, so this
     /// performs a checked in-memory encode/decode bridge rather than making
     /// every command caller duplicate that conversion.
-    fn load_with_owned_components(&self, nbt: &NbtCompound) -> Result<(), simdnbt::Error> {
+    fn load_with_owned_components(
+        &self,
+        nbt: &NbtCompound,
+        context: &BlockEntityLoadContext,
+    ) -> Result<(), simdnbt::Error> {
         let mut encoded = Vec::new();
         nbt.write(&mut encoded);
         let borrowed = read_borrowed_compound(&mut Cursor::new(encoded.as_slice()))?;
-        self.load_with_components(&borrowed);
+        self.load_with_components(&borrowed, context);
         Ok(())
     }
 

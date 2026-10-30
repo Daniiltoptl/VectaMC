@@ -9,6 +9,8 @@ use crate::behavior::InteractionResult;
 use crate::bootstrap::init_globals;
 use crate::player::game_mode::use_item;
 
+mod lectern_load;
+
 fn nbt_page(source: NbtSource, path: &'static str) -> Filterable<TextComponent> {
     Filterable::pass_through(TextComponent {
         content: Content::Resolvable(Resolvable::NBT {

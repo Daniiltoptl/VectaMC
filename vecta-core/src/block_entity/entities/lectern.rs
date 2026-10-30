@@ -23,7 +23,7 @@ use vecta_registry::{vanilla_blocks, vanilla_game_events};
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, locks::SyncMutex};
 
-use crate::block_entity::{BlockEntity, BlockEntityBase};
+use crate::block_entity::{BlockEntity, BlockEntityBase, BlockEntityLoadContext};
 use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerLockGuard, ContainerRef, SharedContainer};
 use crate::world::{LevelReader as _, World, game_event::GameEventContext};
@@ -110,6 +110,23 @@ impl LecternBlockEntity {
     #[must_use]
     pub fn book(&self) -> ItemStack {
         self.container.lock().items[LECTERN_BOOK_SLOT].clone()
+    }
+
+    fn load_book(&self, nbt: &BorrowedNbtCompound<'_>, context: &BlockEntityLoadContext) {
+        let nbt: NbtCompoundView<'_, '_> = nbt.into();
+        let mut book = nbt
+            .compound(BOOK_NBT_KEY)
+            .and_then(|book| ItemStack::from_borrowed_compound(&book))
+            .unwrap_or_else(ItemStack::empty);
+        context.resolve_written_book(&mut book, self.get_block_pos());
+        let page_count = page_count_of(&book);
+        let saved_page = nbt.int(PAGE_NBT_KEY).unwrap_or(0);
+
+        let mut container = self.container.lock();
+        container.items[LECTERN_BOOK_SLOT] = book;
+        container.page_count = page_count;
+        // Mth.clamp returns max when max < min, including page-less books.
+        container.page = vanilla_clamp(saved_page, 0, page_count - 1);
     }
 
     /// Returns whether the stored stack is a written or writable book.
@@ -263,19 +280,15 @@ impl BlockEntity for LecternBlockEntity {
     }
 
     fn load_additional(&self, nbt: &BorrowedNbtCompound<'_>) {
-        let nbt: NbtCompoundView<'_, '_> = nbt.into();
-        let book = nbt
-            .compound(BOOK_NBT_KEY)
-            .and_then(|book| ItemStack::from_borrowed_compound(&book))
-            .unwrap_or_else(ItemStack::empty);
-        let page_count = page_count_of(&book);
-        let saved_page = nbt.int(PAGE_NBT_KEY).unwrap_or(0);
+        self.load_book(nbt, &BlockEntityLoadContext::detached());
+    }
 
-        let mut container = self.container.lock();
-        container.items[LECTERN_BOOK_SLOT] = book;
-        container.page_count = page_count;
-        // Vanilla clamps with `Mth.clamp`, which yields `max` when `max < min`.
-        container.page = vanilla_clamp(saved_page, 0, page_count - 1);
+    fn load_additional_with_context(
+        &self,
+        nbt: &BorrowedNbtCompound<'_>,
+        context: &BlockEntityLoadContext,
+    ) {
+        self.load_book(nbt, context);
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {

@@ -1,5 +1,10 @@
 # Night 03 — progress
 
+Lectern NBT follow-up: [explicit load read context](../reviews/lectern-load-context.md).
+The owner selected a separate read context. Initial disk/worldgen decoding
+precedes Vanilla level binding and leaves pages unresolved; live command NBT
+updates receive the context explicitly. No World-to-Server link was added.
+
 Codex follow-up: [current review](../reviews/night-03-follow-up.md).
 The owner resumed verification after the earlier codec-only commit. The
 `slot_display` registry has now been extracted with SteelExtractor for 26.3;
@@ -182,10 +187,10 @@ world and its center. The original console/spawn fallback could resolve `@s`
 and relative block NBT incorrectly; the entity override only supplied a default
 scoreboard name and did not fix selectors.
 
-Load-time resolution (`resolveBook(book, null)` in vanilla) remains open because
-block entities have no server read context. Saved or command-created unresolved
-books are possible, so this omission cannot be called unobservable. See B-W03-06
-for the pending architecture question.
+Load-time resolution was narrowed after checking `BlockEntity.loadStatic` and
+`LevelChunk.setBlockEntity`: initial decoding occurs before level binding and
+does not resolve books. Attached NBT updates now receive the owner-approved
+read context. See B-W03-06 and the linked load-context review for scope and checks.
 
 Verified vanilla quirks kept on purpose:
 - `getPageCount` returns 0 for a book-less lectern and `Mth.clamp(page, 0, -1)`

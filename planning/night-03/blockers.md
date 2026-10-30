@@ -137,7 +137,32 @@ receives only NBT, and `CommandTextResolver` needs server selectors, scoreboard
 and domain command storage. `with_entity_override` is only a default score name,
 not a replacement for that context.
 
-An architecture question is pending with the owner: pass a dedicated read
-context through loading (recommended), add a weak server reference to World,
-or explicitly defer this scope. No console/spawn fallback or guessed service
-access was added. Other checks and independent fixes can proceed.
+The owner selected an explicit read context; that architecture question is
+closed. The implementation and validation are recorded in
+[lectern-load-context.md](../reviews/lectern-load-context.md).
+
+Important correction: Vanilla `loadStatic` decodes before `setLevel`, so initial
+disk/worldgen loading does not resolve the book. The context belongs to NBT
+updates of already attached block entities (setblock/fill/execute store), not
+an automatic resolution pass at chunk activation.
+
+## B-W03-07 — current load-context runtime verification blocked by commit limit
+
+The live NBT read-context implementation and all its test code pass workspace
+Clippy/type-check. Final runtime verification is pending: the workspace build
+failed during LLVM codegen with `memory allocation of 278544 bytes failed`,
+and PowerShell also exited with OOM.
+
+Read-only diagnostics: GlobalMemoryStatusEx commit limit 33.23 GB, free commit
+11.21 GB, free physical memory 16.61 GB; `D:\pagefile.sys` is 1.33 GB. This differs
+from the earlier ~48 GB limit. No VM was found and disk space is available.
+No applications, pagefile settings, toolchain, dependencies, profiles or
+rustflags were changed. The owner has been asked whether to increase the D:
+pagefile to 16 GB, free memory themselves, or defer runtime checks. Permission
+has not been received; do not treat elapsed time as agreement.
+
+The 3885-test green baseline belongs to `2f7e3980e`. The final read-context diff
+does not have a green full-suite result. See
+[the load-context report](../reviews/lectern-load-context.md) for exact commands
+and the limits of intermediate test results. Resume with the five load-context
+tests after the resource condition changes, then run the workspace suite.

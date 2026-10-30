@@ -9,6 +9,7 @@ use super::super::{
     registration::CommandRegistration,
 };
 use super::execute::loaded_block_position;
+use crate::block_entity::BlockEntityLoadContext;
 use text_components::TextComponent;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_utils::Identifier;
@@ -67,7 +68,8 @@ fn set_block(
     let strict = matches!(mode, SetBlockMode::Strict);
     let old_state = level.get_block_state(block_pos);
 
-    if place_needed && !block.place(level, block_pos, placement_flags(strict))? {
+    let load_context = BlockEntityLoadContext::for_source(context.source())?;
+    if place_needed && !block.place(level, block_pos, placement_flags(strict), &load_context)? {
         return Ok(set_block_failed(context.source()));
     }
 

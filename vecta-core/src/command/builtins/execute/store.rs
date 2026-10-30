@@ -23,7 +23,10 @@ use super::{
     objective, source_command_storage, source_scoreboard,
 };
 use crate::scoreboard::{ScoreHolder, Scoreboard, ScoreboardError, ScoreboardObjective};
-use crate::{block_entity::SharedBlockEntity, command::storage::CommandStorage};
+use crate::{
+    block_entity::{BlockEntityLoadContext, SharedBlockEntity},
+    command::storage::CommandStorage,
+};
 
 type Builder = CommandNodeBuilder<CommandSource, VectaCommandRuntime>;
 
@@ -152,9 +155,17 @@ fn store_block_data(
     let path = parsed_path(context)?;
     let scale = parsed_scale(context)?;
     let world = Arc::clone(source.world());
+    let load_context = BlockEntityLoadContext::for_source(source)?;
     let callback = CommandResultCallback::new(move |success, result| {
         let value = stored_value(store_result, success, result);
-        if store_block_data_value(&block_entity, &path, data_type.tag(value, scale)).is_ok() {
+        if store_block_data_value(
+            &block_entity,
+            &path,
+            data_type.tag(value, scale),
+            &load_context,
+        )
+        .is_ok()
+        {
             world.send_block_updated(position);
         }
     });
@@ -254,13 +265,14 @@ fn store_block_data_value(
     block_entity: &SharedBlockEntity,
     path: &NbtPath,
     value: NbtTag,
+    load_context: &BlockEntityLoadContext,
 ) -> Result<(), StoreDataMutationError> {
     let data = mutate_compound_path(block_entity.save_with_full_metadata(), path, value)?;
     let mut bytes = Vec::new();
     data.write(&mut bytes);
     let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
         .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)?;
-    block_entity.load_additional(&borrowed);
+    block_entity.load_additional_with_context(&borrowed, load_context);
     block_entity.set_changed();
     Ok(())
 }

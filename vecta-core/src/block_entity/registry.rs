@@ -105,6 +105,8 @@ impl BlockEntityRegistry {
     }
 
     /// Creates and loads a block entity, falling back to an unimplemented entity.
+    /// This is the pre-level-binding decode phase of Vanilla `loadStatic`;
+    /// attached NBT updates must instead supply a [`super::BlockEntityLoadContext`].
     #[must_use]
     pub fn create_and_load_or_unimplemented(
         &self,

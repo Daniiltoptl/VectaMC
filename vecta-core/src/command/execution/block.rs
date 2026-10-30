@@ -7,6 +7,7 @@ use std::sync::Arc;
 pub(super) use self::suggestions::{suggest_block_inputs, suggest_blocks};
 use super::argument::parse_identifier;
 use crate::{
+    block_entity::BlockEntityLoadContext,
     command::brigadier::{CommandSyntaxError, CommandSyntaxErrorKind, StringReader},
     world::World,
 };
@@ -57,6 +58,7 @@ impl BlockInput {
         world: &Arc<World>,
         pos: BlockPos,
         flags: UpdateFlags,
+        load_context: &BlockEntityLoadContext,
     ) -> Result<bool, CommandSyntaxError> {
         let mut state = if flags.contains(UpdateFlags::UPDATE_KNOWN_SHAPE) {
             self.state
@@ -79,7 +81,7 @@ impl BlockInput {
         {
             let before = block_entity.save_without_metadata();
             block_entity
-                .load_with_owned_components(nbt)
+                .load_with_owned_components(nbt, load_context)
                 .map_err(|error| {
                     CommandSyntaxError::dynamic(format!(
                         "Failed to apply block entity NBT at {pos:?}: {error}"

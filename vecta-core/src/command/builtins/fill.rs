@@ -18,7 +18,7 @@ use super::super::{
     registration::CommandRegistration,
 };
 use super::execute::{ensure_region_chunks_block_ticking, loaded_block_position};
-use crate::world::World;
+use crate::{block_entity::BlockEntityLoadContext, world::World};
 
 type Builder = CommandNodeBuilder<CommandSource, VectaCommandRuntime>;
 
@@ -118,6 +118,7 @@ fn execute_fill(
         FilterArgument::Keep => FillSelection::Keep,
         FilterArgument::Predicate(name) => FillSelection::Predicate(context.block_predicate(name)?),
     };
+    let load_context = BlockEntityLoadContext::for_source(context.source())?;
     let count = fill_blocks(
         context.source().world(),
         BoundingBox::from_corners(from, to),
@@ -125,6 +126,7 @@ fn execute_fill(
         mode,
         selection,
         strict,
+        &load_context,
     )?;
 
     let message = translations::COMMANDS_FILL_SUCCESS
@@ -141,6 +143,7 @@ fn fill_blocks(
     mode: FillMode,
     selection: FillSelection<'_>,
     strict: bool,
+    load_context: &BlockEntityLoadContext,
 ) -> Result<i32, CommandSyntaxError> {
     let area = block_region_volume(region);
     let limit = world.get_game_rule(&MAX_BLOCK_MODIFICATIONS);
@@ -175,7 +178,7 @@ fn fill_blocks(
                     continue;
                 };
 
-                let placed = input.place(world, pos, flags)?;
+                let placed = input.place(world, pos, flags, load_context)?;
                 if !placed {
                     if affected {
                         count += 1;
@@ -357,6 +360,7 @@ mod tests {
             FillMode::Hollow,
             FillSelection::All,
             false,
+            &BlockEntityLoadContext::detached(),
         );
 
         assert_eq!(result, Ok(27));
@@ -398,6 +402,7 @@ mod tests {
             FillMode::Replace,
             FillSelection::Predicate(&predicate),
             false,
+            &BlockEntityLoadContext::detached(),
         );
 
         assert_eq!(result, Ok(2));
@@ -435,6 +440,7 @@ mod tests {
                 FillMode::Destroy,
                 FillSelection::All,
                 false,
+                &BlockEntityLoadContext::detached(),
             ),
             Ok(1)
         );
@@ -464,6 +470,7 @@ mod tests {
                 FillMode::Replace,
                 FillSelection::All,
                 false,
+                &BlockEntityLoadContext::detached(),
             )
             .is_err()
         );
@@ -478,6 +485,7 @@ mod tests {
                 FillMode::Replace,
                 FillSelection::All,
                 false,
+                &BlockEntityLoadContext::detached(),
             )
             .is_err()
         );
@@ -504,6 +512,7 @@ mod tests {
                 FillMode::Replace,
                 FillSelection::All,
                 false,
+                &BlockEntityLoadContext::detached(),
             )
             .is_err()
         );
@@ -526,6 +535,7 @@ mod tests {
                 FillMode::Replace,
                 FillSelection::All,
                 false,
+                &BlockEntityLoadContext::detached(),
             ),
             Ok(1)
         );

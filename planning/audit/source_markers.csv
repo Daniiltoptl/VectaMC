@@ -75,7 +75,7 @@ vecta-core/src/block_entity/entities/beacon.rs,402,// TODO: Trigger the CONSTRUC
 vecta-core/src/block_entity/entities/bell.rs,199,// TODO: make bell sleep when not used
 vecta-core/src/block_entity/entities/brushable.rs,227,// TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
 vecta-core/src/block_entity/entities/potent_sulfur.rs,279,"// TODO: Add nausea ticker (WET / DORMANT states, every 10 ticks) after the mob-effect refactor adds timed instances and sync."
-vecta-core/src/block_entity/mod.rs,467,// TODO: Include stored block-entity components once Vecta has Vanilla's
+vecta-core/src/block_entity/mod.rs,488,// TODO: Include stored block-entity components once Vecta has Vanilla's
 vecta-core/src/chunk/chunk_map/mod.rs,1332,"// TODO: Vecta records vanilla's FLAG_KEEP_DIMENSION_ACTIVE, but has no"
 vecta-core/src/chunk/paletted_container.rs,523,//TODO: Use a nonEmpty counter?
 vecta-core/src/chunk_saver/ram_only.rs,17,/// TODO:
@@ -85,8 +85,8 @@ vecta-core/src/command/builtins/domain.rs,102,// TODO: Add pagination for domain
 vecta-core/src/command/builtins/execute/condition.rs,30,// TODO: Add items after every vanilla command-slot provider and container inventory is
 vecta-core/src/command/builtins/execute/condition.rs,32,// TODO: Add predicate and function after their runtime registries are ported.
 vecta-core/src/command/builtins/execute/condition.rs,33,// TODO: Restore Vecta stopwatch conditions with the stopwatch command system.
-vecta-core/src/command/builtins/execute/store.rs,33,// TODO: Add bossbar after Vecta has a persistent custom-bossbar manager.
-vecta-core/src/command/builtins/execute/store.rs,34,// TODO: Add entity after live entity NBT can reload every command-visible field.
+vecta-core/src/command/builtins/execute/store.rs,36,// TODO: Add bossbar after Vecta has a persistent custom-bossbar manager.
+vecta-core/src/command/builtins/execute/store.rs,37,// TODO: Add entity after live entity NBT can reload every command-visible field.
 vecta-core/src/command/builtins/locate.rs,45,// TODO: Add `locate biome` once Vecta has an asynchronous closest-biome search.
 vecta-core/src/command/builtins/locate.rs,46,// TODO: Add `locate poi` once Vecta has a point-of-interest manager.
 vecta-core/src/command/builtins/summon.rs,38,// TODO: Add the vanilla compound-NBT branch once Vecta has an SNBT compound
