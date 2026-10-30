@@ -181,6 +181,12 @@ impl Player {
         // TODO: Reset score of the objectives having the criterion of this stat for the player.
     }
 
+    /// Returns the current value of `stat` for this player.
+    #[must_use]
+    pub fn get_stat(&self, stat: Stat) -> i32 {
+        self.stats.lock().get(&stat)
+    }
+
     /// Resets the counter of a custom stat from this player to zero.
     pub fn reset_custom_stat(&self, stat: CustomStatRef) {
         self.reset_stat(vanilla_stat_types::CUSTOM.get(stat));

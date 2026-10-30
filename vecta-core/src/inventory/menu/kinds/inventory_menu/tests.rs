@@ -12,7 +12,8 @@ use crate::{
 };
 use glam::DVec3;
 use vecta_registry::{
-    init_vanilla_registry, item_stack::ItemStack, vanilla_entities, vanilla_items,
+    init_vanilla_registry, item_stack::ItemStack, stat::vanilla_stat_types, vanilla_entities,
+    vanilla_items,
 };
 use vecta_utils::{ChunkPos, Downcast as _, WorldAabb};
 
@@ -84,4 +85,49 @@ fn partial_result_overflow_has_no_thrower() {
     assert!(item.get_item().is(&vanilla_items::OAK_PLANKS));
     assert_eq!(item.get_item().count(), 3);
     assert_eq!(item.get_thrower(), None);
+}
+
+#[test]
+fn taking_the_player_grid_result_awards_the_crafted_count() {
+    init_vanilla_registry();
+    init_behaviors();
+    let world_fixture = fresh_test_world("inventory_menu_crafted_stat");
+    let world = &world_fixture.world;
+    insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+    let player = TestPlayerBuilder::new(Arc::clone(world), "Crafter", 1).build();
+    player.base().set_position_local(DVec3::new(0.5, 64.0, 0.5));
+    let mut menu = inventory_menu(Arc::clone(&player.inventory));
+    let Some(InventoryKind { handler, .. }) = menu.kind().downcast_ref::<InventoryKind>() else {
+        panic!("inventory_menu should create an inventory menu");
+    };
+    let crafting_container = handler.crafting_container();
+
+    *menu.behavior_mut().carried_mut() = ItemStack::new(&vanilla_items::OAK_LOG);
+    menu.clicked(
+        Click::Pickup {
+            slot: 1,
+            button: MouseButton::Left,
+        },
+        &player,
+    )
+    .expect("menu operation should succeed");
+    menu.clicked(
+        Click::Pickup {
+            slot: 0,
+            button: MouseButton::Left,
+        },
+        &player,
+    )
+    .expect("menu operation should succeed");
+
+    assert!(menu.behavior().carried().is(&vanilla_items::OAK_PLANKS));
+    assert_eq!(menu.behavior().carried().count(), 4);
+    assert!(crafting_container.lock().get_item(0).is_empty());
+    assert_eq!(
+        player.get_stat(
+            vanilla_stat_types::ITEM_CRAFTED.get(ItemStack::new(&vanilla_items::OAK_PLANKS).item())
+        ),
+        4,
+        "the 2x2 grid awards the whole output count"
+    );
 }

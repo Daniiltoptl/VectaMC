@@ -415,3 +415,50 @@ Known limitations:
 - Brewing property sets are sent empty because Vecta loads no brewing recipes.
 - Only `SlotDisplay::ItemStack` is ever produced today; the other kinds are
   encoded/decoded but unused until the recipe book (W03-65).
+
+## W04-001..006 — результат крафта: реальный счётчик, ITEM_CRAFTED и контракты слотов
+
+Связь: разворачивает W03-06. W03-65 (книга рецептов) остаётся открытой.
+
+Что теперь делает игрок:
+- Взятие результата крафта (ЛКМ, Shift, номер слота, Q, Ctrl+Q, ПКМ) начисляет
+  `minecraft:crafted` за фактически взятое количество, включая выход больше 1.
+- ПКМ по результату берёт половину, Q выбрасывает один предмет. Раньше
+  `ResultSlot::remove` забирал весь preview независимо от запрошенного
+  количества, поэтому Q выбрасывал весь результат и засчитывал один крафт.
+- Камнерез и кузнечный стол начисляют `crafted` за взятый стак (как в 26.3);
+  наковальня, точило и ткацкий станок не начисляют.
+- Тара возвращается в свой слот сетки, несовместимый остаток уходит в инвентарь,
+  сдвинутый shaped-рецепт расходует только свои слоты.
+
+Проверенные Java-методы 26.3: `ResultSlot.remove/onQuickCraft/onSwapCraft/
+checkTakeAchievements/onTake/safeClone/isFake`, `Slot.tryRemove/safeTake/
+safeClone/onQuickCraft`, `AbstractContainerMenu.doClick` (PICKUP, QUICK_MOVE,
+SWAP, CLONE, THROW, PICKUP_ALL), `CraftingMenu.quickMoveStack`,
+`StonecutterMenu.quickMoveStack` и его анонимный result slot,
+`SmithingMenu.onTake`, result slots `AnvilMenu`/`GrindstoneMenu`/`LoomMenu`,
+`ItemStack.onCraftedBy/onCraftedBySystem`, `Item.onCraftedBy/
+onCraftedPostProcess`, `MapItem.onCraftedPostProcess`.
+
+Vecta paths: `inventory/slots/slot.rs` (`on_quick_craft`, `on_swap_craft`),
+`inventory/slots/result_slot.rs` (`CraftedStat`, `remove`, `on_take`),
+`inventory/menu/builder.rs` (`result_slot_with`), `inventory/menu/layout.rs`,
+`inventory/menu/mod.rs` (`do_swap`), `inventory/menu/kinds/{crafting,inventory,
+stonecutter,smithing}_menu.rs`, `player/stats_counter.rs` (`Player::get_stat`).
+
+Общие контракты и их consumers: `Slot` получил два no-op хука, реализует их
+только `ResultSlot`. Способ начисления выбирает каждое меню через `CraftedStat`,
+поэтому crafting-семантика не навязана наковальне, точилу и ткацкому станку.
+
+Проверки: `cargo test -p vecta-core --lib` — 2996 passed / 0 failed / 1 ignored;
+новые 11 тестов `crafting_menu::tests::crafted_result` плюс регрессии камнереза,
+кузнечного стола и сетки 2x2 инвентаря. Clippy/fmt — см. итоговый отчёт.
+
+Незакрытое:
+- `Item.onCraftedBy` → `onCraftedPostProcess`: единственное переопределение в
+  26.3 — `MapItem` (снимает `MAP_POST_PROCESSING`, lock/scale через
+  `MapItemSavedData`). Карт и map saved data в Vecta нет, поэтому пустой hook не
+  добавлялся; зависимость — W04-092..095. Рецепт `map_extending` уже ставит
+  `MAP_POST_PROCESSING`, но потребителя нет.
+- `ItemStack.onCraftedBySystem` — crafter, W04-030.
+- `RecipeCraftingHolder.awardUsedRecipes` — W04-008/010 (книга рецептов).

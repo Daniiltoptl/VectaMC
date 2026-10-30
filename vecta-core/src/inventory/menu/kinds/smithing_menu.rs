@@ -53,12 +53,15 @@ pub fn smithing(
             _ => false,
         }),
     );
-    let result = builder.result_slot(SmithingResultHandler::new(
-        Arc::clone(&input_container),
-        Arc::clone(&result_container),
-        pos,
-        Arc::clone(world),
-    ));
+    let result = builder.result_slot_with(
+        SmithingResultHandler::new(
+            Arc::clone(&input_container),
+            Arc::clone(&result_container),
+            pos,
+            Arc::clone(world),
+        ),
+        CraftedStat::TakenStack,
+    );
 
     let player = builder.player_inventory(&inventory);
 

@@ -42,7 +42,9 @@ use crate::inventory::menu::kind::MenuKind;
 use crate::inventory::menu::layout::MenuLayout;
 use crate::inventory::{
     lock::{ContainerId, ContainerLockGuard, ContainerRef},
-    slots::{NormalSlot, RestrictedRules, RestrictedSlot, ResultHandler, ResultSlot, Slot},
+    slots::{
+        CraftedStat, NormalSlot, RestrictedRules, RestrictedSlot, ResultHandler, ResultSlot, Slot,
+    },
 };
 use crate::player::Player;
 use crate::player::player_inventory::PlayerInventory;
@@ -691,7 +693,21 @@ impl MenuBuilder {
     /// Panics if the result container has no slot `0`, or that slot is already
     /// covered by another section of this menu.
     pub fn result_slot(&mut self, handler: impl ResultHandler + 'static) -> Section {
-        let slot = ResultSlot::new(handler);
+        self.result_slot_with(handler, CraftedStat::Ignored)
+    }
+
+    /// Adds a result slot that also reports crafted items the way `crafted_stat`
+    /// describes.
+    ///
+    /// # Panics
+    /// Panics if the result container has no slot `0`, or that slot is already
+    /// covered by another section of this menu.
+    pub fn result_slot_with(
+        &mut self,
+        handler: impl ResultHandler + 'static,
+        crafted_stat: CraftedStat,
+    ) -> Section {
+        let slot = ResultSlot::new(handler).with_crafted_stat(crafted_stat);
         let container = slot.result_container().clone();
         self.claim(&container, (0..1).into());
         let start = self.slots.len();

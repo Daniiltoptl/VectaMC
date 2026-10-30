@@ -8,6 +8,7 @@ use vecta_registry::{
     data_components::vanilla_components::{CUSTOM_NAME, TRIM},
     init_vanilla_registry,
     item_stack::ItemStack,
+    stat::vanilla_stat_types,
     trim_material::TrimMaterial,
     trim_pattern::TrimPattern,
     vanilla_blocks, vanilla_items,
@@ -179,6 +180,14 @@ fn taking_the_result_consumes_one_item_from_every_input() {
     assert!(
         slot_item(&menu, RESULT_SLOT).is_empty(),
         "without a base item there is no further result"
+    );
+    assert_eq!(
+        player.get_stat(
+            vanilla_stat_types::ITEM_CRAFTED
+                .get(ItemStack::new(&vanilla_items::IRON_HELMET).item())
+        ),
+        1,
+        "the smithing table awards the taken stack's count"
     );
 }
 

@@ -106,6 +106,7 @@ impl MenuLayout {
         }
 
         let slot = &behavior.slots()[slot_index];
+        slot.on_quick_craft(&remaining, &clicked, player);
         if let Some(leftover) = slot.on_take(guard, &remaining, player) {
             player.add_item_or_drop_with_guard(guard, leftover, Prediction::Predicted);
         }

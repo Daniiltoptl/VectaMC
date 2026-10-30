@@ -42,13 +42,16 @@ pub fn stonecutter(
     let mut builder = MenuBuilder::new(&vanilla_menu_types::STONECUTTER, container_id);
 
     let input = builder.section_all(&input_container);
-    let result = builder.result_slot(StonecutterResultHandler::new(
-        Arc::clone(&input_container),
-        Arc::clone(&result_container),
-        Arc::clone(&selection),
-        pos,
-        Arc::clone(world),
-    ));
+    let result = builder.result_slot_with(
+        StonecutterResultHandler::new(
+            Arc::clone(&input_container),
+            Arc::clone(&result_container),
+            Arc::clone(&selection),
+            pos,
+            Arc::clone(world),
+        ),
+        CraftedStat::TakenStack,
+    );
 
     let player = builder.player_inventory(&inventory);
 

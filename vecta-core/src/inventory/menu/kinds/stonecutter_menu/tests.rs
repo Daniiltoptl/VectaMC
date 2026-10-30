@@ -15,7 +15,10 @@ use crate::{
 use glam::DVec3;
 use text_components::TextComponent;
 use vecta_protocol::packets::game::SContainerButtonClick;
-use vecta_registry::{init_vanilla_registry, item_stack::ItemStack, vanilla_blocks, vanilla_items};
+use vecta_registry::{
+    init_vanilla_registry, item_stack::ItemStack, stat::vanilla_stat_types, vanilla_blocks,
+    vanilla_items,
+};
 use vecta_utils::Downcast as _;
 use vecta_utils::translations;
 use vecta_utils::types::UpdateFlags;
@@ -110,6 +113,27 @@ fn selecting_two_recipes_yields_their_own_results_and_consumes_one_input() {
         "a different button must select a different recipe"
     );
     assert_eq!(selected_recipe(&menu), 1);
+}
+
+#[test]
+fn taking_a_result_awards_the_crafted_stat_for_the_taken_count() {
+    let (_world, player, _pos, mut menu) = test_stonecutter("stonecutter_crafted_stat");
+    put_input(
+        &mut menu,
+        &player,
+        ItemStack::with_count(&vanilla_items::STONE, 3),
+    );
+    assert!(menu.click_menu_button(&player, 0));
+    let preview = slot_item(&menu, RESULT_SLOT);
+
+    let taken = take_result(&mut menu, &player);
+
+    assert_eq!(taken.count(), preview.count());
+    assert_eq!(
+        player.get_stat(vanilla_stat_types::ITEM_CRAFTED.get(taken.item())),
+        taken.count(),
+        "the stonecutter awards the taken stack's count"
+    );
 }
 
 #[test]

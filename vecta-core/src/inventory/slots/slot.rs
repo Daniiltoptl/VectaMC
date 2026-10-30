@@ -178,6 +178,17 @@ pub trait Slot: ErasedType + Send + Sync {
         None
     }
 
+    /// Called after a quick move (shift-click) moved `picked` out of this slot.
+    ///
+    /// `original` is the stack as it was before the move, so
+    /// `original.count() - picked.count()` is what actually left the slot.
+    /// Vanilla's `Slot.onQuickCraft(ItemStack, ItemStack)` equivalent.
+    fn on_quick_craft(&self, _picked: &ItemStack, _original: &ItemStack, _player: &Player) {}
+
+    /// Called before a hotbar/offhand swap takes the contents of this slot.
+    /// Vanilla's `Slot.onSwapCraft(int)` equivalent.
+    fn on_swap_craft(&self, _count: i32) {}
+
     /// Takes items with all checks and callbacks. Returns the items taken.
     fn safe_take(
         &self,

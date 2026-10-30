@@ -1,6 +1,9 @@
-use std::{mem, sync::Arc};
+use std::sync::{
+    Arc,
+    atomic::{AtomicI32, Ordering},
+};
 
-use vecta_registry::item_stack::ItemStack;
+use vecta_registry::{item_stack::ItemStack, stat::vanilla_stat_types};
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
 use crate::{
@@ -11,10 +14,31 @@ use crate::{
     player::Player,
 };
 
+/// How a result slot accounts the crafted-item statistic on take.
+///
+/// Vanilla 26.3 has three different result-slot contracts: the crafting
+/// `ResultSlot` accumulates the removed count across remove/quick-craft/
+/// swap-craft and awards it once per take, the stonecutter and smithing menus
+/// award the count of the stack passed to `onTake`, and the anvil, grindstone
+/// and loom result slots award no crafted statistic at all.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CraftedStat {
+    /// The slot never awards `ITEM_CRAFTED`.
+    Ignored,
+    /// Award the count accumulated by remove/quick-craft/swap-craft.
+    Accumulated,
+    /// Award the count of the stack handed to [`Slot::on_take`].
+    TakenStack,
+}
+
 /// A fake Slot that contains the resulting item of f.e. a craft
 pub struct ResultSlot {
     handler: Arc<dyn ResultHandler + Send + Sync>,
     storage: SlotStorage,
+    crafted_stat: CraftedStat,
+    /// Items removed from the preview since the last `on_take`, used by
+    /// [`CraftedStat::Accumulated`].
+    remove_count: AtomicI32,
 }
 
 // SAFETY: This key uniquely identifies Vecta's `ResultSlot`.
@@ -31,6 +55,29 @@ impl ResultSlot {
         Self {
             handler: Arc::new(handler),
             storage,
+            crafted_stat: CraftedStat::Ignored,
+            remove_count: AtomicI32::new(0),
+        }
+    }
+
+    /// Selects how this slot reports crafted items.
+    #[must_use]
+    pub const fn with_crafted_stat(mut self, crafted_stat: CraftedStat) -> Self {
+        self.crafted_stat = crafted_stat;
+        self
+    }
+
+    /// Awards the crafted statistic for one take, mirroring
+    /// `ResultSlot.checkTakeAchievements`.
+    fn check_take_achievements(&self, carried: &ItemStack, player: &Player) {
+        let accumulated = self.remove_count.swap(0, Ordering::Relaxed);
+        let count = match self.crafted_stat {
+            CraftedStat::Ignored => return,
+            CraftedStat::Accumulated => accumulated,
+            CraftedStat::TakenStack => carried.count(),
+        };
+        if count > 0 {
+            player.award_stat_with_count(&vanilla_stat_types::ITEM_CRAFTED, carried.item(), count);
         }
     }
 
@@ -90,15 +137,41 @@ impl Slot for ResultSlot {
     fn on_take(
         &self,
         guard: &mut ContainerLockGuard,
-        _stack: &ItemStack,
+        stack: &ItemStack,
         player: &Player,
     ) -> Option<ItemStack> {
-        // TODO: Track the crafted count and run ITEM_CRAFTED/item callbacks.
+        self.check_take_achievements(stack, player);
         self.handler.on_result_taken(guard, player)
     }
 
-    fn remove(&self, guard: &mut ContainerLockGuard, _amount: i32) -> ItemStack {
-        mem::take(self.get_item_mut(guard))
+    fn on_quick_craft(&self, picked: &ItemStack, original: &ItemStack, player: &Player) {
+        if self.crafted_stat != CraftedStat::Accumulated {
+            return;
+        }
+        let count = original.count() - picked.count();
+        if count > 0 {
+            self.remove_count.fetch_add(count, Ordering::Relaxed);
+            self.check_take_achievements(original, player);
+        }
+    }
+
+    fn on_swap_craft(&self, count: i32) {
+        if self.crafted_stat == CraftedStat::Accumulated && count > 0 {
+            self.remove_count.fetch_add(count, Ordering::Relaxed);
+        }
+    }
+
+    fn remove(&self, guard: &mut ContainerLockGuard, amount: i32) -> ItemStack {
+        let count = self.get_item(guard).count();
+        if count > 0 && amount > 0 {
+            self.remove_count
+                .fetch_add(amount.min(count), Ordering::Relaxed);
+        }
+        let item = self.get_item_mut(guard);
+        if item.is_empty() || amount <= 0 {
+            return ItemStack::empty();
+        }
+        item.split(amount)
     }
 
     fn is_fake(&self) -> bool {
