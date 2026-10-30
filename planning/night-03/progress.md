@@ -506,3 +506,34 @@ Vecta paths: `block_entity/mod.rs` (хуки, `stored_components`/
   табличек), общего placement-пути для NBT нет.
 - W04-014 частично: save-сторона (`save_with_full_metadata` с `components`)
   готова; owned/borrowed load и chunk unload/load ещё не покрыты регрессией.
+
+## W04-021 (частично) — одиночный сундук как контейнер
+
+Связь: W03-10. Основание: готовый контейнер/меню бочки.
+
+Что теперь делает игрок:
+- ПКМ по сундуку открывает меню 3x9 с заголовком `container.chest` и
+  начисляет `open_chest`; закрытие меню освобождает зрителя.
+- Содержимое переживает NBT round-trip, компаратор показывает заполненность,
+  разрушение выбрасывает предметы, установка ставит сундук лицом к игроку.
+
+Java 26.3: `ChestBlock` (facing/тип/waterlogged, `useWithoutItem`,
+`getAnalogOutputSignal`), `ChestBlockEntity` (27 слотов, `Items`, open count,
+block event 1), `ChestMenu`/`ChestKind` (закрытие через `removed`),
+`ContainerOpenersCounter.incrementOpeners/decrementOpeners` в части
+наблюдаемого сервером счётчика и block event.
+
+Vecta paths: `block_entity/entities/chest.rs`,
+`behavior/blocks/container/chest_block.rs`, `block_entity/registry.rs`
+(фабрика CHEST), `inventory/menu/kinds/chest_menu.rs` (`ChestKind::new`,
+`with_close_hook`, `removed`).
+
+Проверки: `cargo test -p vecta-core --lib chest_block` — 3 passed (открытие/
+закрытие зрителя, сигнал компаратора, NBT round-trip).
+
+Незакрытое:
+- W04-022: двойной сундук (`CHEST_TYPE`, `CompoundContainer`, порядок половин).
+- W04-023: `ContainerOpenersCounter` recheck по scheduled tick и spectator;
+  сейчас счётчик меняется только на open/close и сбрасывается при removal.
+- W04-016: loot table сундука (`container_loot`) не распаковывается.
+- W04-017: lock/custom name меню не проверяются.

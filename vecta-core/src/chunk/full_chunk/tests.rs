@@ -540,17 +540,19 @@ fn insertion_rejects_an_entity_owned_by_another_chunk() {
     let chunk = FullChunkRef::from_full_context(&chunk_owner);
     let local_pos = BlockPos::new(0, 2, 0);
     let foreign_pos = BlockPos::new(16, 2, 0);
-    let chest = vanilla_blocks::CHEST.default_state();
+    // A hopper has a block-entity type but no registered factory, so setting
+    // the block does not create an entity on its own.
+    let unbacked = vanilla_blocks::HOPPER.default_state();
     assert!(
         chunk
-            .set_block_state(local_pos, chest, UpdateFlags::UPDATE_NONE)
+            .set_block_state(local_pos, unbacked, UpdateFlags::UPDATE_NONE)
             .is_some()
     );
     let foreign: SharedBlockEntity = Arc::new(UnimplementedBlockEntity::new(
-        &vanilla_block_entity_types::CHEST,
+        &vanilla_block_entity_types::HOPPER,
         Weak::new(),
         foreign_pos,
-        chest,
+        unbacked,
     ));
 
     assert!(!chunk.add_and_register_block_entity(foreign));
@@ -598,9 +600,9 @@ fn stale_no_entity_promotion_cannot_consume_a_replacement_marker() {
     );
     chunk.set_pending_block_entity(pos);
 
-    let chest = vanilla_blocks::CHEST.default_state();
+    let unbacked = vanilla_blocks::HOPPER.default_state();
     assert_eq!(
-        chunk.set_block_state(pos, chest, UpdateFlags::UPDATE_NONE),
+        chunk.set_block_state(pos, unbacked, UpdateFlags::UPDATE_NONE),
         Some(moving_piston)
     );
     assert_eq!(chunk.pending_block_entity_positions(), [pos]);

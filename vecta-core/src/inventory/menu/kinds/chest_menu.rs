@@ -28,8 +28,26 @@ pub fn chest(
         container_id,
         container.clone(),
         rows,
-        ChestKind { container },
+        ChestKind::new(container),
     )
+}
+
+impl ChestKind {
+    /// Creates a chest kind for `container`.
+    #[must_use]
+    pub const fn new(container: ContainerRef) -> Self {
+        Self {
+            container,
+            on_close: None,
+        }
+    }
+
+    /// Adds a callback that runs when the menu closes.
+    #[must_use]
+    pub fn with_close_hook(mut self, hook: impl Fn(&Player) + Send + Sync + 'static) -> Self {
+        self.on_close = Some(Box::new(hook));
+        self
+    }
 }
 
 /// Builds the same layout as [`chest`] under a caller-supplied menu kind.
@@ -81,10 +99,15 @@ pub fn menu_type_for_rows(rows: usize) -> MenuTypeRef {
     }
 }
 
-/// Per-menu chest state: just the backing container for the validity check.
+/// Callback invoked once when a chest-like menu closes.
+pub type ChestCloseHook = Box<dyn Fn(&Player) + Send + Sync>;
+
+/// Per-menu chest state: the backing container plus an optional close hook.
 pub struct ChestKind {
     /// The backing container.
     container: ContainerRef,
+    /// Called once when the menu closes, after the player inventory is back.
+    on_close: Option<ChestCloseHook>,
 }
 
 // SAFETY: This Vecta-owned key uniquely identifies the concrete menu kind
@@ -98,6 +121,12 @@ impl MenuKind for ChestKind {
     /// Returns true if the backing container is still valid for the player.
     fn still_valid(&self, _behavior: &MenuBehavior, player: &Player) -> bool {
         self.container.still_valid(player)
+    }
+
+    fn removed(&mut self, _behavior: &mut MenuBehavior, player: &Player) {
+        if let Some(on_close) = &self.on_close {
+            on_close(player);
+        }
     }
 }
 
