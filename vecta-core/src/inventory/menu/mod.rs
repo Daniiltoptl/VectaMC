@@ -128,6 +128,14 @@ impl Menu {
         self.kind.still_valid(&self.behavior, player)
     }
 
+    /// Returns whether this menu is backed by `container`.
+    ///
+    /// Mirrors Vanilla `ContainerOpenersCounter.isOwnContainer`.
+    #[must_use]
+    pub fn owns_container(&self, container: &ContainerRef) -> bool {
+        self.kind.owns_container(container)
+    }
+
     /// Returns true if the item can be taken from the slot during pickup all.
     #[must_use]
     pub fn can_take_item_for_pick_all(&self, carried: &ItemStack, slot_index: usize) -> bool {

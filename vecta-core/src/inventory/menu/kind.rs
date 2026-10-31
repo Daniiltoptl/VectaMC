@@ -4,6 +4,7 @@ use vecta_registry::item_stack::ItemStack;
 use vecta_registry::mob_effect::MobEffectRef;
 use vecta_utils::ErasedType;
 
+use crate::inventory::lock::ContainerRef;
 use crate::inventory::menu::behavior::MenuBehavior;
 use crate::{inventory::lock::ContainerLockGuard, player::Player};
 
@@ -86,6 +87,12 @@ pub trait MenuKind: ErasedType + Send + Sync {
     /// Returns true if this menu is still valid for the player.
     fn still_valid(&self, _behavior: &MenuBehavior, _player: &Player) -> bool {
         true
+    }
+
+    /// Vanilla `ContainerOpenersCounter.isOwnContainer`: whether this menu is
+    /// backed by `container`, so the container can recognise its own viewers.
+    fn owns_container(&self, _container: &ContainerRef) -> bool {
+        false
     }
 
     /// Returns true if an item may be taken from `slot_index` during pickup-all.

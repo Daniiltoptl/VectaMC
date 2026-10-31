@@ -118,6 +118,10 @@ unsafe impl vecta_utils::DowncastType for ChestKind {
 }
 
 impl MenuKind for ChestKind {
+    fn owns_container(&self, container: &ContainerRef) -> bool {
+        self.container.container_id() == container.container_id()
+    }
+
     /// Returns true if the backing container is still valid for the player.
     fn still_valid(&self, _behavior: &MenuBehavior, player: &Player) -> bool {
         self.container.still_valid(player)

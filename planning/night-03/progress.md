@@ -631,3 +631,38 @@ load/save, компоненты, `pre_remove_side_effects`),
 - Компаратор разыгрывает лут (как ванильный
   `AbstractContainerMenu.getRedstoneSignalFromContainer`), но делает это под
   собственным чтением слотов — отдельного `randomizable`-контейнера нет.
+
+## W04-023 — recount зрителей по scheduled tick
+
+Связь: W04-016/021. Java 26.3: `ContainerOpenersCounter`
+(`incrementOpeners`/`decrementOpeners` с `maxInteractionRange`,
+`getEntitiesWithContainerOpen`, `recheckOpeners`, `scheduleRecheck` = 5 тиков),
+`Player.hasContainerOpen(ContainerOpenersCounter, BlockPos)`,
+`ChestBlock.tick` → `ChestBlockEntity.recheckOpen`.
+
+Что теперь делает игрок:
+- Сундук больше не может остаться «навсегда открытым»: пока счётчик > 0,
+  каждые 5 тиков блок пересчитывает реальных зрителей — тех, у кого меню всё
+  ещё указывает на этот контейнер и кто в пределах досягаемости. Ушедший/умерший
+  игрок выпадает, крышка закрывается, звук и block event согласованы.
+- `increment_openers` теперь планирует recount, `maxInteractionRange`
+  учитывается как в ванили (радиус поиска = max + 4.0).
+
+Vecta paths: `block_entity/container_openers.rs` (`CHECK_TICK_DELAY`,
+`max_interaction_range`, `count_container_users`, `recheck_openers`,
+`schedule_recheck`, `is_own_container` в листенере),
+`inventory/menu/kind.rs` + `mod.rs` (`MenuKind::owns_container`,
+`Menu::owns_container`), `inventory/menu/kinds/chest_menu.rs` (`ChestKind`),
+`player/player_inventory/player_handlers.rs`
+(`Player::has_container_open_for`), `block_entity/entities/chest.rs`
+(`recheck_open`), `behavior/blocks/container/chest_block.rs`
+(`BlockBehavior::tick`).
+
+Проверки: `chest_block` 15 passed, включая recount с зарегистрированным в мире
+игроком: «зритель остался» → 1, «зритель ушёл из радиуса» → 0 через
+`recheck_open` и через `BlockBehavior::tick`.
+
+Незакрытое:
+- Double chest (W04-022) пока не делит контейнер: `CompoundContainer` нет,
+  поэтому `owns_container` сравнивает один `ContainerRef`.
+- Бочка/шалкер пока не используют общий счётчик (W04-026).

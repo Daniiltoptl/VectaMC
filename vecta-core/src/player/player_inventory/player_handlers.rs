@@ -5,7 +5,7 @@ use crate::{
     inventory::{
         click::Click,
         container::{Container, CraftingContainer, clear_or_count_matching_stack},
-        lock::{ContainerId, ContainerLockGuard},
+        lock::{ContainerId, ContainerLockGuard, ContainerRef},
         menu::{
             Menu,
             kinds::{INVENTORY_MENU_CONTAINER_ID, InventoryKind},
@@ -962,6 +962,23 @@ impl Player {
     pub fn has_container_open(&self) -> bool {
         let open_menu = self.open_menu.lock();
         open_menu.menu.is_some() || open_menu.dispatch.is_some()
+    }
+
+    /// Vanilla `Player.hasContainerOpen(ContainerOpenersCounter, BlockPos)`.
+    ///
+    /// True while the player's open menu is backed by `container` and the
+    /// container is still reachable, which is what makes them count as a
+    /// viewer.
+    #[must_use]
+    pub fn has_container_open_for(&self, container: &ContainerRef) -> bool {
+        let owns = {
+            let open_menu = self.open_menu.lock();
+            open_menu
+                .menu
+                .as_ref()
+                .is_some_and(|menu| menu.owns_container(container))
+        };
+        owns && container.still_valid(self)
     }
 
     /// Runs the open menu's per-tick hook, if an external menu is open.

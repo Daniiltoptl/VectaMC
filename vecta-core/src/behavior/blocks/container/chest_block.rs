@@ -145,6 +145,16 @@ impl BlockBehavior for ChestBlock {
         InteractionResult::Success
     }
 
+    fn tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
+        // Vanilla `ChestBlock.tick` recounts the viewers of an open chest.
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return;
+        };
+        if let Some(chest) = block_entity.downcast_ref::<ChestBlockEntity>() {
+            chest.recheck_open();
+        }
+    }
+
     fn new_block_entity(
         &self,
         level: Weak<World>,
@@ -208,7 +218,7 @@ mod tests {
     use super::*;
     use crate::block_entity::BlockEntity;
     use crate::bootstrap::init_globals;
-    use crate::entity::Entity as _;
+    use crate::entity::{Entity as _, SharedEntity};
     use crate::test_support::{
         TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
     };
@@ -227,6 +237,17 @@ mod tests {
         let player = TestPlayerBuilder::new(Arc::clone(&fixture.world), "ChestUser", 1).build();
         player.base().set_position_local(DVec3::new(4.5, 64.0, 4.5));
         (fixture, player)
+    }
+
+    /// Registers the fixture player in the world so entity queries (the opener
+    /// recount) can find it.
+    fn register_player(fixture: &TestWorld, player: &Arc<Player>) {
+        let player_arc: Arc<Player> = Arc::clone(player);
+        let entity: SharedEntity = player_arc;
+        fixture
+            .world
+            .try_add_entity(entity)
+            .expect("the test chunk is loaded, so the player registers");
     }
 
     fn chest_hit() -> BlockHitResult {
@@ -507,6 +528,64 @@ mod tests {
                 .display_name(|| TextComponent::translated(translations::CONTAINER_CHEST.msg())),
             TextComponent::plain("Storage"),
         );
+    }
+
+    #[test]
+    fn a_recheck_keeps_a_viewer_that_is_still_there() {
+        let (fixture, player) = chest_fixture("chest_recheck_keeps");
+        register_player(&fixture, &player);
+        use_chest(&fixture, &player);
+        assert_eq!(open_count(&fixture), 1);
+
+        let block_entity = chest_entity(&fixture);
+        block_entity
+            .downcast_ref::<ChestBlockEntity>()
+            .expect("the chest block must create a chest block entity")
+            .recheck_open();
+
+        assert_eq!(open_count(&fixture), 1);
+    }
+
+    #[test]
+    fn a_recheck_drops_a_viewer_that_left_the_container() {
+        let (fixture, player) = chest_fixture("chest_recheck_drops");
+        register_player(&fixture, &player);
+        use_chest(&fixture, &player);
+        assert_eq!(open_count(&fixture), 1);
+
+        // The menu is still open, but the player walked out of reach, which is
+        // exactly the case the scheduled recount exists for.
+        player
+            .base()
+            .try_set_position(DVec3::new(15.5, 64.0, 15.5))
+            .expect("the player walks out of range");
+        let block_entity = chest_entity(&fixture);
+        block_entity
+            .downcast_ref::<ChestBlockEntity>()
+            .expect("the chest block must create a chest block entity")
+            .recheck_open();
+
+        assert_eq!(open_count(&fixture), 0);
+    }
+
+    #[test]
+    fn the_block_tick_recounts_the_viewers() {
+        let (fixture, player) = chest_fixture("chest_recheck_tick");
+        register_player(&fixture, &player);
+        use_chest(&fixture, &player);
+        assert_eq!(open_count(&fixture), 1);
+        player
+            .base()
+            .try_set_position(DVec3::new(15.5, 64.0, 15.5))
+            .expect("the player walks out of range");
+
+        ChestBlock::new(&vanilla_blocks::CHEST).tick(
+            fixture.world.get_block_state(TEST_POS),
+            &fixture.world,
+            TEST_POS,
+        );
+
+        assert_eq!(open_count(&fixture), 0);
     }
 
     #[test]

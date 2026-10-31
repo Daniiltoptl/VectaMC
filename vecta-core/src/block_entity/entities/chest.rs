@@ -132,7 +132,21 @@ impl ChestBlockEntity {
             &world,
             self.get_block_pos(),
             self.get_block_state(),
+            player.block_interaction_range(),
         );
+    }
+
+    /// Vanilla `ChestBlockEntity.recheckOpen`, driven by the block tick that
+    /// `ContainerOpenersCounter` schedules while the chest is open.
+    pub fn recheck_open(&self) {
+        if self.is_removed() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        self.openers
+            .recheck_openers(self, &world, self.get_block_pos(), self.get_block_state());
     }
 
     /// Records a player closing this chest's menu (`ChestBlockEntity.stopOpen`).
@@ -191,6 +205,10 @@ impl ChestBlockEntity {
 }
 
 impl ContainerOpenersListener for ChestBlockEntity {
+    fn is_own_container(&self, player: &Player) -> bool {
+        player.has_container_open_for(&self.container_ref)
+    }
+
     fn on_open(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
         Self::play_lid_sound(world, pos, state, true);
     }
