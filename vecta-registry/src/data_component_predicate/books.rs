@@ -1,8 +1,8 @@
 use super::{
     CollectionPredicate, ComponentHasher, DataComponentPredicateCodec, Debug, DowncastType,
-    DowncastTypeKey, HashComponent, IntBounds, NbtCompound, NbtNumeric, NbtTag, TextComponent,
-    collection_field_nbt, decode_optional, hash_entries, hash_optional_collection_field,
-    owned_string, push_hash_entry, ItemStack, vanilla_components,
+    DowncastTypeKey, HashComponent, IntBounds, ItemStack, NbtCompound, NbtNumeric, NbtTag,
+    TextComponent, collection_field_nbt, decode_optional, hash_entries,
+    hash_optional_collection_field, owned_string, push_hash_entry, vanilla_components,
 };
 
 /// Predicate for one writable-book page.

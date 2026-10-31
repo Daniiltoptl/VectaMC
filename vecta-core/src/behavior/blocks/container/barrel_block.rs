@@ -81,8 +81,12 @@ impl BlockBehavior for BarrelBlock {
             return InteractionResult::Success;
         }
 
+        // `RandomizableContainerBlockEntity.createMenu` rolls the pending loot
+        // table before the menu exists, with the opener as loot context.
+        barrel.unpack_loot_table(Some(player));
+
         // Create a container reference from the block entity
-        let Some(container_ref) = ContainerRef::from_block_entity(block_entity) else {
+        let Some(container_ref) = ContainerRef::from_block_entity(Arc::clone(&block_entity)) else {
             return InteractionResult::Success;
         };
 
@@ -127,10 +131,15 @@ impl BlockBehavior for BarrelBlock {
         _direction: Direction,
     ) -> i32 {
         // Get the block entity and calculate signal from container contents
-        let Some(container_ref) = world
-            .get_block_entity(pos)
-            .and_then(ContainerRef::from_block_entity)
-        else {
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return 0;
+        };
+        // `AbstractContainerMenu.getRedstoneSignalFromContainer` reads every
+        // slot, which unpacks a pending loot table first.
+        if let Some(barrel) = block_entity.downcast_ref::<BarrelBlockEntity>() {
+            barrel.unpack_loot_table(None);
+        }
+        let Some(container_ref) = ContainerRef::from_block_entity(block_entity) else {
             return 0;
         };
         let guard = ContainerLockGuard::lock_all(&[&container_ref]);

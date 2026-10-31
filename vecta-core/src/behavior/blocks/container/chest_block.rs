@@ -115,6 +115,9 @@ impl BlockBehavior for ChestBlock {
         let Some(container_ref) = ContainerRef::from_block_entity(Arc::clone(&block_entity)) else {
             return InteractionResult::Success;
         };
+        // `RandomizableContainerBlockEntity.createMenu` rolls the pending loot
+        // table before the menu exists, with the opener as loot context.
+        chest.unpack_loot_table(Some(player));
 
         let inventory = Arc::clone(&player.inventory);
         player.open_menu(display_name, move |context| {
@@ -167,10 +170,15 @@ impl BlockBehavior for ChestBlock {
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {
-        let Some(container_ref) = world
-            .get_block_entity(pos)
-            .and_then(ContainerRef::from_block_entity)
-        else {
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return 0;
+        };
+        // `AbstractContainerMenu.getRedstoneSignalFromContainer` reads every
+        // slot, which unpacks a pending loot table first.
+        if let Some(chest) = block_entity.downcast_ref::<ChestBlockEntity>() {
+            chest.unpack_loot_table(None);
+        }
+        let Some(container_ref) = ContainerRef::from_block_entity(block_entity) else {
             return 0;
         };
         let guard = ContainerLockGuard::lock_all(&[&container_ref]);
@@ -502,6 +510,60 @@ mod tests {
     }
 
     #[test]
+    fn a_loot_backed_chest_rolls_once_and_saves_the_table_instead_of_items() {
+        let (fixture, _player) = chest_fixture("chest_loot");
+        let block_entity = chest_entity(&fixture);
+        let chest = block_entity
+            .downcast_ref::<ChestBlockEntity>()
+            .expect("the chest block must create a chest block entity");
+        let mut nbt = NbtCompound::new();
+        nbt.insert("LootTable", "minecraft:chests/simple_dungeon");
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("loot NBT decodes");
+        block_entity.load_additional(&borrowed);
+
+        let mut pending = NbtCompound::new();
+        block_entity.save_additional(&mut pending);
+        assert!(
+            pending.get("LootTable").is_some(),
+            "an unrolled table is saved back"
+        );
+        assert!(
+            pending.get("Items").is_none(),
+            "a pending table replaces the item list"
+        );
+
+        chest.unpack_loot_table(None);
+
+        let container_ref = block_entity
+            .container_ref()
+            .expect("a chest exposes its container");
+        {
+            let guard = ContainerLockGuard::lock_all(&[&container_ref]);
+            let container = guard
+                .get(container_ref.container_id())
+                .expect("the chest container is locked");
+            assert!(
+                container.items().iter().any(|stack| !stack.is_empty()),
+                "the dungeon table rolls at least one item"
+            );
+        }
+
+        let mut rolled = NbtCompound::new();
+        block_entity.save_additional(&mut rolled);
+        assert!(
+            rolled.get("LootTable").is_none(),
+            "a consumed table is not written again"
+        );
+        assert!(
+            rolled.get("Items").is_some(),
+            "the rolled contents are persisted"
+        );
+    }
+
+    #[test]
     fn the_chest_contents_round_trip_through_the_container_component() {
         let (fixture, _player) = chest_fixture("chest_component_round_trip");
         let block_entity = chest_entity(&fixture);
@@ -528,13 +590,9 @@ mod tests {
         let placed =
             ChestBlockEntity::new(Weak::new(), TEST_POS, vanilla_blocks::CHEST.default_state());
         let mut item = ItemStack::new(&vanilla_items::CHEST);
-        item.set(
-            CONTAINER,
-            contents,
-        );
+        item.set(CONTAINER, contents);
         assert_eq!(
-            item.get(CONTAINER)
-                .map(|c| c.items().len()),
+            item.get(CONTAINER).map(|c| c.items().len()),
             Some(5),
             "the placed stack carries the container component"
         );

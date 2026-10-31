@@ -24,9 +24,11 @@ use crate::block_entity::container_component::{
     apply_container_items, collect_container_component,
 };
 use crate::block_entity::container_identity::ContainerIdentity;
+use crate::block_entity::container_loot::ContainerLoot;
 use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
+use crate::player::Player;
 use crate::world::World;
 
 /// Number of slots in a barrel (3 rows of 9).
@@ -40,6 +42,7 @@ pub struct BarrelBlockEntity {
     container: Arc<SyncMutex<BarrelContainer>>,
     container_ref: ContainerRef,
     identity: ContainerIdentity,
+    loot: ContainerLoot,
 }
 
 struct BarrelContainer {
@@ -77,6 +80,7 @@ impl BarrelBlockEntity {
             base,
             container,
             identity: ContainerIdentity::new(),
+            loot: ContainerLoot::new(),
         }
     }
 
@@ -84,6 +88,15 @@ impl BarrelBlockEntity {
     #[must_use]
     pub const fn identity(&self) -> &ContainerIdentity {
         &self.identity
+    }
+
+    /// Rolls this barrel's pending loot table, if any.
+    pub fn unpack_loot_table(&self, player: Option<&Player>) {
+        self.loot.unpack(
+            self.get_block_pos(),
+            &mut self.container.lock().items,
+            player,
+        );
     }
 }
 
@@ -93,6 +106,9 @@ impl BlockEntity for BarrelBlockEntity {
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {
+        // Vanilla `Containers.dropContents` reads the slots, which unpacks the
+        // loot table first.
+        self.unpack_loot_table(None);
         let items = {
             let mut container = self.container.lock();
             mem::replace(&mut container.items, vec![ItemStack::empty(); BARREL_SLOTS])
@@ -111,6 +127,11 @@ impl BlockEntity for BarrelBlockEntity {
         self.identity.load(nbt);
         let mut container = self.container.lock();
         container.items.fill(ItemStack::empty());
+        if self.loot.load(nbt) {
+            // Vanilla `RandomizableContainerBlockEntity.loadFromTag`: a stored
+            // loot table replaces the item list, it does not accompany it.
+            return;
+        }
 
         // Load items from NBT using borrowed NBT for proper ItemStack parsing
         if let Some(items_list) = nbt_view.list("Items")
@@ -133,6 +154,11 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
         self.identity.save(nbt);
+        if self.loot.save(nbt) {
+            // `trySaveLootTable` succeeded, so the item list stays out of the
+            // save: the table regenerates it on the next read.
+            return;
+        }
         // Save items to NBT (only non-empty slots)
         let container = self.container.lock();
         let mut items: Vec<NbtCompound> = Vec::new();
@@ -150,6 +176,9 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
         let mut consumed = self.identity.apply_implicit_components(item);
+        if let Some(key) = self.loot.apply_implicit_components(item) {
+            consumed.push(key);
+        }
         if let Some(contents) = item.get(CONTAINER) {
             let items = contents
                 .items()
@@ -168,6 +197,7 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn collect_implicit_components(&self, components: &mut DataComponentMap) {
         self.identity.collect_implicit_components(components);
+        self.loot.collect_implicit_components(components);
         let contents = collect_container_component(&self.container.lock().items);
         match contents {
             Ok(contents) => components.set(CONTAINER, Some(contents)),
@@ -180,6 +210,7 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
         ContainerIdentity::remove_components_from_tag(nbt);
+        ContainerLoot::remove_components_from_tag(nbt);
         while nbt.remove("Items").is_some() {}
     }
 
@@ -319,6 +350,39 @@ mod tests {
                 .identity()
                 .display_name(|| TextComponent::plain("default")),
             TextComponent::plain("Storage"),
+        );
+    }
+
+    #[test]
+    fn a_loot_table_replaces_the_saved_items_until_it_is_rolled() {
+        let barrel = test_barrel();
+        let mut nbt = NbtCompound::new();
+        nbt.insert("LootTable", "minecraft:chests/simple_dungeon");
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("loot NBT reads");
+        barrel.load_additional(&borrowed);
+
+        let mut pending = NbtCompound::new();
+        barrel.save_additional(&mut pending);
+        assert!(pending.get("LootTable").is_some());
+        assert!(pending.get("Items").is_none());
+
+        barrel.unpack_loot_table(None);
+
+        let mut rolled = NbtCompound::new();
+        barrel.save_additional(&mut rolled);
+        assert!(rolled.get("LootTable").is_none());
+        assert!(rolled.get("Items").is_some());
+        assert!(
+            barrel
+                .container
+                .lock()
+                .items
+                .iter()
+                .any(|stack| !stack.is_empty()),
+            "the dungeon table rolls at least one item"
         );
     }
 

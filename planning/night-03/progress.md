@@ -578,3 +578,56 @@ Vecta paths: `vecta-registry/src/data_component_predicate/*` (полная це�
   распаковывается; `unpackLootTable` в шалкере остаётся TODO.
 - W04-018..020: меню-жизненный цикл и синхронизация.
 - Медные сундуки: блок-энтити ещё нет (`copper_chest_block.rs` — TODO).
+
+## W04-016 — контейнеры со loot table без преждевременной генерации
+
+Связь: W04-017. Java 26.3: `RandomizableContainerBlockEntity` (`isEmpty`/
+`getItem`/`setItem`/`removeItem` → `unpackLootTable(null)`, `canOpen` с
+`lootTable != null && spectator`, `createMenu` → `unpackLootTable(player)`,
+`applyImplicitComponents`/`collectImplicitComponents`/`removeComponentsFromTag`
+для `minecraft:container_loot`), `RandomizableContainer`
+(`tryLoadLootTable`/`trySaveLootTable`/`unpackLootTable`),
+`LootTable.fill` (`getAvailableSlots`, `shuffleAndSplitItems`),
+`Containers.dropContents`.
+
+Что теперь делает игрок:
+- Сундук/бочка/шалкер из структуры с `LootTable` больше не открывается пустым:
+  при первом открытии, чтении компаратором или разрушении таблица
+  разыгрывается один раз, ссылка сбрасывается, дальше контейнер обычный.
+- Пока таблица не разыграна, в сейв идут `LootTable`/`LootTableSeed` и НЕ идут
+  `Items` (как `trySaveLootTable`/`tryLoadLootTable`); после розыгрыша —
+  наоборот.
+- `minecraft:container_loot` переносится на предмет (шалкер в т.ч. через
+  `shulker_box_as_item`) и применяется при установке.
+
+Vecta paths: `vecta-registry/src/loot_table/entries.rs` (`LootTable::fill`,
+`available_slots`, `shuffle_and_split_items`, `shuffle`),
+`block_entity/container_loot.rs` (новый `ContainerLoot`),
+`block_entity/entities/{chest,barrel,shulker_box}.rs` (`unpack_loot_table`,
+load/save, компоненты, `pre_remove_side_effects`),
+`behavior/blocks/container/{chest,barrel,shulker_box}_block.rs` (открытие,
+компаратор, разрушение).
+
+Проверки: `container_loot` 4 passed, `chest_block` 12, `barrel` 5.
+
+Блокер (точный): детерминированный `LootTableSeed` не воспроизводится.
+`vecta-registry::loot_table` считает лут на `rand::Rng`, а ванильный
+`LootContext.Builder.withOptionalRandomSeed` использует
+`RandomSource.create(seed)` = `LegacyRandomSource`, чья
+последовательность (`nextInt(bound)`, `nextFloat`) не совпадает с `rand`.
+`vecta_utils::random::legacy_random::LegacyRandom` реализует Java-совместимый
+трейт `Random`, а не `rand::RngCore`, поэтому сид сейчас не применяется:
+лут разыгрывается один раз (как в ванили), но набор предметов для ненулевого
+сида не совпадает с ванильным. Чтобы закрыть, нужно перевести весь обход
+`NumberProvider`/`LootCondition`/`LootFunction` на `vecta_utils::random::Random`
+(и `RandomSequences` для `random_sequence`), это отдельный этап.
+
+Незакрытое:
+- `Container::set_item` (автоматизация/хоппер) не разыгрывает таблицу перед
+  вставкой: в ванили `RandomizableContainerBlockEntity.setItem` вызывает
+  `unpackLootTable(null)`, а в Vecta `Container` реализован на данных
+  контейнера без обратной ссылки на блок-энтити. Вставка в лут-сундук
+  заполнит пустые слоты, а таблица разыграется позже в остальные.
+- Компаратор разыгрывает лут (как ванильный
+  `AbstractContainerMenu.getRedstoneSignalFromContainer`), но делает это под
+  собственным чтением слотов — отдельного `randomizable`-контейнера нет.

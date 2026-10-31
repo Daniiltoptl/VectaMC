@@ -29,6 +29,7 @@ use crate::block_entity::container_component::{
     apply_container_items, collect_container_component,
 };
 use crate::block_entity::container_identity::ContainerIdentity;
+use crate::block_entity::container_loot::ContainerLoot;
 use crate::block_entity::container_openers::{ContainerOpenersCounter, ContainerOpenersListener};
 use crate::block_entity::{BlockEntity, BlockEntityBase, BlockEntityLifecycleExt as _};
 use crate::entity::Entity as _;
@@ -50,6 +51,7 @@ pub struct ChestBlockEntity {
     container_ref: ContainerRef,
     openers: ContainerOpenersCounter,
     identity: ContainerIdentity,
+    loot: ContainerLoot,
 }
 
 struct ChestContainer {
@@ -87,6 +89,7 @@ impl ChestBlockEntity {
             container,
             openers: ContainerOpenersCounter::default(),
             identity: ContainerIdentity::new(),
+            loot: ContainerLoot::new(),
         }
     }
 
@@ -94,6 +97,19 @@ impl ChestBlockEntity {
     #[must_use]
     pub const fn identity(&self) -> &ContainerIdentity {
         &self.identity
+    }
+
+    /// Rolls this chest's pending loot table, if any.
+    ///
+    /// Vanilla `RandomizableContainerBlockEntity` does this on every contents
+    /// read, so opening, a comparator read and a destruction drop all see the
+    /// rolled contents while only the first one generates them.
+    pub fn unpack_loot_table(&self, player: Option<&Player>) {
+        self.loot.unpack(
+            self.get_block_pos(),
+            &mut self.container.lock().items,
+            player,
+        );
     }
 
     /// Returns how many players currently have this chest open.
@@ -202,6 +218,9 @@ impl BlockEntity for ChestBlockEntity {
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {
+        // Vanilla `Containers.dropContents` reads the slots, which unpacks the
+        // loot table first.
+        self.unpack_loot_table(None);
         let items = {
             let mut container = self.container.lock();
             mem::replace(&mut container.items, vec![ItemStack::empty(); CHEST_SLOTS])
@@ -219,6 +238,11 @@ impl BlockEntity for ChestBlockEntity {
         self.identity.load(nbt);
         let mut container = self.container.lock();
         container.items.fill(ItemStack::empty());
+        if self.loot.load(nbt) {
+            // Vanilla `RandomizableContainerBlockEntity.loadFromTag`: a stored
+            // loot table replaces the item list, it does not accompany it.
+            return;
+        }
 
         if let Some(items_list) = nbt_view.list("Items")
             && let Some(compounds) = items_list.compounds()
@@ -238,6 +262,11 @@ impl BlockEntity for ChestBlockEntity {
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
         self.identity.save(nbt);
+        if self.loot.save(nbt) {
+            // `trySaveLootTable` succeeded, so the item list stays out of the
+            // save: the table regenerates it on the next read.
+            return;
+        }
         let container = self.container.lock();
         let mut items: Vec<NbtCompound> = Vec::new();
         for (slot, item) in container.items.iter().enumerate() {
@@ -253,6 +282,9 @@ impl BlockEntity for ChestBlockEntity {
 
     fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
         let mut consumed = self.identity.apply_implicit_components(item);
+        if let Some(key) = self.loot.apply_implicit_components(item) {
+            consumed.push(key);
+        }
         if let Some(contents) = item.get(CONTAINER) {
             // `ItemContainerContents.copyInto` keeps slot positions, so empty
             // entries stay empty instead of collapsing the list.
@@ -273,6 +305,7 @@ impl BlockEntity for ChestBlockEntity {
 
     fn collect_implicit_components(&self, components: &mut DataComponentMap) {
         self.identity.collect_implicit_components(components);
+        self.loot.collect_implicit_components(components);
         let contents = collect_container_component(&self.container.lock().items);
         match contents {
             Ok(contents) => components.set(CONTAINER, Some(contents)),
@@ -285,6 +318,7 @@ impl BlockEntity for ChestBlockEntity {
 
     fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
         ContainerIdentity::remove_components_from_tag(nbt);
+        ContainerLoot::remove_components_from_tag(nbt);
         while nbt.remove("Items").is_some() {}
     }
 

@@ -223,6 +223,85 @@ impl LootTable {
 
         result
     }
+
+    /// Fills the empty slots of a container with this table's loot.
+    ///
+    /// Mirrors Vanilla `LootTable.fill`: rolled stacks are split so that a
+    /// container with spare slots spreads its loot instead of stacking
+    /// everything into a few slots, then the result is shuffled and written
+    /// into the empty slots in a shuffled order.
+    pub fn fill<R: rand::Rng>(&self, slots: &mut [ItemStack], ctx: &mut LootContext<'_, R>) {
+        let mut items = self.get_random_items(ctx);
+        let mut available = available_slots(slots, &mut *ctx.rng);
+        shuffle_and_split_items(&mut items, available.len(), &mut *ctx.rng);
+
+        for item in items {
+            let Some(slot) = available.pop() else {
+                log::warn!("Tried to over-fill a container");
+                return;
+            };
+            slots[slot] = item;
+        }
+    }
+}
+
+/// Empty slots of `slots`, in the shuffled order Vanilla fills them.
+fn available_slots<R: rand::Rng>(slots: &[ItemStack], rng: &mut R) -> Vec<usize> {
+    let mut available: Vec<usize> = slots
+        .iter()
+        .enumerate()
+        .filter(|(_, stack)| stack.is_empty())
+        .map(|(slot, _)| slot)
+        .collect();
+    shuffle(&mut available, rng);
+    available
+}
+
+/// Vanilla `Util.shuffle`.
+fn shuffle<T, R: rand::Rng>(list: &mut [T], rng: &mut R) {
+    for index in (1..list.len()).rev() {
+        let swap_with = rng.random_range(0..=index);
+        list.swap(index, swap_with);
+    }
+}
+
+/// Vanilla `LootTable.shuffleAndSplitItems`.
+fn shuffle_and_split_items<R: rand::Rng>(
+    result: &mut Vec<ItemStack>,
+    available_slots: usize,
+    rng: &mut R,
+) {
+    let mut splittable: Vec<ItemStack> = Vec::new();
+    result.retain(|stack| {
+        if stack.is_empty() {
+            return false;
+        }
+        if stack.count() > 1 {
+            splittable.push(stack.clone());
+            return false;
+        }
+        true
+    });
+
+    while available_slots > result.len() + splittable.len() && !splittable.is_empty() {
+        let index = rng.random_range(0..splittable.len());
+        let mut stack = splittable.remove(index);
+        let remove = rng.random_range(1..=stack.count() / 2);
+        let copy = stack.split(remove);
+        if stack.count() > 1 && rng.random::<bool>() {
+            splittable.push(stack);
+        } else {
+            result.push(stack);
+        }
+        if copy.count() > 1 && rng.random::<bool>() {
+            splittable.push(copy);
+        } else {
+            result.push(copy);
+        }
+    }
+
+    result.extend(splittable);
+    shuffle(result, rng);
 }
 
 impl LootPool {

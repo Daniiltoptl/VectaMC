@@ -30,12 +30,16 @@ use vecta_utils::{
 
 use crate::{
     behavior::blocks::ShulkerBoxBlock,
-    block_entity::{BlockEntity, BlockEntityBase, container_identity::ContainerIdentity},
+    block_entity::{
+        BlockEntity, BlockEntityBase, container_identity::ContainerIdentity,
+        container_loot::ContainerLoot,
+    },
     inventory::{
         container::Container,
         lock::{ContainerRef, SharedContainer},
     },
     physics::{CollisionWorld as _, MoverType, WorldCollisionProvider},
+    player::Player,
     world::World,
 };
 
@@ -80,6 +84,7 @@ pub struct ShulkerBoxBlockEntity {
     animation: SyncMutex<ShulkerBoxAnimation>,
     open_count: AtomicI32,
     identity: ContainerIdentity,
+    loot: ContainerLoot,
 }
 
 struct ShulkerBoxContainer {
@@ -128,6 +133,7 @@ impl ShulkerBoxBlockEntity {
             }),
             open_count: AtomicI32::new(0),
             identity: ContainerIdentity::new(),
+            loot: ContainerLoot::new(),
         }
     }
 
@@ -135,6 +141,15 @@ impl ShulkerBoxBlockEntity {
     #[must_use]
     pub const fn identity(&self) -> &ContainerIdentity {
         &self.identity
+    }
+
+    /// Rolls this box's pending loot table, if any.
+    pub fn unpack_loot_table(&self, player: Option<&Player>) {
+        self.loot.unpack(
+            self.get_block_pos(),
+            &mut self.container.lock().items,
+            player,
+        );
     }
 
     fn update_animation(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
@@ -282,9 +297,13 @@ impl ShulkerBoxBlockEntity {
         !collision.has_block_collision(&lid_open_bounding_box)
     }
 
-    /// Checks if the block entity's container has any items
+    /// Checks if the block entity's container has any items.
+    ///
+    /// Vanilla `RandomizableContainerBlockEntity.isEmpty` unpacks the pending
+    /// loot table first, so a loot-backed box is never reported empty.
     #[must_use]
     pub fn is_empty(&self) -> bool {
+        self.unpack_loot_table(None);
         self.container.lock().is_empty()
     }
 
@@ -359,6 +378,11 @@ impl BlockEntity for ShulkerBoxBlockEntity {
         self.identity.load(nbt);
         let mut container = self.container.lock();
         container.items.fill(ItemStack::empty());
+        if self.loot.load(nbt) {
+            // Vanilla `RandomizableContainerBlockEntity.loadFromTag`: a stored
+            // loot table replaces the item list, it does not accompany it.
+            return;
+        }
 
         let Some(items_list) = nbt_view.list("Items") else {
             return;
@@ -383,6 +407,11 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
         self.identity.save(nbt);
+        if self.loot.save(nbt) {
+            // `trySaveLootTable` succeeded, so the item list stays out of the
+            // save: the table regenerates it on the next read.
+            return;
+        }
         let container = self.container.lock();
         let mut items: Vec<NbtCompound> = Vec::new();
         for (slot, item) in container.items().iter().enumerate() {
@@ -400,6 +429,9 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 
     fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
         let mut consumed = self.identity.apply_implicit_components(item);
+        if let Some(key) = self.loot.apply_implicit_components(item) {
+            consumed.push(key);
+        }
 
         if let Some(contents) = item.get(CONTAINER) {
             let mut container = self.container.lock();
@@ -424,11 +456,13 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 
     fn collect_implicit_components(&self, components: &mut DataComponentMap) {
         self.identity.collect_implicit_components(components);
+        self.loot.collect_implicit_components(components);
         components.set(CONTAINER, Some(self.collect_components()));
     }
 
     fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
         ContainerIdentity::remove_components_from_tag(nbt);
+        ContainerLoot::remove_components_from_tag(nbt);
         while nbt.remove("Items").is_some() {}
     }
 

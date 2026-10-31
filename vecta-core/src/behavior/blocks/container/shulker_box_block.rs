@@ -117,6 +117,10 @@ impl BlockBehavior for ShulkerBoxBlock {
                 return InteractionResult::Success;
             }
 
+            // `RandomizableContainerBlockEntity.createMenu` rolls the pending
+            // loot table before the menu exists.
+            block_entity.unpack_loot_table(Some(player));
+
             let inventory = Arc::clone(&player.inventory);
             player.open_menu(display_name, move |context| {
                 shulker_box(inventory, context.container_id, container_ref)
@@ -148,7 +152,9 @@ impl BlockBehavior for ShulkerBoxBlock {
             let item = shulker_box_block_entity.shulker_box_as_item(state);
             world.pop_resource(pos, item);
         } else {
-            // TODO: maybe? shulkerBoxBlockEntity.unpackLootTable(player);
+            // Vanilla rolls the pending table so the box's loot is not lost
+            // when the block drops through its loot table.
+            shulker_box_block_entity.unpack_loot_table(Some(player));
         }
 
         state
@@ -271,10 +277,15 @@ impl BlockBehavior for ShulkerBoxBlock {
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {
-        let Some(container_ref) = world
-            .get_block_entity(pos)
-            .and_then(ContainerRef::from_block_entity)
-        else {
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return 0;
+        };
+        // `AbstractContainerMenu.getRedstoneSignalFromContainer` reads every
+        // slot, which unpacks a pending loot table first.
+        if let Some(shulker_box) = block_entity.downcast_ref::<ShulkerBoxBlockEntity>() {
+            shulker_box.unpack_loot_table(None);
+        }
+        let Some(container_ref) = ContainerRef::from_block_entity(block_entity) else {
             return 0;
         };
         let guard = ContainerLockGuard::lock_all(&[&container_ref]);

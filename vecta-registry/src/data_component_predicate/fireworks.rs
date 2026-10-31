@@ -1,7 +1,7 @@
 use super::{
     CollectionPredicate, ComponentHasher, DataComponentPredicateCodec, Debug, DowncastType,
-    DowncastTypeKey, HashComponent, IntBounds, NbtCompound, NbtNumeric, NbtTag, decode_optional,
-    hash_entries, push_hash_entry, ItemStack, vanilla_components,
+    DowncastTypeKey, HashComponent, IntBounds, ItemStack, NbtCompound, NbtNumeric, NbtTag,
+    decode_optional, hash_entries, push_hash_entry, vanilla_components,
 };
 use crate::data_components::components::FireworkExplosion;
 
