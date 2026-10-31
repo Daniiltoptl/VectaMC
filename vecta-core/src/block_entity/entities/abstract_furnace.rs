@@ -17,6 +17,7 @@ use vecta_registry::recipe::{
     CachedRecipeCheck, CookingRecipe, RecipeType, SingleItemRecipeInput, TypedRecipeRef,
     vanilla_recipe_types,
 };
+use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::{REGISTRY, vanilla_block_entity_types, vanilla_items};
 use vecta_utils::locks::IntoShared;
 use vecta_utils::{
@@ -31,9 +32,13 @@ use crate::inventory::fuel_values::VANILLA_FUEL_VALUES;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::world::World;
 
+/// Vanilla `AbstractFurnaceBlockEntity` container size: input, fuel, result.
 pub const FURNACE_SLOTS: usize = 3;
+/// Vanilla `AbstractFurnaceBlockEntity.SLOT_INPUT`.
 pub const SLOT_INPUT: usize = 0;
+/// Vanilla `AbstractFurnaceBlockEntity.SLOT_FUEL`.
 pub const SLOT_FUEL: usize = 1;
+/// Vanilla `AbstractFurnaceBlockEntity.SLOT_RESULT`.
 pub const SLOT_RESULT: usize = 2;
 
 const SLOTS_FOR_UP: &[usize] = &[SLOT_INPUT];
@@ -301,10 +306,11 @@ impl Container for FurnaceContainer {
         stack: &ItemStack,
         direction: Direction,
     ) -> bool {
+        // Vanilla only restricts the fuel slot from below, and only to the
+        // items in `#furnace_fuel_bottom_takeable` (the two buckets).
         direction != Direction::Down
             || slot != SLOT_FUEL
-            || stack.is(&vanilla_items::WATER_BUCKET)
-            || stack.is(&vanilla_items::BUCKET)
+            || stack.item().has_tag(&ItemTag::FURNACE_FUEL_BOTTOM_TAKEABLE)
     }
 }
 
@@ -568,7 +574,7 @@ mod tests {
     #[test]
     fn furnace_sided_inventory_matches_vanilla_faces_and_bucket_rule() {
         init_vanilla_registry();
-        let furnace = FurnaceContainer::new(FurnaceKind::Furnace);
+        let mut furnace = FurnaceContainer::new(FurnaceKind::Furnace);
 
         assert_eq!(
             furnace.slots_for_face(Direction::Up),
@@ -592,5 +598,57 @@ mod tests {
             &ItemStack::new(&vanilla_items::WATER_BUCKET),
             Direction::Down,
         ));
+        assert!(furnace.can_take_item_through_face(
+            SLOT_FUEL,
+            &ItemStack::new(&vanilla_items::BUCKET),
+            Direction::Down,
+        ));
+        assert!(
+            furnace.can_take_item_through_face(
+                SLOT_RESULT,
+                &ItemStack::new(&vanilla_items::IRON_INGOT),
+                Direction::Down,
+            ),
+            "the result slot is only reachable from below"
+        );
+        assert!(
+            furnace.can_take_item_through_face(
+                SLOT_FUEL,
+                &ItemStack::new(&vanilla_items::COAL),
+                Direction::North,
+            ),
+            "the bottom-only rule does not restrict a side face"
+        );
+
+        // `canPlaceItem`: the result slot never accepts, the fuel slot takes
+        // fuel and one empty bucket, and the input slot takes anything.
+        assert!(!furnace.can_place_item(SLOT_RESULT, &ItemStack::new(&vanilla_items::IRON_INGOT)));
+        assert!(furnace.can_place_item(SLOT_FUEL, &ItemStack::new(&vanilla_items::COAL)));
+        assert!(!furnace.can_place_item(SLOT_FUEL, &ItemStack::new(&vanilla_items::IRON_INGOT)));
+        assert!(
+            furnace.can_place_item(SLOT_FUEL, &ItemStack::new(&vanilla_items::BUCKET)),
+            "an empty bucket is a valid fuel-slot item while that slot is empty"
+        );
+        furnace.set_item(SLOT_FUEL, ItemStack::new(&vanilla_items::BUCKET));
+        assert!(
+            !furnace.can_place_item(SLOT_FUEL, &ItemStack::new(&vanilla_items::BUCKET)),
+            "vanilla refuses a second bucket in the fuel slot"
+        );
+        assert!(furnace.can_place_item(SLOT_INPUT, &ItemStack::new(&vanilla_items::IRON_ORE)));
+
+        // Vanilla `canPlaceItemThroughFace` is exactly `canPlaceItem`.
+        for slot in [SLOT_INPUT, SLOT_FUEL, SLOT_RESULT] {
+            for stack in [
+                ItemStack::new(&vanilla_items::IRON_ORE),
+                ItemStack::new(&vanilla_items::COAL),
+                ItemStack::new(&vanilla_items::BUCKET),
+            ] {
+                assert_eq!(
+                    furnace.can_place_item_through_face(slot, &stack, Direction::Up),
+                    furnace.can_place_item(slot, &stack),
+                    "slot {slot} must not add a face rule on insertion"
+                );
+            }
+        }
     }
 }

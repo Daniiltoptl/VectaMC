@@ -263,6 +263,7 @@ mod tests {
 
     use glam::DVec3;
     use vecta_registry::RegistryEntry as _;
+    use vecta_registry::data_components::vanilla_components::CUSTOM_NAME;
     use vecta_registry::item_stack::ItemStack;
     use vecta_registry::stat::vanilla_stat_types;
     use vecta_registry::{
@@ -273,7 +274,9 @@ mod tests {
 
     use super::*;
     use crate::behavior::context::{PlacementOrientation, PlacementSource};
-    use crate::block_entity::entities::{HOPPER_SLOTS, MOVE_ITEM_SPEED};
+    use crate::block_entity::entities::{
+        FURNACE_SLOTS, HOPPER_SLOTS, MOVE_ITEM_SPEED, SLOT_FUEL, SLOT_INPUT, SLOT_RESULT,
+    };
     use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
     use crate::bootstrap::init_globals;
     use crate::entity::entities::ItemEntity;
@@ -888,5 +891,247 @@ mod tests {
                 "vanilla `HopperBlock.isPathfindable` is always false"
             );
         }
+    }
+
+    fn place_furnace(fixture: &TestWorld, pos: BlockPos) {
+        assert!(fixture.world.set_block(
+            pos,
+            vanilla_blocks::FURNACE.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+    }
+
+    /// A hopper above a furnace inserts through `getSlotsForFace(UP)`, which is
+    /// the input slot only.
+    #[test]
+    fn a_hopper_above_a_furnace_feeds_only_the_input_slot() {
+        let (fixture, pos) = hopper_fixture("hopper_furnace_top", Direction::Down);
+        let furnace = pos.below();
+        place_furnace(&fixture, furnace);
+        set_item_at(
+            &fixture,
+            pos,
+            0,
+            ItemStack::with_count(&vanilla_items::IRON_ORE, 3),
+        );
+
+        tick_block_entities(&fixture, 1);
+
+        assert_eq!(item_at(&fixture, furnace, SLOT_INPUT).count(), 1);
+        assert!(
+            item_at(&fixture, furnace, SLOT_FUEL).is_empty(),
+            "the fuel slot is not reachable from above"
+        );
+        assert!(item_at(&fixture, furnace, SLOT_RESULT).is_empty());
+        assert_eq!(item_at(&fixture, pos, 0).count(), 2);
+    }
+
+    /// A hopper beside a furnace inserts through `getSlotsForFace(side)`, which
+    /// is the fuel slot only, and the fuel slot still applies `canPlaceItem`.
+    #[test]
+    fn a_hopper_beside_a_furnace_feeds_only_the_fuel_slot() {
+        let (fixture, pos) = hopper_fixture("hopper_furnace_side", Direction::West);
+        let furnace = pos.west();
+        place_furnace(&fixture, furnace);
+        set_item_at(
+            &fixture,
+            pos,
+            0,
+            ItemStack::with_count(&vanilla_items::COAL, 2),
+        );
+
+        tick_block_entities(&fixture, 1);
+
+        assert_eq!(item_at(&fixture, furnace, SLOT_FUEL).count(), 1);
+        assert!(
+            item_at(&fixture, furnace, SLOT_INPUT).is_empty(),
+            "the input slot is not reachable from the side"
+        );
+
+        // A non-fuel item stays in the hopper: `canPlaceItem` rejects it.
+        set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::IRON_INGOT));
+        tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize);
+        assert_eq!(
+            item_at(&fixture, pos, 0).count(),
+            1,
+            "the furnace refuses a non-fuel item in the fuel slot"
+        );
+        assert!(item_at(&fixture, furnace, SLOT_INPUT).is_empty());
+    }
+
+    /// A hopper below a furnace pulls through `getSlotsForFace(DOWN)`: the
+    /// result slot always, the fuel slot only for `#furnace_fuel_bottom_takeable`.
+    /// Vanilla always sucks through `Direction.DOWN`, whatever the hopper faces.
+    #[test]
+    fn a_hopper_below_a_furnace_takes_the_result_and_only_a_bucket_from_the_fuel_slot() {
+        let (fixture, pos) = hopper_fixture("hopper_furnace_bottom", Direction::Down);
+        let furnace = pos.above();
+        place_furnace(&fixture, furnace);
+        set_item_at(
+            &fixture,
+            furnace,
+            SLOT_RESULT,
+            ItemStack::new(&vanilla_items::IRON_INGOT),
+        );
+
+        tick_block_entities(&fixture, 1);
+
+        assert_eq!(
+            item_at(&fixture, pos, 0).count(),
+            1,
+            "the result slot is reachable from below"
+        );
+        assert!(item_at(&fixture, furnace, SLOT_RESULT).is_empty());
+
+        // Coal in the fuel slot is not extractable from below.
+        set_item_at(
+            &fixture,
+            furnace,
+            SLOT_FUEL,
+            ItemStack::new(&vanilla_items::COAL),
+        );
+        tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize);
+        assert!(
+            item_at(&fixture, furnace, SLOT_FUEL).is(&vanilla_items::COAL),
+            "vanilla refuses coal through the bottom face"
+        );
+
+        // An empty bucket is.
+        set_item_at(
+            &fixture,
+            furnace,
+            SLOT_FUEL,
+            ItemStack::new(&vanilla_items::BUCKET),
+        );
+        tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize);
+        assert!(item_at(&fixture, furnace, SLOT_FUEL).is_empty());
+        assert!(
+            (0..HOPPER_SLOTS).any(|slot| item_at(&fixture, pos, slot).is(&vanilla_items::BUCKET)),
+            "`#furnace_fuel_bottom_takeable` lets the bucket out"
+        );
+    }
+
+    /// A stack that differs in components must not merge, and a stack limit is
+    /// never exceeded by a transfer.
+    #[test]
+    fn a_furnace_rejects_a_component_mismatch_and_never_overfills_a_slot() {
+        let (fixture, pos) = hopper_fixture("hopper_furnace_mismatch", Direction::Down);
+        let furnace = pos.below();
+        place_furnace(&fixture, furnace);
+
+        let plain = ItemStack::with_count(&vanilla_items::IRON_ORE, 1);
+        let mut named = ItemStack::with_count(&vanilla_items::IRON_ORE, 1);
+        named.set(CUSTOM_NAME, TextComponent::plain("Ore".to_owned()));
+        assert!(!ItemStack::is_same_item_same_components(&plain, &named));
+
+        set_item_at(&fixture, furnace, SLOT_INPUT, named);
+        set_item_at(&fixture, pos, 0, plain);
+        tick_block_entities(&fixture, 1);
+
+        assert_eq!(
+            item_at(&fixture, furnace, SLOT_INPUT).count(),
+            1,
+            "a component mismatch must not merge into the input stack"
+        );
+        assert_eq!(
+            item_at(&fixture, pos, 0).count(),
+            1,
+            "the rejected item stays in the hopper"
+        );
+
+        // A full input slot takes nothing even though it is the right item.
+        set_item_at(
+            &fixture,
+            furnace,
+            SLOT_INPUT,
+            ItemStack::with_count(&vanilla_items::IRON_ORE, 64),
+        );
+        set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::IRON_ORE));
+        tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize);
+        assert_eq!(item_at(&fixture, furnace, SLOT_INPUT).count(), 64);
+        assert_eq!(item_at(&fixture, pos, 0).count(), 1);
+    }
+
+    /// Both hoppers tick against the same furnace every tick; the item count is
+    /// conserved and neither transfer path deadlocks on the furnace container.
+    #[test]
+    fn two_hoppers_move_items_through_a_furnace_without_duplication() {
+        let (fixture, pos) = hopper_fixture("hopper_furnace_two_way", Direction::Down);
+        let furnace = pos.below();
+        place_furnace(&fixture, furnace);
+
+        // The feeder above the furnace and the drain below it.
+        let feeder = pos.above();
+        assert!(
+            fixture.world.set_block(
+                feeder,
+                vanilla_blocks::HOPPER
+                    .default_state()
+                    .set_value(FACING, Direction::Down)
+                    .set_value(ENABLED, true),
+                UpdateFlags::UPDATE_ALL,
+            )
+        );
+        let drain = furnace.below();
+        assert!(
+            fixture.world.set_block(
+                drain,
+                vanilla_blocks::HOPPER
+                    .default_state()
+                    .set_value(FACING, Direction::Down)
+                    .set_value(ENABLED, true),
+                UpdateFlags::UPDATE_ALL,
+            )
+        );
+        let sink = drain.below();
+        place_chest(&fixture, sink);
+
+        set_item_at(
+            &fixture,
+            feeder,
+            0,
+            ItemStack::with_count(&vanilla_items::IRON_ORE, 4),
+        );
+        set_item_at(
+            &fixture,
+            furnace,
+            SLOT_RESULT,
+            ItemStack::with_count(&vanilla_items::IRON_INGOT, 4),
+        );
+
+        let count_all = |fixture: &TestWorld| {
+            let mut total = 0;
+            for slot in 0..HOPPER_SLOTS {
+                total += item_at(fixture, feeder, slot).count();
+                total += item_at(fixture, pos, slot).count();
+                total += item_at(fixture, drain, slot).count();
+            }
+            for slot in 0..FURNACE_SLOTS {
+                total += item_at(fixture, furnace, slot).count();
+            }
+            for slot in 0..27 {
+                total += item_at(fixture, sink, slot).count();
+            }
+            total
+        };
+
+        let initial = count_all(&fixture);
+        assert_eq!(initial, 8);
+
+        tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize * 3);
+
+        assert_eq!(
+            count_all(&fixture),
+            initial,
+            "transfers must not duplicate or destroy items"
+        );
+        assert!(
+            item_at(&fixture, sink, 0).count() > 0,
+            "the drain hopper moves the furnace output into the chest below"
+        );
+        assert!(
+            item_at(&fixture, furnace, SLOT_INPUT).count() > 0,
+            "the feeder hopper fills the furnace input"
+        );
     }
 }

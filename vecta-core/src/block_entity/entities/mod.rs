@@ -25,7 +25,8 @@ mod skull;
 mod unimplemented;
 
 pub use abstract_furnace::{
-    BlastFurnaceBlockEntity, FurnaceBlockEntity, FurnaceKind, SmokerBlockEntity,
+    BlastFurnaceBlockEntity, FURNACE_SLOTS, FurnaceBlockEntity, FurnaceKind, SLOT_FUEL, SLOT_INPUT,
+    SLOT_RESULT, SmokerBlockEntity,
 };
 pub(crate) use abstract_furnace::{FurnaceContainer, pop_furnace_experience};
 pub use barrel::{BARREL_SLOTS, BarrelBlockEntity};
