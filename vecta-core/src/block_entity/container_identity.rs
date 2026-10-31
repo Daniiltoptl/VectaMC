@@ -109,17 +109,33 @@ impl ContainerIdentity {
         pos: BlockPos,
         display_name: TextComponent,
     ) {
+        Self::send_locked_notification_at(
+            world,
+            player,
+            glam::DVec3::new(
+                f64::from(pos.x()) + 0.5,
+                f64::from(pos.y()) + 0.5,
+                f64::from(pos.z()) + 0.5,
+            ),
+            display_name,
+        );
+    }
+
+    /// Vanilla `BaseContainerBlockEntity.sendChestLockedNotifications` at an
+    /// explicit sound position, which a double chest places between its halves.
+    pub fn send_locked_notification_at(
+        world: &World,
+        player: &Player,
+        sound_pos: glam::DVec3,
+        display_name: TextComponent,
+    ) {
         player.send_overlay_message(&TextComponent::translated(
             translations::CONTAINER_IS_LOCKED.message([display_name]),
         ));
         world.play_sound_at(
             &sound_events::BLOCK_CHEST_LOCKED,
             SoundSource::Blocks,
-            glam::DVec3::new(
-                f64::from(pos.x()) + 0.5,
-                f64::from(pos.y()) + 0.5,
-                f64::from(pos.z()) + 0.5,
-            ),
+            sound_pos,
             1.0,
             1.0,
             None,

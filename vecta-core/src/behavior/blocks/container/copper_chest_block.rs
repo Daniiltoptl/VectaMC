@@ -20,6 +20,8 @@ use crate::behavior::BlockPlaceContext;
 use crate::behavior::block::{BlockBehavior, schedule_water_tick_if_waterlogged};
 use crate::world::ScheduledTickAccess;
 
+use super::chest_block::ChestBlock;
+
 /// Copper chest behaviour
 #[block_behavior]
 pub struct CopperChestBlock {
@@ -109,33 +111,19 @@ fn update_shape(
             && *neighbor_type != ChestType::Single
             && state.get_value(&BlockStateProperties::FACING)
                 == neighbor_state.get_value(&BlockStateProperties::FACING)
-            && connected_direction(neighbor_state) == direction.opposite()
+            && ChestBlock::get_connected_direction(neighbor_state) == direction.opposite()
         {
-            let opposite_type = match neighbor_type {
-                ChestType::Left => ChestType::Right,
-                ChestType::Right => ChestType::Left,
-                ChestType::Single => ChestType::Single,
-            };
-            state = state.set_value(&BlockStateProperties::CHEST_TYPE, opposite_type);
+            state = state.set_value(&BlockStateProperties::CHEST_TYPE, neighbor_type.opposite());
         }
-    } else if connected_direction(state) == direction {
+    } else if ChestBlock::get_connected_direction(state) == direction {
         state = state.set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Single);
     }
 
     if neighbor_type.is_some()
         && state.get_value(&BlockStateProperties::CHEST_TYPE) != ChestType::Single
-        && connected_direction(state) == direction
+        && ChestBlock::get_connected_direction(state) == direction
     {
         return neighbor_state.with_properties_of(state);
     }
     state
-}
-
-fn connected_direction(state: BlockStateId) -> Direction {
-    let facing = state.get_value(&BlockStateProperties::FACING);
-    if state.get_value(&BlockStateProperties::CHEST_TYPE) == ChestType::Left {
-        facing.rotate_y_clockwise()
-    } else {
-        facing.rotate_y_counter_clockwise()
-    }
 }

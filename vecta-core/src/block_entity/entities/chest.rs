@@ -118,6 +118,13 @@ impl ChestBlockEntity {
         self.openers.opener_count()
     }
 
+    /// Vanilla `RandomizableContainerBlockEntity.canOpen`: a chest that still
+    /// has to roll its loot refuses spectators, then the lock decides.
+    #[must_use]
+    pub fn can_open(&self, player: &Player) -> bool {
+        (!self.loot.is_randomized() || !player.is_spectator()) && self.identity.can_open(player)
+    }
+
     /// Records a player opening this chest's menu (`ChestBlockEntity.startOpen`).
     pub fn start_open(&self, player: &Player) {
         if self.is_removed() || player.is_spectator() {

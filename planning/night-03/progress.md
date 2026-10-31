@@ -731,3 +731,71 @@ ender_chest}_block.rs`.
 `opening_an_ender_chest_counts_the_viewer_and_plays_the_lid_sound` читают
 реально отправленный `C_BLOCK_EVENT` (позиция, id 1, счётчик зрителей, id
 блока) — до исправления первый падал с «0 пакетов».
+
+## W04-022 — двойной сундук и порядок половин
+
+Связь: W04-021, W04-023. Java 26.3: `ChestBlock` (`getStateForPlacement` с
+`isSecondaryUseActive`/`getClickedFace`, `getChestType`,
+`candidatePartnerFacing`, `updateShape` с `chestCanConnectTo`,
+`getConnectedDirection`, `getBlockType`, `combine` через
+`DoubleBlockCombiner.combineWithNeigbour`, `CHEST_COMBINER`,
+`MENU_PROVIDER_COMBINER`, `getAnalogOutputSignal`),
+`DoubleBlockCombiner.java`, `CompoundContainer.java`, `ChestMenu.sixRows`,
+`ChestBlockEntity.isOwnContainer` (`isActiveChest` через
+`CompoundContainer.contains`), `RandomizableContainerBlockEntity.canOpen`.
+
+Что теперь делает игрок:
+- Второй сундук, поставленный вплотную к одиночному с тем же FACING,
+  срастается в пару: новый получает RIGHT, старый через `updateShape` —
+  LEFT. Shift-размещение в боковую грань соседнего сундука разворачивает
+  новый сундук лицом к соседу, как в ванили.
+- Слом любой половины возвращает вторую в SINGLE по shape update.
+- Пара открывается меню на 6 рядов (`generic_9x6`), порядок слотов
+  ванильный: сначала RIGHT-половина (27 слотов), затем LEFT. Имя берётся из
+  `CustomName` первой половины, иначе второй, иначе
+  `container.chestDouble`.
+- Обе половины считают зрителя: `startOpen`/`stopOpen` идут на каждую,
+  поэтому у обеих `open_count` одинаковый, а звук крышки играет только
+  RIGHT-половина из середины пары (у LEFT `play_lid_sound` молчит).
+- Закрытая половина (проводник сверху) или запертая половина отменяет пару
+  целиком: меню не открывается, счётчики остаются нулевыми, уведомление о
+  замке звучит из середины пары.
+- Компаратор читает обе половины как одно пространство на 54 слота.
+
+Vecta paths: `behavior/blocks/container/chest_block.rs` (`ChestHalf`,
+`ChestPair`, `half`, `get_connected_direction`, `chest_can_connect_to`,
+`candidate_partner_facing`, `get_chest_type`, `combine`, `open_menu`,
+`get_state_for_placement`, `update_shape`, `get_analog_output_signal`),
+`inventory/menu/kinds/chest_menu.rs` (`chest_parts_with_kind`, `ChestKind`
+теперь держит список контейнеров, `ChestKind::halves`),
+`inventory/menu/builder.rs` (`MenuBuilder::span`),
+`inventory/container/mod.rs` (`calculate_redstone_signal_from_containers`),
+`block_entity/entities/chest.rs` (`can_open` с учётом незакатанной loot
+table), `block_entity/container_identity.rs`
+(`send_locked_notification_at` для позиции между половинами),
+`vecta-registry/src/blocks/properties.rs` (`ChestType::opposite`),
+`behavior/blocks/container/copper_chest_block.rs` (использует общий
+`ChestBlock::get_connected_direction` и `ChestType::opposite` вместо своей
+копии).
+
+Решение по `CompoundContainer`: ванильный класс отдаёт слоты через
+`getItem(slot)`/`setItem(slot)`, а `Container` в Vecta требует
+`items() -> &[ItemStack]`, то есть непрерывный срез, которого у двух
+раздельных аллокаций нет. Копия в буфер сломала бы живость (сравнение,
+сохранение и дропы читают половины напрямую), поэтому пара выражена двумя
+соседними секциями меню (каждый слот остаётся привязан к своей половине) и
+одним `span` на 0..54 для shift-click — это точный эквивалент ванильного
+непрерывного диапазона `moveItemStackTo(0, 54)`. Компаратор считает сумму
+по обеим половинам через `calculate_redstone_signal_from_containers`.
+
+Проверки: узкий прогон `chest` 42 passed. Тесты читают реально отправленные
+пакеты: `opened_screens` (новый декодер `C_OPEN_SCREEN` в
+`tests/support/connection.rs`) подтверждает `generic_9x6`, `block_events` —
+по событию от каждой половины с `count = 1`, `played_sounds` — ровно один
+звук из середины пары.
+
+Незакрытое:
+- Кот на сундуке (`isCatSittingOnChest`) — котов в Vecta нет.
+- `PiglinAi.angerNearbyPiglins` — TODO, как и раньше.
+- Shift-click по паре проверен на уровне меню (`chest_parts_with_kind` +
+  `Click::QuickMove`), а не через реальный пакет клиента.

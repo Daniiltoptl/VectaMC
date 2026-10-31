@@ -46,7 +46,7 @@ mod connection;
 mod player;
 
 pub(crate) use connection::{
-    SentPackets, TestConnection, block_events, played_sounds, recording_connection,
+    SentPackets, TestConnection, block_events, opened_screens, played_sounds, recording_connection,
 };
 pub(crate) use player::{TestPlayerBuilder, test_runtime_config};
 

@@ -1026,6 +1026,36 @@ impl MenuBuilder {
         }
     }
 
+    /// Returns one section covering every section of `sections`, which must be
+    /// adjacent and belong to this builder.
+    ///
+    /// A container whose slots live in several containers still occupies one
+    /// contiguous run of menu slots, and Vanilla fills that run in a single
+    /// `moveItemStackTo` call. Declaring the run as one route target keeps the
+    /// shift-click order that Vanilla has instead of depending on the menu
+    /// retrying a partly filled section.
+    ///
+    /// # Panics
+    /// Panics if `sections` is empty, is not adjacent in order, or belongs to
+    /// another builder.
+    #[must_use]
+    pub fn span(&self, sections: &[Section]) -> Section {
+        let mut ranges = sections.iter().copied().map(|s| self.owned(s));
+        let first = ranges
+            .next()
+            .expect("a span needs at least one section to cover");
+        let start = first.start;
+        let mut end = first.end;
+        for range in ranges {
+            assert_eq!(
+                end, range.start,
+                "span sections must be adjacent and passed in slot order"
+            );
+            end = range.end;
+        }
+        Section::new(self.instance, start..end)
+    }
+
     /// Verifies that `section` was created by this builder.
     fn owned(&self, section: Section) -> Range<usize> {
         assert_eq!(

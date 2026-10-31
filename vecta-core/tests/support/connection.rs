@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use glam::IVec3;
 use text_components::TextComponent;
 use vecta_protocol::packet_traits::{CompressionInfo, EncodedPacket};
-use vecta_registry::packets::play::{C_BLOCK_EVENT, C_SOUND};
+use vecta_registry::packets::play::{C_BLOCK_EVENT, C_OPEN_SCREEN, C_SOUND};
 use vecta_registry::sound_event::SoundEventHolder;
 use vecta_utils::codec::VarInt;
 use vecta_utils::locks::SyncMutex;
@@ -120,7 +120,6 @@ pub(crate) fn block_events(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<Broad
 
 /// A decoded `C_SOUND` packet: `(sound, source, position at 8x, volume)`.
 pub(crate) type PlayedSound = (Identifier, i32, IVec3, f32);
-
 /// Decodes the `C_SOUND` packets in `packets`, dropping everything else.
 pub(crate) fn played_sounds(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<PlayedSound> {
     packets
@@ -143,6 +142,28 @@ pub(crate) fn played_sounds(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<Play
             let z = i32::read(&mut cursor).ok()?;
             let volume = f32::read(&mut cursor).ok()?;
             Some((sound.key.clone(), source, IVec3::new(x, y, z), volume))
+        })
+        .collect()
+}
+
+/// A decoded `C_OPEN_SCREEN` packet: `(container id, menu type id)`.
+pub(crate) type OpenedScreen = (i32, i32);
+
+/// Decodes the `C_OPEN_SCREEN` packets in `packets`, dropping everything else.
+pub(crate) fn opened_screens(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<OpenedScreen> {
+    packets
+        .lock()
+        .iter()
+        .filter_map(|packet| {
+            let mut cursor = Cursor::new(packet.encoded_data.as_slice());
+            // Frame length, then the packet id.
+            VarInt::read(&mut cursor).ok()?;
+            if VarInt::read(&mut cursor).ok()?.0 != C_OPEN_SCREEN {
+                return None;
+            }
+            let container_id = VarInt::read(&mut cursor).ok()?.0;
+            let menu_type = VarInt::read(&mut cursor).ok()?.0;
+            Some((container_id, menu_type))
         })
         .collect()
 }

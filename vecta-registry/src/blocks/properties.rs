@@ -547,6 +547,19 @@ pub enum ChestType {
     Right,
 }
 
+impl ChestType {
+    /// Vanilla `ChestType.getOpposite`: the type a chest takes when it joins the
+    /// other half.
+    #[must_use]
+    pub const fn opposite(self) -> Self {
+        match self {
+            Self::Single => Self::Single,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+        }
+    }
+}
+
 impl PropertyEnum for ChestType {
     fn as_str(&self) -> &str {
         match self {
