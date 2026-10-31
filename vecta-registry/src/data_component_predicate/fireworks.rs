@@ -1,8 +1,9 @@
 use super::{
     CollectionPredicate, ComponentHasher, DataComponentPredicateCodec, Debug, DowncastType,
     DowncastTypeKey, HashComponent, IntBounds, NbtCompound, NbtNumeric, NbtTag, decode_optional,
-    hash_entries, push_hash_entry,
+    hash_entries, push_hash_entry, ItemStack, vanilla_components,
 };
+use crate::data_components::components::FireworkExplosion;
 
 /// Fields matched within one firework explosion.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,6 +42,23 @@ impl FireworkPredicate {
     #[must_use]
     pub const fn has_trail(&self) -> Option<bool> {
         self.has_trail
+    }
+
+    /// Vanilla `FireworkExplosionPredicate.FireworkPredicate.test`.
+    #[must_use]
+    pub fn test(&self, explosion: &FireworkExplosion) -> bool {
+        if let Some(shape) = self.shape
+            && shape != explosion.shape()
+        {
+            return false;
+        }
+        if let Some(twinkle) = self.has_twinkle
+            && twinkle != explosion.has_twinkle()
+        {
+            return false;
+        }
+        self.has_trail
+            .is_none_or(|trail| trail == explosion.has_trail())
     }
 
     fn from_nbt_value(tag: &NbtTag) -> Option<Self> {
@@ -126,6 +144,12 @@ impl DataComponentPredicateCodec for FireworkExplosionPredicate {
     fn to_nbt_value(&self) -> NbtTag {
         self.0.to_nbt_value()
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        stack
+            .get(vanilla_components::FIREWORK_EXPLOSION)
+            .is_some_and(|explosion| self.0.test(explosion))
+    }
 }
 
 impl HashComponent for FireworkExplosionPredicate {
@@ -194,6 +218,18 @@ impl DataComponentPredicateCodec for FireworksPredicate {
             compound.insert("flight_duration", self.flight_duration.as_nbt_tag());
         }
         NbtTag::Compound(compound)
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(fireworks) = stack.get(vanilla_components::FIREWORKS) else {
+            return false;
+        };
+        if let Some(explosions) = &self.explosions
+            && !explosions.matches(fireworks.explosions(), FireworkPredicate::test)
+        {
+            return false;
+        }
+        self.flight_duration.matches(fireworks.flight_duration())
     }
 }
 

@@ -16,10 +16,19 @@ use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::blocks::properties::{BlockStateProperties, ChestType};
+use vecta_registry::data_components::DataComponentMap;
+use vecta_registry::data_components::vanilla_components::CONTAINER;
 use vecta_registry::item_stack::ItemStack;
+use vecta_registry::item_stack_template::ItemStackTemplate;
 use vecta_registry::{sound_events, vanilla_block_entity_types};
-use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, locks::SyncMutex};
+use vecta_utils::{
+    BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
+};
 
+use crate::block_entity::container_component::{
+    apply_container_items, collect_container_component,
+};
+use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::container_openers::{ContainerOpenersCounter, ContainerOpenersListener};
 use crate::block_entity::{BlockEntity, BlockEntityBase, BlockEntityLifecycleExt as _};
 use crate::entity::Entity as _;
@@ -40,6 +49,7 @@ pub struct ChestBlockEntity {
     container: Arc<SyncMutex<ChestContainer>>,
     container_ref: ContainerRef,
     openers: ContainerOpenersCounter,
+    identity: ContainerIdentity,
 }
 
 struct ChestContainer {
@@ -76,7 +86,14 @@ impl ChestBlockEntity {
             base,
             container,
             openers: ContainerOpenersCounter::default(),
+            identity: ContainerIdentity::new(),
         }
+    }
+
+    /// Returns the custom name and lock of this chest.
+    #[must_use]
+    pub const fn identity(&self) -> &ContainerIdentity {
+        &self.identity
     }
 
     /// Returns how many players currently have this chest open.
@@ -199,6 +216,7 @@ impl BlockEntity for ChestBlockEntity {
 
     fn load_additional(&self, nbt: &BorrowedNbtCompound<'_>) {
         let nbt_view: NbtCompoundView<'_, '_> = nbt.into();
+        self.identity.load(nbt);
         let mut container = self.container.lock();
         container.items.fill(ItemStack::empty());
 
@@ -219,6 +237,7 @@ impl BlockEntity for ChestBlockEntity {
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
+        self.identity.save(nbt);
         let container = self.container.lock();
         let mut items: Vec<NbtCompound> = Vec::new();
         for (slot, item) in container.items.iter().enumerate() {
@@ -230,6 +249,43 @@ impl BlockEntity for ChestBlockEntity {
             }
         }
         nbt.insert("Items", NbtList::Compound(items));
+    }
+
+    fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
+        let mut consumed = self.identity.apply_implicit_components(item);
+        if let Some(contents) = item.get(CONTAINER) {
+            // `ItemContainerContents.copyInto` keeps slot positions, so empty
+            // entries stay empty instead of collapsing the list.
+            let items = contents
+                .items()
+                .iter()
+                .map(|entry| {
+                    entry
+                        .as_ref()
+                        .map_or_else(ItemStack::empty, ItemStackTemplate::create)
+                })
+                .collect();
+            apply_container_items(&mut self.container.lock().items, items);
+            consumed.push(CONTAINER.key().clone());
+        }
+        consumed
+    }
+
+    fn collect_implicit_components(&self, components: &mut DataComponentMap) {
+        self.identity.collect_implicit_components(components);
+        let contents = collect_container_component(&self.container.lock().items);
+        match contents {
+            Ok(contents) => components.set(CONTAINER, Some(contents)),
+            Err(error) => log::warn!(
+                "failed to collect the container component of the chest at {:?}: {error}",
+                self.get_block_pos()
+            ),
+        }
+    }
+
+    fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
+        ContainerIdentity::remove_components_from_tag(nbt);
+        while nbt.remove("Items").is_some() {}
     }
 
     fn trigger_event(&self, param_a: i32, _param_b: i32) -> bool {

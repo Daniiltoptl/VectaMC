@@ -537,3 +537,44 @@ Vecta paths: `block_entity/entities/chest.rs`,
   сейчас счётчик меняется только на open/close и сбрасывается при removal.
 - W04-016: loot table сундука (`container_loot`) не распаковывается.
 - W04-017: lock/custom name меню не проверяются.
+
+## W04-017 — CustomName, Lock и права открытия (общий слой)
+
+Связь: W04-021. Java 26.3: `BaseContainerBlockEntity` (`loadAdditional`/
+`saveAdditional` для `CustomName`/`lock`, `getName`/`getDisplayName`/`canOpen`,
+`sendChestLockedNotifications`, `isLocked`, `createMenu` с проверкой lock,
+`applyImplicitComponents`/`collectImplicitComponents`/
+`removeComponentsFromTag`), `LockCode.canUnlock`, `ServerPlayer.openMenu`,
+`ChestBlock`/`BarrelBlock`/`BeaconBlock`/`ShulkerBoxBlock.useWithoutItem`,
+`ShulkerBoxBlock.playerWillDestroy` (`collectComponents` на предмете),
+`ItemPredicate.test`/`DataComponentMatchers.test`/`CollectionPredicate`.
+
+Что теперь делает игрок:
+- Сундук, бочка, шалкер и бикон сохраняют `CustomName` и `lock` в мире и
+  показывают имя как заголовок меню.
+- Запертый контейнер не открывается без подходящего предмета в основной руке:
+  оверлей `container.isLocked` + звук `block.chest.locked`, зритель не
+  считается (как `ChestBlockEntity.startOpen`); спектатор открывает всегда.
+- Шалкер, поставленный с именем/замком/содержимым, и выпавший шалкер несут
+  `custom_name`, `lock` и `minecraft:container` — как `collectComponents`.
+- Бочка и бикон применяют эти компоненты при установке предмета.
+
+Vecta paths: `vecta-registry/src/data_component_predicate/*` (полная цепочка
+`matches`: exact → partial → `ItemPredicate` → `LockCode`),
+`vecta-registry/src/item_predicate.rs` (`ItemPredicate::test`,
+`IntBounds::matches`, `DoubleBounds::matches`, `NbtPredicate::matches`,
+`LockCode::unlocks_with`/`is_no_lock`/`Default`),
+`block_entity/container_identity.rs` (новый общий `ContainerIdentity`),
+`block_entity/container_component.rs` (новый общий CONTAINER-хелпер),
+`block_entity/entities/{chest,barrel,shulker_box,beacon}.rs`,
+`behavior/blocks/container/{chest,barrel,shulker_box,beacon}_block.rs`.
+
+Проверки: `chest_block` 11 passed, `barrel` 4, `shulker_box` 2,
+`barrel_block` 2, `shulker_box_block` 2, `container_identity` 3,
+`container_component` 2, `data_component_predicate` 7.
+
+Незакрытое:
+- W04-016: loot table (`LootTable`/`LootTableSeed`) по-прежнему не
+  распаковывается; `unpackLootTable` в шалкере остаётся TODO.
+- W04-018..020: меню-жизненный цикл и синхронизация.
+- Медные сундуки: блок-энтити ещё нет (`copper_chest_block.rs` — TODO).

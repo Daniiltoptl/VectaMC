@@ -229,3 +229,71 @@ fn round_trip_component(key: Identifier, value: ComponentData) {
         )
     );
 }
+
+#[test]
+fn a_lock_matches_its_item_count_and_exact_components() {
+    init_vanilla_registry();
+    let mut exact = DataComponentMap::new();
+    exact.set(DAMAGE, Some(3));
+    let item = ItemPredicate::new(
+        Some(RegistryHolderSet::Direct(vec![&vanilla_items::STONE])),
+        IntBounds::exactly(2),
+        DataComponentMatchers::new(
+            DataComponentExactPredicate::all_of(&exact).expect("damage 3 persists"),
+            Vec::new(),
+        )
+        .expect("one exact component needs no partial predicates"),
+    );
+    let lock = LockCode::new(item);
+
+    let mut matching = ItemStack::with_count(&vanilla_items::STONE, 2);
+    matching.set(DAMAGE, 3);
+    assert!(lock.unlocks_with(&matching));
+
+    assert!(
+        !lock.unlocks_with(&ItemStack::with_count(&vanilla_items::DIAMOND, 2)),
+        "a different item must not unlock the container"
+    );
+    assert!(
+        !lock.unlocks_with(&ItemStack::new(&vanilla_items::STONE)),
+        "a matching item with the wrong count must not unlock the container"
+    );
+    let mut wrong_damage = ItemStack::with_count(&vanilla_items::STONE, 2);
+    wrong_damage.set(DAMAGE, 4);
+    assert!(
+        !lock.unlocks_with(&wrong_damage),
+        "an exact component mismatch must not unlock the container"
+    );
+}
+
+#[test]
+fn partial_predicates_run_after_the_exact_components() {
+    init_vanilla_registry();
+    let damage_type = REGISTRY
+        .data_component_predicate_types
+        .by_key(&Identifier::vanilla_static("damage"))
+        .expect("damage predicate type should exist");
+    let partial = DataComponentPredicateData::new(
+        damage_type,
+        DamagePredicate::new(
+            IntBounds::ANY,
+            IntBounds::new(None, Some(10)).expect("bounds"),
+        ),
+    );
+    let matchers = DataComponentMatchers::new(DataComponentExactPredicate::EMPTY, vec![partial])
+        .expect("one partial predicate");
+    let item = ItemPredicate::new(None, IntBounds::ANY, matchers);
+
+    let mut damaged = ItemStack::new(&vanilla_items::STONE);
+    damaged.set(DAMAGE, 10);
+    assert!(item.test(&damaged));
+
+    let mut too_damaged = ItemStack::new(&vanilla_items::STONE);
+    too_damaged.set(DAMAGE, 11);
+    assert!(!item.test(&too_damaged));
+
+    assert!(
+        !item.test(&ItemStack::new(&vanilla_items::STONE)),
+        "a damage predicate never matches an item without the damage component"
+    );
+}

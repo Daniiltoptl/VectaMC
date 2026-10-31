@@ -15,6 +15,8 @@ use glam::DVec3;
 use simdnbt::borrow::{BaseNbtCompound as BorrowedNbtCompound, NbtCompound as NbtCompoundView};
 use simdnbt::owned::NbtCompound;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
+use vecta_registry::data_components::DataComponentMap;
+use vecta_registry::item_stack::ItemStack;
 use vecta_registry::mob_effect::MobEffectRef;
 use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::{
@@ -28,6 +30,7 @@ use vecta_utils::{
 };
 
 use crate::behavior::BLOCK_BEHAVIORS;
+use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::chunk::heightmap::HeightmapType;
 use crate::chunk::light::MAX_LIGHT_LEVEL;
@@ -150,6 +153,7 @@ impl BeaconState {
 pub struct BeaconBlockEntity {
     base: Arc<BlockEntityBase>,
     state: Arc<SyncMutex<BeaconState>>,
+    identity: ContainerIdentity,
 }
 
 // SAFETY: This key is owned by Vecta and uniquely identifies `BeaconBlockEntity`.
@@ -170,7 +174,14 @@ impl BeaconBlockEntity {
         Self {
             base,
             state: Arc::new(SyncMutex::new(BeaconState::new())),
+            identity: ContainerIdentity::new(),
         }
+    }
+
+    /// Returns the custom name and lock of this beacon.
+    #[must_use]
+    pub const fn identity(&self) -> &ContainerIdentity {
+        &self.identity
     }
 
     pub(crate) fn state(&self) -> Arc<SyncMutex<BeaconState>> {
@@ -342,19 +353,33 @@ impl BlockEntity for BeaconBlockEntity {
         &self.base
     }
 
-    // TODO: Persist `CustomName` and `Lock` like Vanilla. Both need foundations Vecta lacks: a
-    //       block-entity display name and a `LockCode` type.
+    // Vanilla `BaseContainerBlockEntity` keeps `CustomName` and `lock` on every
+    // container with a menu, and a beacon is one of them.
     fn load_additional(&self, nbt: &BorrowedNbtCompound<'_>) {
+        self.identity.load(nbt);
         let mut state = self.state.lock();
         state.primary_power = Self::load_effect(nbt, "primary_effect");
         state.secondary_power = Self::load_effect(nbt, "secondary_effect");
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
+        self.identity.save(nbt);
         let state = self.state.lock();
         Self::store_effect(nbt, "primary_effect", state.primary_power);
         Self::store_effect(nbt, "secondary_effect", state.secondary_power);
         nbt.insert("Levels", state.levels);
+    }
+
+    fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
+        self.identity.apply_implicit_components(item)
+    }
+
+    fn collect_implicit_components(&self, components: &mut DataComponentMap) {
+        self.identity.collect_implicit_components(components);
+    }
+
+    fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
+        ContainerIdentity::remove_components_from_tag(nbt);
     }
 
     fn get_update_tag(&self) -> Option<NbtCompound> {

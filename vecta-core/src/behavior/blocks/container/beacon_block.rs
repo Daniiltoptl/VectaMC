@@ -15,6 +15,7 @@ use vecta_utils::{BlockPos, BlockStateId, Downcast as _, translations};
 use crate::behavior::InventoryAccess;
 use crate::behavior::block::{BlockBehavior, BlockEntityCreation};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
+use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::{BLOCK_ENTITIES, BlockEntityTicker, entities::BeaconBlockEntity};
 use crate::inventory::menu::kinds::beacon;
 use crate::player::Player;
@@ -56,13 +57,23 @@ impl BlockBehavior for BeaconBlock {
         };
         let state = beacon_entity.state();
         let base = beacon_entity.base_handle();
+        let display_name = beacon_entity
+            .identity()
+            .display_name(|| TextComponent::translated(translations::CONTAINER_BEACON.msg()));
+        // `BaseContainerBlockEntity.createMenu` refuses to build a menu for a
+        // locked beacon after telling the player which item unlocks it.
+        if !beacon_entity.identity().can_open(player) {
+            player.close_container();
+            ContainerIdentity::send_locked_notification(world, player, pos, display_name);
+            player.award_custom_stat(&vanilla_custom_stats::INTERACT_WITH_BEACON);
+            return InteractionResult::Success;
+        }
 
         let inventory = Arc::clone(&player.inventory);
         let world = Arc::clone(world);
-        player.open_menu(
-            TextComponent::translated(translations::CONTAINER_BEACON.msg()),
-            move |context| beacon(inventory, context.container_id, pos, &world, state, base),
-        );
+        player.open_menu(display_name, move |context| {
+            beacon(inventory, context.container_id, pos, &world, state, base)
+        });
 
         player.award_custom_stat(&vanilla_custom_stats::INTERACT_WITH_BEACON);
         InteractionResult::Success

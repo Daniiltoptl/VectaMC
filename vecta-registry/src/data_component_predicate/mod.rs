@@ -14,13 +14,18 @@ use vecta_utils::serial::{ReadFrom, WriteTo};
 use vecta_utils::{Downcast as _, DowncastType, DowncastTypeKey, ErasedType, Identifier};
 
 use crate::attribute::{Attribute, AttributeModifierOperation};
-use crate::data_components::{ComponentData, ComponentEntryRef, DataComponentMap};
+use crate::data_components::{
+    ComponentData, ComponentEntryRef, DataComponentMap, components::ItemEnchantments,
+    vanilla_components,
+};
 use crate::enchantment::Enchantment;
 use crate::equipment::EquipmentSlotGroup;
 use crate::item_predicate::{
     DoubleBounds, IntBounds, ItemPredicate, NbtPredicate, decode_optional, hash_entries,
     push_hash_entry, read_len, read_network_nbt, write_len,
 };
+use crate::item_stack::ItemStack;
+use crate::item_stack_template::ItemStackTemplate;
 use crate::jukebox_song::JukeboxSong;
 use crate::potion::Potion;
 use crate::trim_material::TrimMaterial;

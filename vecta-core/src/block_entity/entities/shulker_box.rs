@@ -14,12 +14,15 @@ use vecta_registry::{
     blocks::{
         behavior::PushReaction, block_state_ext::BlockStateExt, properties::BlockStateProperties,
     },
-    data_components::{DataComponentPatch, ItemContainerContents, vanilla_components::CONTAINER},
+    data_components::{
+        DataComponentMap, DataComponentPatch, ItemContainerContents, vanilla_components::CONTAINER,
+    },
     item_stack::ItemStack,
     vanilla_block_entity_types,
 };
 use vecta_utils::{
-    BlockLocalAabb, BlockPos, BlockStateId, Direction, DowncastType, DowncastTypeKey, WorldAabb,
+    BlockLocalAabb, BlockPos, BlockStateId, Direction, DowncastType, DowncastTypeKey, Identifier,
+    WorldAabb,
     geometry::{Aabb, Space},
     locks::SyncMutex,
     types::UpdateFlags,
@@ -27,7 +30,7 @@ use vecta_utils::{
 
 use crate::{
     behavior::blocks::ShulkerBoxBlock,
-    block_entity::{BlockEntity, BlockEntityBase},
+    block_entity::{BlockEntity, BlockEntityBase, container_identity::ContainerIdentity},
     inventory::{
         container::Container,
         lock::{ContainerRef, SharedContainer},
@@ -76,6 +79,7 @@ pub struct ShulkerBoxBlockEntity {
     container_ref: ContainerRef,
     animation: SyncMutex<ShulkerBoxAnimation>,
     open_count: AtomicI32,
+    identity: ContainerIdentity,
 }
 
 struct ShulkerBoxContainer {
@@ -123,7 +127,14 @@ impl ShulkerBoxBlockEntity {
                 old_progress: 0,
             }),
             open_count: AtomicI32::new(0),
+            identity: ContainerIdentity::new(),
         }
+    }
+
+    /// Returns the custom name and lock of this shulker box.
+    #[must_use]
+    pub const fn identity(&self) -> &ContainerIdentity {
+        &self.identity
     }
 
     fn update_animation(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
@@ -194,15 +205,18 @@ impl ShulkerBoxBlockEntity {
     }
 
     /// Builds the item form of a placed, possibly-filled shulker box.
-    /// Vanilla `ShulkerBoxBlockEntity.collectComponents()` +
-    /// `BaseContainerBlockEntity.collectImplicitComponents(CONTAINER)`.
+    /// Vanilla `ShulkerBoxBlock.playerWillDestroy` applies
+    /// `blockEntity.collectComponents()`, so the name, the lock and the
+    /// contents all travel with the dropped box.
     pub fn shulker_box_as_item(&self, state: BlockStateId) -> ItemStack {
         let block_item = REGISTRY.items.by_block(state.get_block());
 
-        let contents = self.collect_components();
-
+        let mut components = DataComponentMap::new();
+        self.collect_implicit_components(&mut components);
         let mut patch = DataComponentPatch::new();
-        patch.set(CONTAINER, contents);
+        for (key, data) in components.iter() {
+            patch.set_raw(key.clone(), data.clone());
+        }
 
         ItemStack::with_count_and_patch(block_item, 1, patch)
     }
@@ -342,6 +356,7 @@ impl BlockEntity for ShulkerBoxBlockEntity {
 
     fn load_additional(&self, nbt: &BaseNbtCompound<'_>) {
         let nbt_view: NbtCompoundView<'_, '_> = nbt.into();
+        self.identity.load(nbt);
         let mut container = self.container.lock();
         container.items.fill(ItemStack::empty());
 
@@ -367,6 +382,7 @@ impl BlockEntity for ShulkerBoxBlockEntity {
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {
+        self.identity.save(nbt);
         let container = self.container.lock();
         let mut items: Vec<NbtCompound> = Vec::new();
         for (slot, item) in container.items().iter().enumerate() {
@@ -382,25 +398,38 @@ impl BlockEntity for ShulkerBoxBlockEntity {
         nbt.insert("Items", NbtList::Compound(items));
     }
 
-    fn apply_components_from_item(&self, item: &ItemStack) {
-        let Some(contents) = item.get(CONTAINER) else {
-            return;
-        };
+    fn apply_implicit_components(&self, item: &ItemStack) -> Vec<Identifier> {
+        let mut consumed = self.identity.apply_implicit_components(item);
 
-        let mut container = self.container.lock();
-        container.items.fill(ItemStack::empty());
-        for (slot, template) in contents.items().iter().enumerate() {
-            if slot >= SHULKER_BOX_SLOTS {
-                break;
+        if let Some(contents) = item.get(CONTAINER) {
+            let mut container = self.container.lock();
+            container.items.fill(ItemStack::empty());
+            for (slot, template) in contents.items().iter().enumerate() {
+                if slot >= SHULKER_BOX_SLOTS {
+                    break;
+                }
+                if let Some(template) = template {
+                    container.items_mut()[slot] = ItemStack::with_count_and_patch(
+                        template.item(),
+                        template.count(),
+                        template.components().clone(),
+                    );
+                }
             }
-            if let Some(template) = template {
-                container.items_mut()[slot] = ItemStack::with_count_and_patch(
-                    template.item(),
-                    template.count(),
-                    template.components().clone(),
-                );
-            }
+            consumed.push(CONTAINER.key().clone());
         }
+
+        consumed
+    }
+
+    fn collect_implicit_components(&self, components: &mut DataComponentMap) {
+        self.identity.collect_implicit_components(components);
+        components.set(CONTAINER, Some(self.collect_components()));
+    }
+
+    fn remove_components_from_tag(&self, nbt: &mut NbtCompound) {
+        ContainerIdentity::remove_components_from_tag(nbt);
+        while nbt.remove("Items").is_some() {}
     }
 
     fn container_ref(&self) -> Option<ContainerRef> {
@@ -436,4 +465,105 @@ impl Container for ShulkerBoxContainer {
     }
 
     fn set_changed(&mut self) {}
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use simdnbt::borrow::read_compound as read_borrowed_compound;
+    use text_components::TextComponent;
+    use vecta_registry::data_components::vanilla_components::{CUSTOM_NAME, LOCK};
+    use vecta_registry::{init_vanilla_registry, vanilla_blocks, vanilla_items};
+
+    use super::*;
+
+    fn test_box() -> (ShulkerBoxBlockEntity, BlockStateId) {
+        init_vanilla_registry();
+        let state = vanilla_blocks::SHULKER_BOX.default_state();
+        (
+            ShulkerBoxBlockEntity::new(Weak::new(), BlockPos::new(1, 2, 3), state),
+            state,
+        )
+    }
+
+    /// Loads `CustomName`/`lock` the way `/data merge` or a placed block item
+    /// would.
+    fn load_identity(
+        shulker_box: &ShulkerBoxBlockEntity,
+        name: Option<&str>,
+        lock_item: Option<&str>,
+    ) {
+        let mut nbt = NbtCompound::new();
+        if let Some(name) = name {
+            nbt.insert(
+                "CustomName",
+                TextComponent::plain(name.to_owned()).to_codec_nbt(),
+            );
+        }
+        if let Some(lock_item) = lock_item {
+            let mut lock = NbtCompound::new();
+            lock.insert("items", lock_item);
+            nbt.insert("lock", lock);
+        }
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("identity NBT reads");
+        shulker_box.load_additional(&borrowed);
+    }
+
+    #[test]
+    fn the_custom_name_and_lock_survive_an_nbt_round_trip() {
+        let (shulker_box, state) = test_box();
+        load_identity(&shulker_box, Some("Loot"), Some("minecraft:diamond"));
+
+        let mut nbt = NbtCompound::new();
+        shulker_box.save_additional(&mut nbt);
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
+            .expect("shulker NBT decodes");
+
+        let loaded = ShulkerBoxBlockEntity::new(Weak::new(), BlockPos::new(1, 2, 3), state);
+        loaded.load_additional(&borrowed);
+
+        assert!(loaded.identity().is_locked());
+        assert_eq!(
+            loaded
+                .identity()
+                .display_name(|| TextComponent::plain("default")),
+            TextComponent::plain("Loot"),
+        );
+    }
+
+    #[test]
+    fn the_dropped_box_keeps_its_name_lock_and_contents() {
+        let (shulker_box, state) = test_box();
+        load_identity(&shulker_box, Some("Loot"), Some("minecraft:diamond"));
+        shulker_box
+            .container
+            .lock()
+            .set_item(3, ItemStack::with_count(&vanilla_items::DIAMOND, 2));
+
+        let item = shulker_box.shulker_box_as_item(state);
+
+        assert!(item.is(&vanilla_items::SHULKER_BOX));
+        assert_eq!(
+            item.get(CUSTOM_NAME).cloned(),
+            Some(TextComponent::plain("Loot")),
+        );
+        assert!(item.get(LOCK).is_some(), "the lock travels with the box");
+        let contents = item
+            .get(CONTAINER)
+            .expect("the dropped box carries its contents");
+        let stack = contents
+            .items()
+            .get(3)
+            .and_then(Option::as_ref)
+            .expect("slot 3 holds the diamonds")
+            .create();
+        assert!(stack.is(&vanilla_items::DIAMOND));
+        assert_eq!(stack.count(), 2);
+    }
 }

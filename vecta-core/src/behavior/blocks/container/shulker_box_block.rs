@@ -23,6 +23,7 @@ use crate::{
     },
     block_entity::{
         BLOCK_ENTITIES, BlockEntity, BlockEntityTicker,
+        container_identity::ContainerIdentity,
         entities::{AnimationStatus, ShulkerBoxBlockEntity},
     },
     inventory::{
@@ -104,11 +105,22 @@ impl BlockBehavior for ShulkerBoxBlock {
             && let Some(container_ref) = block_entity.container_ref()
             && block_entity.can_open(state, world, pos)
         {
+            let display_name = block_entity.identity().display_name(|| {
+                TextComponent::translated(translations::CONTAINER_SHULKER_BOX.msg())
+            });
+            // `BaseContainerBlockEntity.createMenu` refuses to build a menu for
+            // a locked box after telling the player which item unlocks it.
+            if !block_entity.identity().can_open(player) {
+                player.close_container();
+                ContainerIdentity::send_locked_notification(world, player, pos, display_name);
+                player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
+                return InteractionResult::Success;
+            }
+
             let inventory = Arc::clone(&player.inventory);
-            player.open_menu(
-                TextComponent::translated(translations::CONTAINER_SHULKER_BOX.msg()),
-                move |context| shulker_box(inventory, context.container_id, container_ref),
-            );
+            player.open_menu(display_name, move |context| {
+                shulker_box(inventory, context.container_id, container_ref)
+            });
 
             player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
             // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
@@ -275,5 +287,107 @@ impl BlockBehavior for ShulkerBoxBlock {
 
     fn fits_inside_container_items(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use std::sync::Arc;
+
+    use glam::DVec3;
+    use simdnbt::borrow::read_compound as read_borrowed_compound;
+    use simdnbt::owned::NbtCompound;
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{vanilla_blocks, vanilla_items};
+    use vecta_utils::types::{InteractionHand, UpdateFlags};
+    use vecta_utils::{BlockPos, ChunkPos};
+
+    use super::*;
+    use crate::bootstrap::init_globals;
+    use crate::entity::Entity as _;
+    use crate::test_support::{
+        TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+    };
+
+    const TEST_POS: BlockPos = BlockPos::new(4, 64, 4);
+
+    fn shulker_fixture(name: &'static str) -> (TestWorld, Arc<Player>) {
+        init_globals();
+        let fixture = fresh_test_world(name);
+        insert_ready_full_chunk(&fixture.world, ChunkPos::from_block_pos(TEST_POS));
+        assert!(fixture.world.set_block(
+            TEST_POS,
+            vanilla_blocks::SHULKER_BOX.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let player = TestPlayerBuilder::new(Arc::clone(&fixture.world), "ShulkerUser", 1).build();
+        player.base().set_position_local(DVec3::new(4.5, 64.0, 4.5));
+        (fixture, player)
+    }
+
+    fn shulker_hit() -> BlockHitResult {
+        BlockHitResult {
+            location: DVec3::new(4.5, 64.5, 5.0),
+            direction: Direction::South,
+            block_pos: TEST_POS,
+            miss: false,
+            inside: false,
+            world_border_hit: false,
+        }
+    }
+
+    fn use_shulker(fixture: &TestWorld, player: &Arc<Player>) -> InteractionResult {
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
+        ShulkerBoxBlock::new(&vanilla_blocks::SHULKER_BOX).use_without_item(
+            fixture.world.get_block_state(TEST_POS),
+            &fixture.world,
+            TEST_POS,
+            player,
+            &shulker_hit(),
+            &mut inventory,
+        )
+    }
+
+    fn lock_shulker(fixture: &TestWorld, lock_item: &str) {
+        let block_entity = fixture
+            .world
+            .get_block_entity(TEST_POS)
+            .expect("a placed shulker box has a block entity");
+        let shulker_box = block_entity
+            .downcast_ref::<ShulkerBoxBlockEntity>()
+            .expect("the shulker box block must create its block entity");
+        let mut nbt = NbtCompound::new();
+        let mut lock = NbtCompound::new();
+        lock.insert("items", lock_item);
+        nbt.insert("lock", lock);
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("lock NBT");
+        shulker_box.load_additional(&borrowed);
+    }
+
+    #[test]
+    fn a_locked_shulker_box_refuses_to_open_without_the_key() {
+        let (fixture, player) = shulker_fixture("shulker_locked");
+        lock_shulker(&fixture, "minecraft:diamond");
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+        assert!(!player.has_container_open());
+    }
+
+    #[test]
+    fn a_locked_shulker_box_opens_with_the_key_in_the_main_hand() {
+        let (fixture, player) = shulker_fixture("shulker_locked_key");
+        lock_shulker(&fixture, "minecraft:diamond");
+        player.inventory.lock().set_item_in_hand(
+            InteractionHand::MainHand,
+            ItemStack::new(&vanilla_items::DIAMOND),
+        );
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+        assert!(player.has_container_open());
     }
 }

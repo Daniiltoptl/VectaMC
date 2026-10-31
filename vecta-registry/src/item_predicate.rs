@@ -17,6 +17,8 @@ use vecta_utils::serial::{ReadFrom, WriteTo};
 
 use crate::blocks::{Block, properties::Property};
 use crate::data_component_predicate::DataComponentMatchers;
+use crate::data_components::vanilla_components::CUSTOM_DATA;
+use crate::item_stack::ItemStack;
 use crate::items::Item;
 use crate::{REGISTRY, RegistryHolderSet};
 
@@ -65,6 +67,12 @@ impl IntBounds {
     #[must_use]
     pub const fn is_any(&self) -> bool {
         self.min.is_none() && self.max.is_none()
+    }
+
+    /// Returns whether `value` lies inside both bounds.
+    #[must_use]
+    pub fn matches(&self, value: i32) -> bool {
+        self.min.is_none_or(|min| value >= min) && self.max.is_none_or(|max| value <= max)
     }
 
     pub(crate) fn from_owned_nbt(tag: &NbtTag) -> Option<Self> {
@@ -146,6 +154,12 @@ impl DoubleBounds {
     #[must_use]
     pub const fn is_any(&self) -> bool {
         self.min.is_none() && self.max.is_none()
+    }
+
+    /// Returns whether `value` lies inside both bounds.
+    #[must_use]
+    pub fn matches(&self, value: f64) -> bool {
+        self.min.is_none_or(|min| min <= value) && self.max.is_none_or(|max| value <= max)
     }
 
     pub(crate) fn from_owned_nbt(tag: &NbtTag) -> Option<Self> {
@@ -471,6 +485,19 @@ impl NbtPredicate {
         }
     }
 
+    /// Tests the stack's `minecraft:custom_data` with Vanilla's partial match.
+    #[must_use]
+    pub fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(custom_data) = stack.get(CUSTOM_DATA) else {
+            return self.tag.is_empty();
+        };
+        vecta_utils::nbt::compare_nbt(
+            Some(&NbtTag::Compound(self.tag.clone())),
+            Some(&NbtTag::Compound(custom_data.copy_tag())),
+            true,
+        )
+    }
+
     pub(crate) fn to_nbt_tag_ref(&self) -> NbtTag {
         let Some(snbt) = to_canonical_snbt(&NbtTag::Compound(self.tag.clone())) else {
             panic!("normalized NBT predicate became malformed");
@@ -770,6 +797,17 @@ impl ItemPredicate {
         &self.components
     }
 
+    /// Tests an item stack against the item set, count and component matchers.
+    #[must_use]
+    pub fn test(&self, stack: &ItemStack) -> bool {
+        if let Some(items) = &self.items
+            && !items.contains(stack.item())
+        {
+            return false;
+        }
+        self.count.matches(stack.count()) && self.components.matches(stack)
+    }
+
     pub(crate) fn from_owned_nbt(tag: &NbtTag) -> Option<Self> {
         let compound = tag.compound()?;
         Some(Self::new(
@@ -814,6 +852,12 @@ pub struct LockCode {
     predicate: ItemPredicate,
 }
 
+impl Default for LockCode {
+    fn default() -> Self {
+        Self::NO_LOCK
+    }
+}
+
 impl LockCode {
     pub const NO_LOCK: Self = Self {
         predicate: ItemPredicate::any(),
@@ -827,6 +871,18 @@ impl LockCode {
     #[must_use]
     pub const fn predicate(&self) -> &ItemPredicate {
         &self.predicate
+    }
+
+    /// Returns whether `stack` satisfies this lock.
+    #[must_use]
+    pub fn unlocks_with(&self, stack: &ItemStack) -> bool {
+        self.predicate.test(stack)
+    }
+
+    /// Returns whether this code is `LockCode.NO_LOCK`, which matches any item.
+    #[must_use]
+    pub fn is_no_lock(&self) -> bool {
+        self.predicate == ItemPredicate::any()
     }
 
     /// Encodes this lock code as its Vanilla item-predicate NBT without consuming it.

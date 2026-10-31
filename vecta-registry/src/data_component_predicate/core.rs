@@ -6,6 +6,13 @@ pub trait DataComponentPredicateCodec:
 {
     fn from_nbt_value(tag: &NbtTag) -> Option<Self>;
     fn to_nbt_value(&self) -> NbtTag;
+
+    /// Tests this predicate against the item carrying the component it inspects.
+    ///
+    /// Vanilla's `SingleComponentItemPredicate.test` resolves the component
+    /// first and only then runs the predicate, so a missing component never
+    /// matches.
+    fn matches(&self, stack: &ItemStack) -> bool;
 }
 
 trait ErasedDataComponentPredicate: ErasedType + Debug + Send + Sync {
@@ -26,6 +33,7 @@ impl<T: DataComponentPredicateCodec> ErasedDataComponentPredicate for T {
 type PredicateReader = fn(&NbtTag) -> Option<Box<dyn ErasedDataComponentPredicate>>;
 type PredicateWriter = fn(&dyn ErasedDataComponentPredicate) -> NbtTag;
 type PredicateHasher = fn(&dyn ErasedDataComponentPredicate, &mut ComponentHasher);
+type PredicateMatcher = fn(&dyn ErasedDataComponentPredicate, &ItemStack) -> bool;
 
 /// Registered discriminator and codecs for one concrete predicate value.
 pub struct DataComponentPredicateType {
@@ -34,6 +42,7 @@ pub struct DataComponentPredicateType {
     reader: PredicateReader,
     writer: PredicateWriter,
     hasher: PredicateHasher,
+    matcher: PredicateMatcher,
 }
 
 impl DataComponentPredicateType {
@@ -45,6 +54,7 @@ impl DataComponentPredicateType {
             reader: read_predicate::<T>,
             writer: write_predicate::<T>,
             hasher: hash_predicate::<T>,
+            matcher: match_predicate::<T>,
         }
     }
 }
@@ -176,6 +186,20 @@ impl DataComponentPredicateData {
             _ => panic!("component predicate discriminator and value disagree"),
         }
     }
+
+    /// Tests this partial predicate against `stack`.
+    ///
+    /// An `any` predicate only requires the component to be present.
+    #[must_use]
+    pub fn matches(&self, stack: &ItemStack) -> bool {
+        match (self.discriminator, self.value.as_deref()) {
+            (PredicateDiscriminator::Concrete(predicate_type), Some(value)) => {
+                (predicate_type.matcher)(value, stack)
+            }
+            (PredicateDiscriminator::Any(component), None) => stack.has_component(&component.key),
+            _ => panic!("component predicate discriminator and value disagree"),
+        }
+    }
 }
 
 impl Clone for DataComponentPredicateData {
@@ -268,6 +292,16 @@ fn hash_predicate<T: DataComponentPredicateCodec>(
     value.hash_component(hasher);
 }
 
+fn match_predicate<T: DataComponentPredicateCodec>(
+    value: &dyn ErasedDataComponentPredicate,
+    stack: &ItemStack,
+) -> bool {
+    let Some(value) = value.downcast_ref::<T>() else {
+        panic!("registered component predicate matcher received the wrong concrete type");
+    };
+    value.matches(stack)
+}
+
 /// Exact component values required by a component matcher.
 #[derive(Clone, PartialEq)]
 pub struct DataComponentExactPredicate {
@@ -321,6 +355,17 @@ impl DataComponentExactPredicate {
     #[must_use]
     pub const fn is_empty(&self) -> bool {
         self.values.is_empty()
+    }
+
+    /// Tests every expected component against the stack's effective value.
+    ///
+    /// An absent component never equals an expected one, matching Vanilla's
+    /// `Objects.equals(expected.value(), actualComponents.get(type))`.
+    #[must_use]
+    pub fn matches(&self, stack: &ItemStack) -> bool {
+        self.values
+            .iter()
+            .all(|(entry, expected)| stack.get_effective_value_raw(&entry.key) == Some(expected))
     }
 
     #[must_use]
@@ -440,6 +485,16 @@ impl DataComponentMatchers {
     #[must_use]
     pub fn partial(&self) -> &[DataComponentPredicateData] {
         &self.partial
+    }
+
+    /// Tests the exact component set and then every partial predicate.
+    #[must_use]
+    pub fn matches(&self, stack: &ItemStack) -> bool {
+        self.exact.matches(stack)
+            && self
+                .partial
+                .iter()
+                .all(|predicate| predicate.matches(stack))
     }
 
     pub(crate) fn from_fields(compound: &NbtCompound) -> Option<Self> {

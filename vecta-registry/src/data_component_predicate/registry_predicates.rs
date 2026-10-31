@@ -46,6 +46,25 @@ impl DataComponentPredicateCodec for TrimPredicate {
         }
         NbtTag::Compound(compound)
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(trim) = stack.get(vanilla_components::TRIM) else {
+            return false;
+        };
+        if let Some(material) = &self.material
+            && !trim
+                .material()
+                .as_reference()
+                .is_some_and(|value| material.contains(value))
+        {
+            return false;
+        }
+        self.pattern.as_ref().is_none_or(|pattern| {
+            trim.pattern()
+                .as_reference()
+                .is_some_and(|value| pattern.contains(value))
+        })
+    }
 }
 
 impl HashComponent for TrimPredicate {
@@ -92,6 +111,19 @@ impl DataComponentPredicateCodec for JukeboxPlayablePredicate {
         }
         NbtTag::Compound(compound)
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(playable) = stack.get(vanilla_components::JUKEBOX_PLAYABLE) else {
+            return false;
+        };
+        let Some(songs) = &self.0 else {
+            return true;
+        };
+        playable
+            .song()
+            .as_reference()
+            .is_some_and(|song| songs.contains(song))
+    }
 }
 
 impl HashComponent for JukeboxPlayablePredicate {
@@ -132,6 +164,12 @@ impl DataComponentPredicateCodec for VillagerTypePredicate {
 
     fn to_nbt_value(&self) -> NbtTag {
         self.0.clone().to_nbt_tag()
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        stack
+            .get(vanilla_components::VILLAGER_VARIANT)
+            .is_some_and(|variant| self.0.contains(variant.value()))
     }
 }
 

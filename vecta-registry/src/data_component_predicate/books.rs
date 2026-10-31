@@ -2,7 +2,7 @@ use super::{
     CollectionPredicate, ComponentHasher, DataComponentPredicateCodec, Debug, DowncastType,
     DowncastTypeKey, HashComponent, IntBounds, NbtCompound, NbtNumeric, NbtTag, TextComponent,
     collection_field_nbt, decode_optional, hash_entries, hash_optional_collection_field,
-    owned_string, push_hash_entry,
+    owned_string, push_hash_entry, ItemStack, vanilla_components,
 };
 
 /// Predicate for one writable-book page.
@@ -66,6 +66,18 @@ impl DataComponentPredicateCodec for WritableBookPredicate {
             "pages",
             WritableBookPagePredicate::to_nbt_value,
         )
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(contents) = stack.get(vanilla_components::WRITABLE_BOOK_CONTENT) else {
+            return false;
+        };
+        let Some(pages) = &self.0 else {
+            return true;
+        };
+        pages.matches(contents.pages(), |predicate, page| {
+            page.raw() == predicate.contents()
+        })
     }
 }
 
@@ -206,6 +218,36 @@ impl DataComponentPredicateCodec for WrittenBookPredicate {
             compound.insert("resolved", resolved);
         }
         NbtTag::Compound(compound)
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(contents) = stack.get(vanilla_components::WRITTEN_BOOK_CONTENT) else {
+            return false;
+        };
+        if let Some(author) = &self.author
+            && author != contents.author()
+        {
+            return false;
+        }
+        if let Some(title) = &self.title
+            && title != contents.title().raw()
+        {
+            return false;
+        }
+        if !self.generation.matches(contents.generation()) {
+            return false;
+        }
+        if let Some(resolved) = self.resolved
+            && resolved != contents.resolved()
+        {
+            return false;
+        }
+        let Some(pages) = &self.pages else {
+            return true;
+        };
+        pages.matches(contents.pages(), |predicate, page| {
+            page.raw() == predicate.contents()
+        })
     }
 }
 

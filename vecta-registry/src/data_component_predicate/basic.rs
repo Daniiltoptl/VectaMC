@@ -47,6 +47,17 @@ impl DataComponentPredicateCodec for DamagePredicate {
         }
         NbtTag::Compound(compound)
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(damage) = stack.get(vanilla_components::DAMAGE) else {
+            return false;
+        };
+        let max_damage = stack
+            .get(vanilla_components::MAX_DAMAGE)
+            .copied()
+            .unwrap_or(0);
+        self.durability.matches(max_damage - damage) && self.damage.matches(*damage)
+    }
 }
 
 impl HashComponent for DamagePredicate {
@@ -108,6 +119,30 @@ impl EnchantmentPredicate {
     }
 }
 
+impl EnchantmentPredicate {
+    /// Vanilla `EnchantmentPredicate.containedIn`.
+    #[must_use]
+    pub fn contained_in(&self, applied: &ItemEnchantments) -> bool {
+        if let Some(enchantments) = &self.enchantments {
+            return enchantments
+                .entries()
+                .into_iter()
+                .any(|enchantment| self.matches_enchantment(applied, enchantment));
+        }
+        if !self.levels.is_any() {
+            return applied
+                .iter()
+                .any(|(_, level)| self.levels.matches(*level as i32));
+        }
+        !applied.is_empty()
+    }
+
+    fn matches_enchantment(&self, applied: &ItemEnchantments, enchantment: &Enchantment) -> bool {
+        let level = applied.get_level(&enchantment.key);
+        level != 0 && (self.levels.is_any() || self.levels.matches(level as i32))
+    }
+}
+
 /// Applied-enchantment predicates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnchantmentsPredicate(Vec<EnchantmentPredicate>);
@@ -131,6 +166,14 @@ impl DataComponentPredicateCodec for EnchantmentsPredicate {
 
     fn to_nbt_value(&self) -> NbtTag {
         encode_list(&self.0, EnchantmentPredicate::to_nbt_value)
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        stack.get_enchantments().is_some_and(|applied| {
+            self.0
+                .iter()
+                .all(|predicate| predicate.contained_in(applied))
+        })
     }
 }
 
@@ -169,6 +212,16 @@ impl DataComponentPredicateCodec for StoredEnchantmentsPredicate {
     fn to_nbt_value(&self) -> NbtTag {
         encode_list(&self.0, EnchantmentPredicate::to_nbt_value)
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        stack
+            .get(vanilla_components::STORED_ENCHANTMENTS)
+            .is_some_and(|applied| {
+                self.0
+                    .iter()
+                    .all(|predicate| predicate.contained_in(applied))
+            })
+    }
 }
 
 impl HashComponent for StoredEnchantmentsPredicate {
@@ -206,6 +259,17 @@ impl DataComponentPredicateCodec for PotionsPredicate {
     fn to_nbt_value(&self) -> NbtTag {
         self.0.clone().to_nbt_tag()
     }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        stack
+            .get(vanilla_components::POTION_CONTENTS)
+            .is_some_and(|contents| {
+                self.0
+                    .entries()
+                    .into_iter()
+                    .any(|potion| contents.is(potion))
+            })
+    }
 }
 
 impl HashComponent for PotionsPredicate {
@@ -242,6 +306,10 @@ impl DataComponentPredicateCodec for CustomDataPredicate {
 
     fn to_nbt_value(&self) -> NbtTag {
         self.0.to_nbt_tag_ref()
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        self.0.matches(stack)
     }
 }
 
@@ -283,6 +351,22 @@ impl DataComponentPredicateCodec for ContainerPredicate {
 
     fn to_nbt_value(&self) -> NbtTag {
         collection_field_nbt(self.0.as_ref(), "items", ItemPredicate::to_nbt_tag_ref)
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(contents) = stack.get(vanilla_components::CONTAINER) else {
+            return false;
+        };
+        let Some(items) = &self.0 else {
+            return true;
+        };
+        let stacks: Vec<ItemStack> = contents
+            .items()
+            .iter()
+            .flatten()
+            .map(ItemStackTemplate::create)
+            .collect();
+        items.matches(&stacks, ItemPredicate::test)
     }
 }
 
@@ -329,6 +413,21 @@ impl DataComponentPredicateCodec for BundlePredicate {
 
     fn to_nbt_value(&self) -> NbtTag {
         collection_field_nbt(self.0.as_ref(), "items", ItemPredicate::to_nbt_tag_ref)
+    }
+
+    fn matches(&self, stack: &ItemStack) -> bool {
+        let Some(contents) = stack.get(vanilla_components::BUNDLE_CONTENTS) else {
+            return false;
+        };
+        let Some(items) = &self.0 else {
+            return true;
+        };
+        let stacks: Vec<ItemStack> = contents
+            .items()
+            .iter()
+            .map(ItemStackTemplate::create)
+            .collect();
+        items.matches(&stacks, ItemPredicate::test)
     }
 }
 

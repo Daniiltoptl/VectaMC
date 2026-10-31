@@ -40,6 +40,26 @@ impl<P> CollectionPredicate<P> {
         self.size.as_ref()
     }
 
+    /// Tests a collection of `T` with an element predicate.
+    ///
+    /// Vanilla's `CollectionPredicate.test` runs `contains`, then `count`, then
+    /// `size`; each absent part accepts anything.
+    #[must_use]
+    pub fn matches<T>(&self, values: &[T], test: impl Fn(&P, &T) -> bool) -> bool {
+        if let Some(contains) = &self.contains
+            && !collection_contains(contains, values, &test)
+        {
+            return false;
+        }
+        if let Some(counts) = &self.counts
+            && !counts.iter().all(|entry| entry.matches(values, &test))
+        {
+            return false;
+        }
+        self.size
+            .is_none_or(|size| size.matches(values.len() as i32))
+    }
+
     pub(super) fn from_nbt_with(
         tag: &NbtTag,
         decode: impl Fn(&NbtTag) -> Option<P> + Copy,
@@ -121,6 +141,16 @@ impl<P> CollectionCountPredicate<P> {
         self.count
     }
 
+    /// Counts the values matched by this entry and checks the accepted range.
+    #[must_use]
+    pub fn matches<T>(&self, values: &[T], test: impl Fn(&P, &T) -> bool) -> bool {
+        let matched = values
+            .iter()
+            .filter(|value| test(&self.test, value))
+            .count();
+        self.count.matches(matched as i32)
+    }
+
     fn from_nbt_with(tag: &NbtTag, decode: impl Fn(&NbtTag) -> Option<P>) -> Option<Self> {
         let compound = tag.compound()?;
         Some(Self::new(
@@ -146,6 +176,25 @@ impl<P> CollectionCountPredicate<P> {
         ));
         push_hash_entry(&mut entries, "count", &self.count);
         hash_entries(hasher, &mut entries);
+    }
+}
+
+/// Vanilla `CollectionContentsPredicate`: zero tests always match, one test
+/// needs any value, and several tests must all be satisfied by distinct values.
+fn collection_contains<T, P>(tests: &[P], values: &[T], test: &impl Fn(&P, &T) -> bool) -> bool {
+    match tests {
+        [] => true,
+        [single] => values.iter().any(|value| test(single, value)),
+        _ => {
+            let mut unmatched: Vec<&P> = tests.iter().collect();
+            for value in values {
+                unmatched.retain(|predicate| !test(predicate, value));
+                if unmatched.is_empty() {
+                    return true;
+                }
+            }
+            false
+        }
     }
 }
 
