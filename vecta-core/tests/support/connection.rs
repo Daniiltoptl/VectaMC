@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use glam::IVec3;
 use text_components::TextComponent;
 use vecta_protocol::packet_traits::{CompressionInfo, EncodedPacket};
-use vecta_registry::packets::play::{C_BLOCK_EVENT, C_OPEN_SCREEN, C_SOUND};
+use vecta_registry::packets::play::{C_BLOCK_EVENT, C_LEVEL_EVENT, C_OPEN_SCREEN, C_SOUND};
 use vecta_registry::sound_event::SoundEventHolder;
 use vecta_utils::codec::VarInt;
 use vecta_utils::locks::SyncMutex;
@@ -114,6 +114,29 @@ pub(crate) fn block_events(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<Broad
             let action_param = u8::read(&mut cursor).ok()?;
             let block_id = VarInt::read(&mut cursor).ok()?.0;
             Some((pos, action_id, action_param, block_id))
+        })
+        .collect()
+}
+
+/// A decoded `C_LEVEL_EVENT` packet: `(event type, pos, data)`.
+pub(crate) type BroadcastLevelEvent = (i32, BlockPos, i32);
+
+/// Decodes the `C_LEVEL_EVENT` packets in `packets`, dropping everything else.
+pub(crate) fn level_events(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<BroadcastLevelEvent> {
+    packets
+        .lock()
+        .iter()
+        .filter_map(|packet| {
+            let mut cursor = Cursor::new(packet.encoded_data.as_slice());
+            // Frame length, then the packet id.
+            VarInt::read(&mut cursor).ok()?;
+            if VarInt::read(&mut cursor).ok()?.0 != C_LEVEL_EVENT {
+                return None;
+            }
+            let event_type = i32::read(&mut cursor).ok()?;
+            let pos = BlockPos::read(&mut cursor).ok()?;
+            let data = i32::read(&mut cursor).ok()?;
+            Some((event_type, pos, data))
         })
         .collect()
 }

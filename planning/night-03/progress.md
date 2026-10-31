@@ -1079,3 +1079,88 @@ Vecta paths: `block_entity/entities/abstract_furnace.rs`
 - `ItemTags.FURNACE_FUELS`/`COOKING_FUEL`: Vecta по-прежнему считает топливо
   по таблице `VANILLA_FUEL_VALUES` (26.2), а не по компоненту
   `minecraft:cooking_fuel`; это отдельная задача о компонентах топлива.
+
+## W04-029 — раздатчик (dropper)
+
+Связь: W04-027 (общий `addItem` через `push_into_container_at`), W04-028
+(сторонний доступ не понадобился: у раздатчика нет `WorldlyContainer`).
+Java 26.3: `DispenserBlock` (`neighborChanged`, `tick`, `dispenseFrom`,
+`getStateForPlacement`, `hasAnalogOutputSignal`, `getAnalogOutputSignal`,
+`useWithoutItem`), `DropperBlock` (`dispenseFrom`, `getDispenseMethod`),
+`DispenserBlockEntity` (`getRandomSlot`, `CONTAINER_SIZE = 9`),
+`DefaultDispenseItemBehavior` (`dispense`, `execute`, `spawnItem`,
+`playSound`, `playAnimation`), `DispenserMenu`,
+`HopperBlockEntity.getContainerAt/addItem`.
+
+Что теперь делает игрок:
+- Раздатчик смотрит туда, куда смотрел игрок при установке: клик сверху даёт
+  раздатчик, направленный вверх, взгляд на север — направленный на юг
+  (`getNearestLookingDirection().getOpposite()`), а не «противоположно
+  кликнутой грани», как у воронки.
+- Импульс редстоуна (в том числе от блока сверху) взводит `triggered` и
+  планирует блок-тик ровно через 4 игровых тика. Долгий сигнал даёт один
+  выстрел: повторные обновления соседей при уже взведённом флаге ничего не
+  планируют, а спад сигнала только снимает `triggered`.
+- Один импульс вынимает ровно один предмет из одного случайно выбранного
+  непустого слота (reservoir sampling, как `getRandomSlot`), а не все стаки.
+- Если перед раздатчиком контейнер — предмет уходит в него через общий
+  `HopperBlockEntity.addItem(..., direction.getOpposite())`; полный контейнер
+  оставляет предмет в слоте и не издаёт звука. Если контейнера нет — предмет
+  выбрасывается как `ItemEntity` с ванильным смещением (центр + 0.7 по
+  направлению, минус 2/16 по Y и 2.5/16 по горизонтали), скоростью
+  `random.triangle(mean, 0.0172275 * 6)` и событиями 1000 и 2000.
+- Пустой раздатчик отвечает событием 1001 и ничего не меняет.
+- Открытие показывает меню `minecraft:generic_3x3` (9 слотов + инвентарь) и
+  выдаёт статистику `inspect_dropper`; компаратор читает заполненность.
+
+Vecta paths: `behavior/blocks/redstone/dropper_block.rs` (новый
+`DropperBlock`: `dispense_from`, `eject_one`, размещение, `neighborChanged`,
+`tick`, `use_without_item`, отсутствие тикера, аналоговый выход; 14
+интеграционных тестов), `block_entity/entities/dropper.rs` (новый
+`DropperBlockEntity` на 9 слотов с `get_random_slot`, NBT `Items` + loot,
+`pre_remove`; 5 тестов), `inventory/menu/kinds/dispenser_menu.rs` (новое меню
+`GENERIC_3X3`; 2 теста), `block_entity/registry.rs` (фабрика `DROPPER`),
+`block_entity/entities/mod.rs` (экспорт), `behavior/blocks/redstone/mod.rs`
+(модуль), `block_entity/entities/hopper.rs` (`push_into_container_at` теперь
+возвращает `Option<ItemStack>`, чтобы отличать «контейнера нет»),
+`tests/support/connection.rs` + `tests/support/mod.rs` (декодер пакета
+`C_LEVEL_EVENT` для проверки событий 1000/1001/2000).
+
+Решения:
+- Ванильная логика импульса живёт в `DispenserBlock`, а у раздатчика
+  переопределён только `dispenseFrom`. В Vecta дозатор ещё не реализован,
+  поэтому общий код импульса пока лежит в `DropperBlock`; при W04-030+
+  его надо будет поднять в общий `DispenserBlock`, а не копировать.
+- Ветка «вставлять или выбрасывать» проверяет именно наличие контейнера
+  (`getContainerAt == null`), а не наличие блок-сущности: табличка — это
+  блок-сущность, но не контейнер, и раздатчик перед ней выбрасывает предмет.
+  Это закреплено отдельным тестом, потому что более простая проверка
+  `get_block_entity(...).is_some()` молча съедала импульс.
+- `getRandomSlot` сам разворачивает loot table (`unpackLootTable(null)`), как
+  в ванили, поэтому раздатчик с лут-таблицей не выглядит пустым.
+- `dispenseFrom` в ванили перечитывает состояние из мира; здесь берётся
+  состояние, переданное тиком — на пути `tick` это то же самое значение.
+- У раздатчика нет блок-сущностного тикера: импульс идёт через
+  `schedule_block_tick`, что и проверяется (`registered_len() == 0`).
+
+Проверки: узкий прогон `dropper` — 19 passed (14 поведенческих + 5 сущности),
+`dispenser_menu` — 2 passed. Полный прогон workspace —
+**3128 passed / 0 failed / 1 ignored**; `cargo fmt --all --check` и
+`cargo clippy --workspace --all-targets --all-features -- -D warnings` чистые.
+
+Негативные проверки: с веткой `get_block_entity(target).is_some()` вместо
+`getContainerAt` падает тест с табличкой; без `TRIGGER_DURATION` (например,
+тик через 1) падает проверка раннего сбора тика; при возврате `stack` без
+`shrink` падает тест «один предмет за импульс»; без проверки `remaining`
+падает тест с полным сундуком.
+
+Незакрытое:
+- `DispenserBlock` (сам дозатор, `DISPENSER_REGISTRY`,
+  `ProjectileDispenseItemBehavior`, `EquipmentDispenseItemBehavior`,
+  `SpawnEggItemBehavior`) не реализован — это отдельная задача; сейчас
+  общий код импульса временно живёт в `DropperBlock`.
+- `HopperBlockEntity.getContainerAt` в Vecta не оборачивает контейнеры
+  сущностей (вагонетки, лодки с сундуком), поэтому раздатчик перед такой
+  сущностью выбросит предмет; у воронки то же ограничение.
+- `RandomSource` берётся из `rand`, а не из мирового сида: выбор слота и
+  разброс скорости не воспроизводимы по сиду мира.

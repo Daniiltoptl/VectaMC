@@ -670,6 +670,39 @@ fn try_move_in_item(
     remaining
 }
 
+/// Vanilla `HopperBlockEntity.addItem(from, container, itemStack, direction)`
+/// for a caller that is not a hopper: a dropper pushing a single item into the
+/// container in front of it.
+///
+/// Returns `None` when there is no container at `target_pos`, mirroring
+/// `HopperBlockEntity.getContainerAt` returning `null`; otherwise returns what
+/// could not be placed.
+///
+/// The stack is borrowed because vanilla copies it for this path
+/// (`itemStack.copyWithCount(1)`), leaving the caller's stack for the eject
+/// branch.
+pub(crate) fn push_into_container_at(
+    world: &Arc<World>,
+    target_pos: BlockPos,
+    source: &ContainerRef,
+    stack: &ItemStack,
+    direction: Direction,
+) -> Option<ItemStack> {
+    let target = container_at(world, target_pos)?;
+    let mut refs = Vec::with_capacity(target.parts.len() + 1);
+    refs.push(source.clone());
+    refs.extend(target.parts.iter().cloned());
+    let mut guard = ContainerLockGuard::lock_all(&refs);
+    Some(add_item(
+        &mut guard,
+        &target,
+        stack.clone(),
+        Some(direction),
+        None,
+        target.hopper(),
+    ))
+}
+
 /// Vanilla `HopperBlockEntity.tryTakeInItemFromSlot`.
 ///
 /// `into` is the hopper's own target, measured by the caller before the guard
