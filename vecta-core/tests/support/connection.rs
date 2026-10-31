@@ -5,7 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use glam::IVec3;
 use text_components::TextComponent;
 use vecta_protocol::packet_traits::{CompressionInfo, EncodedPacket};
-use vecta_registry::packets::play::{C_BLOCK_EVENT, C_LEVEL_EVENT, C_OPEN_SCREEN, C_SOUND};
+use vecta_registry::packets::play::{
+    C_BLOCK_EVENT, C_CONTAINER_CLOSE, C_LEVEL_EVENT, C_OPEN_SCREEN, C_SOUND,
+};
 use vecta_registry::sound_event::SoundEventHolder;
 use vecta_utils::codec::VarInt;
 use vecta_utils::locks::SyncMutex;
@@ -114,6 +116,24 @@ pub(crate) fn block_events(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<Broad
             let action_param = u8::read(&mut cursor).ok()?;
             let block_id = VarInt::read(&mut cursor).ok()?.0;
             Some((pos, action_id, action_param, block_id))
+        })
+        .collect()
+}
+
+/// Decodes the `C_CONTAINER_CLOSE` packets in `packets`, dropping everything
+/// else, and returns the closed container ids in send order.
+pub(crate) fn closed_screens(packets: &SyncMutex<Vec<EncodedPacket>>) -> Vec<i32> {
+    packets
+        .lock()
+        .iter()
+        .filter_map(|packet| {
+            let mut cursor = Cursor::new(packet.encoded_data.as_slice());
+            // Frame length, then the packet id.
+            VarInt::read(&mut cursor).ok()?;
+            if VarInt::read(&mut cursor).ok()?.0 != C_CONTAINER_CLOSE {
+                return None;
+            }
+            Some(VarInt::read(&mut cursor).ok()?.0)
         })
         .collect()
 }

@@ -15,14 +15,17 @@ use crate::{
         container::{Container, SimpleContainer},
         equipment::{EntityEquipment, EquipmentSlot},
         lock::ContainerLockGuard,
-        menu::{Menu, MenuBehavior, MenuBuilder, MenuKind, kinds::BasicKind},
+        menu::{Menu, MenuBehavior, MenuBuilder, MenuKind, kinds::BasicKind, kinds::crafting},
     },
     player::{Player, PlayerConnection, ResetReason, connection::NetworkConnection},
     test_support::{
-        TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk, test_world,
+        TestPlayerBuilder, TestWorld, closed_screens, dropped_items, fresh_test_derived_world,
+        fresh_test_world, insert_ready_full_chunk, opened_screens, recording_connection,
+        test_world,
     },
     world::World,
 };
+use glam::DVec3;
 use rustc_hash::FxHashMap;
 use simdnbt::owned::{NbtList, NbtTag};
 use text_components::TextComponent;
@@ -31,14 +34,14 @@ use vecta_protocol::{
     packets::game::{ClickType, HashedStack, SContainerClick, SEditBook, SSetCreativeModeSlot},
 };
 use vecta_registry::{
-    RegistryEntry, init_vanilla_registry, item_stack::ItemStack, vanilla_entities, vanilla_items,
-    vanilla_menu_types, vanilla_mob_effects,
+    RegistryEntry, init_vanilla_registry, item_stack::ItemStack, vanilla_blocks, vanilla_entities,
+    vanilla_items, vanilla_menu_types, vanilla_mob_effects,
 };
 use vecta_utils::{
-    ChunkPos, Downcast as _, DowncastType, DowncastTypeKey, Identifier, WorldAabb,
+    BlockPos, ChunkPos, Downcast as _, DowncastType, DowncastTypeKey, Identifier, WorldAabb,
     locks::{IntoShared as _, Shared},
     text::DisplayResolutor,
-    types::{GameType, InteractionHand},
+    types::{GameType, InteractionHand, UpdateFlags},
 };
 
 use super::{
@@ -1599,6 +1602,219 @@ fn closing_menu_while_dead_does_not_return_items_to_inventory() {
             .items()
             .iter()
             .all(|item| !item.is(&vanilla_items::STONE))
+    );
+}
+
+#[test]
+fn closing_a_crafting_menu_mid_operation_returns_the_grid_and_cursor_once() {
+    const TABLE: BlockPos = BlockPos::new(4, 64, 4);
+
+    init_globals();
+    let fixture = fresh_test_world("crafting_mid_close");
+    let world = &fixture.world;
+    insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+    assert!(world.set_block(
+        TABLE,
+        vanilla_blocks::CRAFTING_TABLE.default_state(),
+        UpdateFlags::UPDATE_ALL,
+    ));
+
+    let (connection, packets) = recording_connection();
+    let player = TestPlayerBuilder::new(Arc::clone(world), "Crafter", next_entity_id())
+        .connection(connection)
+        .build();
+    player
+        .try_set_position(DVec3::new(4.5, 64.0, 4.5))
+        .expect("the table's chunk is loaded");
+    assert!(world.add_player(Arc::clone(&player), ResetReason::InitialJoin));
+    player
+        .inventory
+        .lock()
+        .set_item(0, ItemStack::with_count(&vanilla_items::OAK_PLANKS, 4));
+
+    let inventory = Arc::clone(&player.inventory);
+    player.open_menu("Crafting", move |context| {
+        crafting(inventory, context.container_id, TABLE)
+    });
+    let container_id = opened_screens(&packets)[0].0;
+    packets.lock().clear();
+
+    // Menu slot 37 is hotbar slot 0; slot 1 is the first grid slot. Two real
+    // click packets leave one plank in the grid and three on the cursor.
+    let click = |slot_num: i16, button_num: i8| SContainerClick {
+        container_id,
+        state_id: 0,
+        slot_num,
+        button_num,
+        click_type: ClickType::Pickup,
+        changed_slots: FxHashMap::default(),
+        carried_item: HashedStack::Empty,
+    };
+    player.handle_container_click(click(37, 0));
+    player.handle_container_click(click(1, 1));
+
+    // A close in the middle of the operation, then a repeated close.
+    player.close_container();
+    player.close_container();
+
+    assert!(!player.has_container_open());
+    assert_eq!(
+        closed_screens(&packets),
+        [container_id],
+        "a repeated close must not send a second close packet"
+    );
+    let planks: i32 = player
+        .inventory
+        .lock()
+        .items()
+        .iter()
+        .filter(|item| item.is(&vanilla_items::OAK_PLANKS))
+        .map(ItemStack::count)
+        .sum();
+    assert_eq!(
+        planks, 4,
+        "the grid and the cursor return exactly once, without duplicating either"
+    );
+    assert!(
+        dropped_items(world, DVec3::new(4.5, 64.5, 4.5)).is_empty(),
+        "a connected player keeps the items instead of dropping them"
+    );
+}
+
+#[test]
+fn a_repeated_close_sends_one_packet_and_returns_the_cursor_once() {
+    init_globals();
+    let fixture = fresh_test_world("menu_double_close");
+    let world = &fixture.world;
+    insert_ready_full_chunk(world, ChunkPos::new(0, 0));
+    let (connection, packets) = recording_connection();
+    let player = TestPlayerBuilder::new(Arc::clone(world), "DoubleClose", next_entity_id())
+        .connection(connection)
+        .build();
+    player
+        .try_set_position(DVec3::new(0.5, 64.0, 0.5))
+        .expect("the test chunk is loaded");
+    assert!(world.add_player(Arc::clone(&player), ResetReason::InitialJoin));
+
+    let container = SimpleContainer::new(9).into_shared();
+    container
+        .lock()
+        .set_item(0, ItemStack::with_count(&vanilla_items::DIAMOND, 2));
+    let menu_container = Arc::clone(&container);
+    let inventory = Arc::clone(&player.inventory);
+    player.open_menu("Double close", move |context| {
+        let mut builder = MenuBuilder::new(&vanilla_menu_types::GENERIC_9X1, context.container_id);
+        let slots = builder.section(menu_container, 9);
+        builder.player_inventory(&inventory);
+        builder.drain([slots]);
+        builder.build(BasicKind {})
+    });
+    let container_id = opened_screens(&packets)[0].0;
+    packets.lock().clear();
+
+    // Pick the diamonds up so they sit on the cursor when the menu closes.
+    player.handle_container_click(SContainerClick {
+        container_id,
+        state_id: 0,
+        slot_num: 0,
+        button_num: 0,
+        click_type: ClickType::Pickup,
+        changed_slots: FxHashMap::default(),
+        carried_item: HashedStack::Empty,
+    });
+
+    player.close_container();
+    player.close_container();
+
+    assert!(!player.has_container_open());
+    assert_eq!(
+        closed_screens(&packets),
+        [container_id],
+        "vanilla sends one close packet per open menu"
+    );
+    let diamonds: i32 = player
+        .inventory
+        .lock()
+        .items()
+        .iter()
+        .filter(|item| item.is(&vanilla_items::DIAMOND))
+        .map(ItemStack::count)
+        .sum();
+    assert_eq!(diamonds, 2, "the carried stack is returned exactly once");
+}
+
+#[test]
+fn a_world_change_closes_the_menu_and_returns_the_cursor_to_the_inventory() {
+    init_globals();
+    let fixture = fresh_test_world("menu_world_change");
+    let target = fresh_test_derived_world(&fixture.world, "menu_world_change_target");
+    insert_ready_full_chunk(&fixture.world, ChunkPos::new(0, 0));
+    insert_ready_full_chunk(&target.world, ChunkPos::new(0, 0));
+    let (connection, packets) = recording_connection();
+    let player = TestPlayerBuilder::new(Arc::clone(&fixture.world), "Traveler", next_entity_id())
+        .connection(connection)
+        .build();
+    player
+        .try_set_position(DVec3::new(0.5, 64.0, 0.5))
+        .expect("the test chunk is loaded");
+    assert!(
+        fixture
+            .world
+            .add_player(Arc::clone(&player), ResetReason::InitialJoin)
+    );
+
+    let container = SimpleContainer::new(9).into_shared();
+    container
+        .lock()
+        .set_item(0, ItemStack::with_count(&vanilla_items::DIAMOND, 2));
+    let menu_container = Arc::clone(&container);
+    let inventory = Arc::clone(&player.inventory);
+    player.open_menu("Travel", move |context| {
+        let mut builder = MenuBuilder::new(&vanilla_menu_types::GENERIC_9X1, context.container_id);
+        let slots = builder.section(menu_container, 9);
+        builder.player_inventory(&inventory);
+        builder.drain([slots]);
+        builder.build(BasicKind {})
+    });
+    let container_id = opened_screens(&packets)[0].0;
+    player.handle_container_click(SContainerClick {
+        container_id,
+        state_id: 0,
+        slot_num: 0,
+        button_num: 0,
+        click_type: ClickType::Pickup,
+        changed_slots: FxHashMap::default(),
+        carried_item: HashedStack::Empty,
+    });
+    packets.lock().clear();
+
+    player.reset(Arc::clone(&target.world), ResetReason::WorldChange);
+
+    assert!(
+        !player.has_container_open(),
+        "vanilla closes the menu when the player changes dimension"
+    );
+    assert_eq!(
+        closed_screens(&packets),
+        [0],
+        "the world switch closes the client's screen with the inventory menu id; \
+         the respawn packet replaces the external menu, so it needs no close packet"
+    );
+    let diamonds: i32 = player
+        .inventory
+        .lock()
+        .items()
+        .iter()
+        .filter(|item| item.is(&vanilla_items::DIAMOND))
+        .map(ItemStack::count)
+        .sum();
+    assert_eq!(
+        diamonds, 2,
+        "vanilla keeps the cursor when the removal reason is CHANGED_DIMENSION"
+    );
+    assert!(
+        dropped_items(&target.world, DVec3::new(0.5, 64.5, 0.5)).is_empty(),
+        "a dimension change must not drop the cursor into the world"
     );
 }
 

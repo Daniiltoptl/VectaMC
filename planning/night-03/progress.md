@@ -1164,3 +1164,79 @@ Vecta paths: `behavior/blocks/redstone/dropper_block.rs` (новый
   сущностью выбросит предмет; у воронки то же ограничение.
 - `RandomSource` берётся из `rand`, а не из мирового сида: выбор слота и
   разброс скорости не воспроизводимы по сиду мира.
+
+## W04-018 — закрытие меню при всех изменениях состояния
+
+Связь: W03-09. Эталон: `AbstractContainerMenu.java` (`removed`,
+`dropOrPlaceInInventory`), `Player.java` (`remove`), `ServerPlayer.java`
+(`doCloseContainer`), `ContainerOpenersCounter.java`, `ChestBlockEntity.java`
+(`startOpen`/`stopOpen`/`recheckOpen`), `Container.java`
+(`stillValidBlockEntity`).
+
+Что уже работало и проверено (переписывать не пришлось):
+- Механизм закрытия собран из `close_open_menu` / `do_close_container` /
+  `remove_all_menus`, а политика предметов — `MenuItemDisposition` с
+  `default_menu_item_disposition`: `Drop`, если игрок удалён по причине,
+  отличной от `ChangedWorld`, либо соединение закрыто, либо здоровье <= 0;
+  иначе `ReturnToInventory`. Это дословно `dropOrPlaceInInventory`.
+- Каждый тик игрока `tick_open_menu` проверяет `still_valid` и закрывает меню,
+  если контейнер ушёл, блок заменён или игрок вышел из радиуса
+  (`is_within_block_interaction_range_with_buffer(pos, 4.0)`), что совпадает с
+  ванильным `stillValidBlockEntity`.
+- Смерть и дисконнект уже покрыты тестами
+  (`closing_menu_while_dead_does_not_return_items_to_inventory`,
+  `disconnected_menu_removal_drops_transient_items`), повторное закрытие
+  защищено `terminal_removal` и изъятием меню из слота.
+- Смена измерения идёт через `reset(.., ResetReason::WorldChange)` →
+  `remove_all_menus()`, то есть меню закрывается, а курсор возвращается в
+  инвентарь (политика `ChangedWorld`).
+
+Что добавлено: пять регрессий на ранее непроверенные пути.
+- `breaking_an_open_chest_closes_the_menu_and_releases_the_viewer` (сундук):
+  блок ломается при открытом меню → следующий тик закрывает меню, клиенту
+  уходит один `CContainerClose`, содержимое падает в мир ровно один раз, а
+  новый сундук на том же месте начинает с нулём зрителей. Отдельно
+  зафиксировано, что счётчик удалённой блок-сущности не декрементируется —
+  это ванильное поведение (`ChestBlockEntity.stopOpen` выходит при
+  `this.remove`), счётчик умирает вместе с блок-сущностью.
+- `walking_out_of_range_closes_the_menu_on_the_next_tick` (сундук): игрок
+  выходит из радиуса, но остаётся в том же чанке → тик закрывает меню и
+  отпускает зрителя.
+- `closing_a_crafting_menu_mid_operation_returns_the_grid_and_cursor_once`:
+  верстак, один предмет в сетке и три на курсоре, затем закрытие и повторное
+  закрытие через настоящие пакеты клика → в инвентаре снова ровно 4 доски,
+  один close-пакет, ничего не выброшено.
+- `a_repeated_close_sends_one_packet_and_returns_the_cursor_once`: два
+  `close_container()` подряд → один `CContainerClose` и один возврат курсора.
+- `a_world_change_closes_the_menu_and_returns_the_cursor_to_the_inventory`:
+  `reset(WorldChange)` → меню закрыто, курсор вернулся в инвентарь, а не
+  выпал в новый мир.
+
+Vecta paths: `behavior/blocks/container/chest_block.rs` (2 теста),
+`player/player_inventory/tests.rs` (3 теста),
+`tests/support/connection.rs` + `tests/support/mod.rs` (декодер
+`C_CONTAINER_CLOSE`, чтобы проверять закрытие экрана по пакету, а не по
+флагу).
+
+Решения:
+- Проверка `is_removed()` в `ChestBlockEntity::stop_open` оставлена: она
+  повторяет ванильный `if (!this.remove && !spectator)`. Поэтому «нет
+  оставшегося viewer count» проверяется наблюдаемо — новый блок на том же
+  месте не наследует зрителя, — а не чтением счётчика у удалённой сущности.
+- Смена измерения не отправляет отдельный close для внешнего меню: ванильный
+  клиент сбрасывает экран по `ClientboundRespawnPacket`, а Vecta дополнительно
+  шлёт `CContainerClose{0}` для инвентарного меню. Тест фиксирует именно это.
+- Клики в тестах верстака идут через `handle_container_click` с настоящим
+  `SContainerClick`, а не через приватные `take_open_menu_for_callback`, чтобы
+  проверялся реальный путь пакета.
+
+Проверки: `chest_block::tests` — 55 passed, `player_inventory::tests` —
+73 passed. Полный прогон workspace — **3133 passed / 0 failed / 1 ignored**;
+`cargo fmt --all --check` и clippy `-D warnings` чистые.
+
+Незакрытое:
+- Аналогичные проверки для лектерна, наковальни и точильного камня не
+  добавлялись: у них та же общая ветка `Menu::removed`, отдельные тесты есть
+  только на `still_valid` (`anvil_menu/tests.rs`, `stonecutter_menu/tests.rs`).
+- `ContainerOpenersCounter` не имеет хука на удаление блок-сущности, как и в
+  ванили; счётчик живёт только в блок-сущности.

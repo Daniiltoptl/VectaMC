@@ -599,8 +599,9 @@ mod tests {
     use crate::entity::{SharedEntity, next_entity_id};
     use crate::player::ResetReason;
     use crate::test_support::{
-        SentPackets, TestPlayerBuilder, TestWorld, block_events, fresh_test_world,
-        insert_ready_full_chunk, opened_screens, played_sounds, recording_connection,
+        SentPackets, TestPlayerBuilder, TestWorld, block_events, closed_screens, dropped_items,
+        fresh_test_world, insert_ready_full_chunk, opened_screens, played_sounds,
+        recording_connection,
     };
 
     const TEST_POS: BlockPos = BlockPos::new(4, 64, 4);
@@ -759,6 +760,105 @@ mod tests {
         assert_eq!(open_count(&fixture), 1);
 
         player.close_container();
+        assert_eq!(open_count(&fixture), 0);
+    }
+
+    #[test]
+    fn breaking_an_open_chest_closes_the_menu_and_releases_the_viewer() {
+        let (fixture, player, packets) = listening_chest_fixture("chest_break_open");
+        let chest = fixture
+            .world
+            .get_block_entity(TEST_POS)
+            .expect("a placed chest has a block entity");
+        let container_ref = chest
+            .container_ref()
+            .expect("a chest exposes its container");
+        {
+            let mut guard = ContainerLockGuard::lock_all(&[&container_ref]);
+            guard
+                .get_mut(container_ref.container_id())
+                .expect("the chest container is locked")
+                .set_item(0, ItemStack::with_count(&vanilla_items::STONE, 2));
+        }
+
+        assert_eq!(use_chest(&fixture, &player), InteractionResult::Success);
+        assert_eq!(open_count(&fixture), 1);
+        assert!(player.has_container_open());
+        let container_id = opened_screens(&packets)[0].0;
+
+        // Breaking the block detaches the block entity and drops its contents.
+        assert!(fixture.world.set_block(
+            TEST_POS,
+            vanilla_blocks::AIR.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        assert!(fixture.world.get_block_entity(TEST_POS).is_none());
+        let chest_center = DVec3::new(4.5, 64.5, 4.5);
+        let dropped_after_break = dropped_items(&fixture.world, chest_center);
+        assert_eq!(dropped_after_break.len(), 1, "the chest drops its stack");
+
+        // Vanilla `ServerPlayer.tick` closes a menu whose container went away.
+        player.tick_open_menu();
+
+        assert!(
+            !player.has_container_open(),
+            "the removed block must close the menu on the next tick"
+        );
+        assert_eq!(
+            closed_screens(&packets),
+            [container_id],
+            "the client is told to close the screen exactly once"
+        );
+        assert_eq!(
+            dropped_items(&fixture.world, chest_center).len(),
+            dropped_after_break.len(),
+            "closing the menu must not drop the contents a second time"
+        );
+
+        // A repeated close is a no-op: the menu was already removed.
+        player.close_container();
+        assert_eq!(closed_screens(&packets), [container_id]);
+
+        // The viewer count lives in the block entity, so a chest placed at the
+        // same position starts with no viewers instead of inheriting the old
+        // one. Vanilla `ChestBlockEntity.stopOpen` skips a removed block entity
+        // for the same reason: the counter dies with it.
+        assert!(fixture.world.set_block(
+            TEST_POS,
+            vanilla_blocks::CHEST.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        assert_eq!(
+            open_count(&fixture),
+            0,
+            "the replaced chest must not inherit the old viewer"
+        );
+        player.close_container();
+        assert_eq!(
+            open_count(&fixture),
+            0,
+            "a second close must not decrement a fresh counter below zero"
+        );
+    }
+
+    #[test]
+    fn walking_out_of_range_closes_the_menu_on_the_next_tick() {
+        let (fixture, player, packets) = listening_chest_fixture("chest_walk_away");
+        assert_eq!(use_chest(&fixture, &player), InteractionResult::Success);
+        assert_eq!(open_count(&fixture), 1);
+        let container_id = opened_screens(&packets)[0].0;
+
+        // Still inside the same chunk, but well past the 4.5 + 4.0 range.
+        player
+            .try_set_position(DVec3::new(14.5, 65.0, 4.5))
+            .expect("the chest's chunk is loaded");
+        player.tick_open_menu();
+
+        assert!(
+            !player.has_container_open(),
+            "vanilla closes a menu when `stillValid` fails"
+        );
+        assert_eq!(closed_screens(&packets), [container_id]);
         assert_eq!(open_count(&fixture), 0);
     }
 
