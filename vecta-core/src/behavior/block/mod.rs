@@ -499,6 +499,16 @@ pub trait BlockBehavior: Send + Sync {
         false
     }
 
+    /// Returns the hinge sound this chest-family block plays for its lid.
+    ///
+    /// Vanilla keeps the two sounds on the `ChestBlock` instance
+    /// (`getOpenChestSound`/`getCloseChestSound`); in Vecta the behavior is
+    /// looked up by block, so the behavior supplies them. `None` means the plain
+    /// chest sounds.
+    fn chest_lid_sound(&self, _opening: bool) -> Option<SoundEventRef> {
+        None
+    }
+
     /// Returns whether this behavior is a vanilla diode block.
     ///
     /// Vanilla uses its `DiodeBlock` class hierarchy for side-input filtering.

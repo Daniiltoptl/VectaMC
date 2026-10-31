@@ -27,6 +27,7 @@ use vecta_utils::{
     locks::SyncMutex,
 };
 
+use crate::behavior::BLOCK_BEHAVIORS;
 use crate::block_entity::container_component::{
     apply_container_items, collect_container_component,
 };
@@ -246,11 +247,14 @@ impl ChestBlockEntity {
             sound_pos.x += f64::from(dx) * 0.5;
             sound_pos.z += f64::from(dz) * 0.5;
         }
-        let sound = if opening {
-            &sound_events::BLOCK_CHEST_OPEN
-        } else {
-            &sound_events::BLOCK_CHEST_CLOSE
-        };
+        let sound = BLOCK_BEHAVIORS
+            .get_behavior(state.get_block())
+            .chest_lid_sound(opening)
+            .unwrap_or(if opening {
+                &sound_events::BLOCK_CHEST_OPEN
+            } else {
+                &sound_events::BLOCK_CHEST_CLOSE
+            });
         world.play_sound_at(
             sound,
             SoundSource::Blocks,

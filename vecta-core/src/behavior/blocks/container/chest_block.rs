@@ -14,6 +14,7 @@ use vecta_registry::blocks::properties::{
     BlockStateProperties, BoolProperty, ChestType, Direction, EnumProperty,
 };
 use vecta_registry::stat::custom::CustomStatRef;
+use vecta_registry::vanilla_block_tags::BlockTag;
 use vecta_registry::{vanilla_block_entity_types, vanilla_custom_stats};
 use vecta_utils::{BlockPos, BlockStateId, Downcast as _, translations};
 
@@ -59,6 +60,31 @@ pub(crate) enum ChestPair {
     Double(SharedBlockEntity, SharedBlockEntity),
 }
 
+/// Which neighbours a chest joins, i.e. vanilla `ChestBlock.chestCanConnectTo`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ChestConnect {
+    /// Vanilla `ChestBlock.chestCanConnectTo`: only the very same block joins,
+    /// so a plain chest and a trapped chest never pair up.
+    SameBlock,
+    /// Vanilla `CopperChestBlock.chestCanConnectTo`: any block in the
+    /// `#minecraft:copper_chests` tag that still has a chest type, so two copper
+    /// chests join even when their oxidation differs.
+    CopperChests,
+}
+
+impl ChestConnect {
+    /// Returns whether a chest of `block` may join the chest state `neighbor`.
+    pub(crate) fn connects(self, block: BlockRef, neighbor: BlockStateId) -> bool {
+        match self {
+            Self::SameBlock => neighbor.get_block() == block,
+            Self::CopperChests => {
+                neighbor.get_block().has_tag(&BlockTag::COPPER_CHESTS)
+                    && neighbor.try_get_value(CHEST_TYPE).is_some()
+            }
+        }
+    }
+}
+
 /// Behavior for chest blocks.
 #[block_behavior]
 pub struct ChestBlock {
@@ -100,39 +126,35 @@ impl ChestBlock {
         }
     }
 
-    /// Vanilla `ChestBlock.chestCanConnectTo`: only the same chest block joins,
-    /// so a plain chest and a trapped chest never pair up.
-    pub(crate) fn chest_can_connect_to(block: BlockRef, state: BlockStateId) -> bool {
-        state.get_block() == block
-    }
-
     /// Vanilla `ChestBlock.candidatePartnerFacing`: the facing of a lone chest
     /// in `neighbour_direction`, which this chest may join.
     fn candidate_partner_facing(
+        connect: ChestConnect,
         block: BlockRef,
         level: &World,
         pos: BlockPos,
         neighbour_direction: Direction,
     ) -> Option<Direction> {
         let state = level.get_block_state(pos.relative(neighbour_direction));
-        (Self::chest_can_connect_to(block, state)
-            && state.get_value(CHEST_TYPE) == ChestType::Single)
+        (connect.connects(block, state) && state.get_value(CHEST_TYPE) == ChestType::Single)
             .then(|| state.get_value(FACING))
     }
 
     /// Vanilla `ChestBlock.getChestType`: the half this chest becomes when it is
     /// placed next to a lone chest facing `facing`.
     fn get_chest_type(
+        connect: ChestConnect,
         block: BlockRef,
         level: &World,
         pos: BlockPos,
         facing: Direction,
     ) -> ChestType {
-        if Self::candidate_partner_facing(block, level, pos, facing.rotate_y_clockwise())
+        if Self::candidate_partner_facing(connect, block, level, pos, facing.rotate_y_clockwise())
             == Some(facing)
         {
             ChestType::Left
         } else if Self::candidate_partner_facing(
+            connect,
             block,
             level,
             pos,
@@ -149,6 +171,7 @@ impl ChestBlock {
     pub(crate) fn placement_state(
         block: BlockRef,
         context: &BlockPlaceContext<'_>,
+        connect: ChestConnect,
     ) -> BlockStateId {
         let pos = context.place_pos();
         let level = context.world;
@@ -162,7 +185,7 @@ impl ChestBlock {
         if clicked_face.is_horizontal()
             && secondary_use
             && let Some(partner_facing) =
-                Self::candidate_partner_facing(block, level, pos, clicked_face.opposite())
+                Self::candidate_partner_facing(connect, block, level, pos, clicked_face.opposite())
             && partner_facing.get_axis() != clicked_face.get_axis()
         {
             facing = partner_facing;
@@ -174,7 +197,7 @@ impl ChestBlock {
         }
 
         if chest_type == ChestType::Single && !secondary_use {
-            chest_type = Self::get_chest_type(block, level, pos, facing);
+            chest_type = Self::get_chest_type(connect, block, level, pos, facing);
         }
 
         block
@@ -192,10 +215,11 @@ impl ChestBlock {
         pos: BlockPos,
         direction: Direction,
         neighbor_state: BlockStateId,
+        connect: ChestConnect,
     ) -> BlockStateId {
         schedule_water_tick_if_waterlogged(state, world, pos);
 
-        if Self::chest_can_connect_to(block, neighbor_state) && direction.is_horizontal() {
+        if connect.connects(block, neighbor_state) && direction.is_horizontal() {
             let neighbour_type = neighbor_state.get_value(CHEST_TYPE);
             if state.get_value(CHEST_TYPE) == ChestType::Single
                 && neighbour_type != ChestType::Single
@@ -447,7 +471,11 @@ fn centre_of(pos: BlockPos) -> glam::DVec3 {
 
 impl BlockBehavior for ChestBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        Some(Self::placement_state(self.block, context))
+        Some(Self::placement_state(
+            self.block,
+            context,
+            ChestConnect::SameBlock,
+        ))
     }
 
     fn update_shape(
@@ -459,7 +487,15 @@ impl BlockBehavior for ChestBlock {
         _neighbor_pos: BlockPos,
         neighbor_state: BlockStateId,
     ) -> BlockStateId {
-        Self::shape_state(self.block, state, world, pos, direction, neighbor_state)
+        Self::shape_state(
+            self.block,
+            state,
+            world,
+            pos,
+            direction,
+            neighbor_state,
+            ChestConnect::SameBlock,
+        )
     }
 
     fn use_without_item(

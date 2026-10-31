@@ -15,7 +15,7 @@ use vecta_registry::{vanilla_block_entity_types, vanilla_custom_stats};
 use vecta_utils::{BlockPos, BlockStateId};
 
 use crate::behavior::block::BlockBehavior;
-use crate::behavior::blocks::container::chest_block::ChestBlock;
+use crate::behavior::blocks::container::chest_block::{ChestBlock, ChestConnect};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
 use crate::behavior::{BlockEntityCreation, InventoryAccess};
 use crate::block_entity::BLOCK_ENTITIES;
@@ -39,7 +39,11 @@ impl TrappedChestBlock {
 
 impl BlockBehavior for TrappedChestBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        Some(ChestBlock::placement_state(self.block, context))
+        Some(ChestBlock::placement_state(
+            self.block,
+            context,
+            ChestConnect::SameBlock,
+        ))
     }
 
     fn update_shape(
@@ -51,7 +55,15 @@ impl BlockBehavior for TrappedChestBlock {
         _neighbor_pos: BlockPos,
         neighbor_state: BlockStateId,
     ) -> BlockStateId {
-        ChestBlock::shape_state(self.block, state, world, pos, direction, neighbor_state)
+        ChestBlock::shape_state(
+            self.block,
+            state,
+            world,
+            pos,
+            direction,
+            neighbor_state,
+            ChestConnect::SameBlock,
+        )
     }
 
     fn use_without_item(

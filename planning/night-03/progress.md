@@ -860,3 +860,61 @@ ChestBlockEntity` в Rust не выразить, поэтому один `ChestB
   редстоун-код), это уже отмечено в `world/block_updates/mod.rs`.
 - `PiglinAi.angerNearbyPiglins` — TODO, как и у обычного сундука.
 - Кот на сундуке (`isCatSittingOnChest`) — котов в Vecta нет.
+
+## W04-025 — медные сундуки
+
+Связь: W04-022 (общая механика пары). Java 26.3: `CopperChestBlock`
+(`chestCanConnectTo` по тегу `#copper_chests`, `getStateForPlacement` →
+`getLeastOxidizedChestOfConnectedBlocks`, `updateShape`, `isWaxed`,
+`getHingeSound`), `WeatheringCopperChestBlock` (`randomTick` с пропуском RIGHT
+и сундуков с открытым меню), `WeatheringCopper`, `HoneycombItem.WAX_OFF_BY_BLOCK`.
+
+Что теперь делает игрок:
+- Медный сундук ставится как обычный: поворачивается к игроку, тонет в воде
+  (WATERLOGGED) и срастается в пару по тем же правилам, но пара образуется
+  между любыми двумя медными сундуками, независимо от окисления.
+- При соединении пара берётся по менее окисленному сундуку: если поставить
+  окисленный рядом со свежим, окисленный «омолаживается» до свежего, и
+  наоборот. Если один из двух вощёный, а другой нет — оба становятся
+  невощёными (и уже потом выравниваются по возрасту).
+- Любая дальнейшая смена блока (окисление, воск, снятие воска) передаётся
+  второй половине через `updateShape`, поэтому пара никогда не расходится по
+  возрасту.
+- Пара открывает меню на 6 рядов, одиночный — на 3; открытие начисляет
+  `open_chest` и считает зрителей на обеих половинах.
+- Звук крышки зависит от стадии: свежий и exposed — `copper_chest`,
+  weathered — `copper_chest_weathered`, oxidized — `copper_chest_oxidized`.
+- Компаратор читает содержимое, слом обновляет компаратор.
+- Невощёный медный сундук окисляется на random tick, но не правая половина
+  (она следует за партнёром) и не сундук, у которого есть зрители.
+
+Vecta paths: `behavior/blocks/container/copper_chest_block.rs` (переписан:
+`CopperChest` как общий помощник, `least_oxidized`, `unwax`, `is_waxed`,
+`weather_state_of`, `WeatheringCopper` для random tick),
+`behavior/blocks/container/chest_block.rs` (`ChestConnect::{SameBlock,
+CopperChests}` вместо жёсткого сравнения блоков; `placement_state` и
+`shape_state` принимают правило соединения), `behavior/block/mod.rs`
+(хук `chest_lid_sound`), `block_entity/entities/chest.rs` (звук крышки
+берётся из поведения, `None` = обычные звуки сундука).
+
+Решения:
+- `weather_state_of` выводит стадию из сгенерированных таблиц
+  (`get_weather_state` плюс `get_normal_from_waxed_variant` для вощёных),
+  поэтому поведению не нужен отдельный json-аргумент возраста: данные и так
+  уже в реестре.
+- Тип блока-сущности у медного сундука — `minecraft:chest`, как в ванили
+  (`CopperChestBlock` передаёт `BlockEntityTypes.CHEST`), поэтому
+  сохранение/загрузка и трансформации работают через уже существующий
+  chest-entity и не требуют нового типа.
+
+Проверки: узкий прогон `copper_chest_block` 11 passed, `chest` 54 passed.
+Негативные проверки: с отключённой нормализацией падают оба теста на
+возраст/воск (после того как тест стал проверять оба порядка установки);
+с отключёнными `update_neighbors_at` падают оба теста с лампой у ловушки.
+
+Незакрытое:
+- `shouldChangedStateKeepBlockEntity` отдельным хуком не добавлялся: смена
+  блока внутри семейства уже сохраняет block entity на уровне чанка
+  (`copper_chest_transformation_preserves_entity_identity`).
+- `PiglinAi.angerNearbyPiglins` — TODO, как и у обычного сундука.
+- Кот на сундуке (`isCatSittingOnChest`) — котов в Vecta нет.
