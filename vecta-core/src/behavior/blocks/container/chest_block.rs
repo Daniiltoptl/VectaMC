@@ -155,6 +155,22 @@ impl BlockBehavior for ChestBlock {
         }
     }
 
+    /// Vanilla `BaseEntityBlock.triggerEvent`, which `ChestBlock` inherits: the
+    /// block entity decides whether the event is published to clients.
+    fn trigger_event(
+        &self,
+        _state: BlockStateId,
+        world: &Arc<World>,
+        pos: BlockPos,
+        event: i32,
+        data: i32,
+    ) -> bool {
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return false;
+        };
+        block_entity.trigger_event(event, data)
+    }
+
     fn new_block_entity(
         &self,
         level: Weak<World>,
@@ -211,16 +227,20 @@ mod tests {
     use glam::DVec3;
     use simdnbt::borrow::read_compound as read_borrowed_compound;
     use simdnbt::owned::NbtCompound;
-    use vecta_registry::{item_stack::ItemStack, vanilla_blocks, vanilla_items};
+    use vecta_registry::{
+        RegistryEntry as _, item_stack::ItemStack, vanilla_blocks, vanilla_items,
+    };
     use vecta_utils::types::{GameType, InteractionHand, UpdateFlags};
     use vecta_utils::{BlockPos, ChunkPos};
 
     use super::*;
     use crate::block_entity::BlockEntity;
     use crate::bootstrap::init_globals;
-    use crate::entity::{Entity as _, SharedEntity};
+    use crate::entity::{Entity as _, SharedEntity, next_entity_id};
+    use crate::player::ResetReason;
     use crate::test_support::{
-        TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+        SentPackets, TestPlayerBuilder, TestWorld, block_events, fresh_test_world,
+        insert_ready_full_chunk, recording_connection,
     };
 
     const TEST_POS: BlockPos = BlockPos::new(4, 64, 4);
@@ -248,6 +268,38 @@ mod tests {
             .world
             .try_add_entity(entity)
             .expect("the test chunk is loaded, so the player registers");
+    }
+
+    /// A chest fixture whose viewer receives packets, so what the server sends
+    /// can be inspected instead of assumed.
+    fn listening_chest_fixture(name: &'static str) -> (TestWorld, Arc<Player>, SentPackets) {
+        init_globals();
+        let fixture = fresh_test_world(name);
+        insert_ready_full_chunk(&fixture.world, ChunkPos::from_block_pos(TEST_POS));
+        assert!(fixture.world.set_block(
+            TEST_POS,
+            vanilla_blocks::CHEST.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let (connection, packets) = recording_connection();
+        let player = TestPlayerBuilder::new(
+            Arc::clone(&fixture.world),
+            "ChestListener",
+            next_entity_id(),
+        )
+        .connection(connection)
+        .build();
+        player
+            .try_set_position(DVec3::new(4.5, 65.0, 4.5))
+            .expect("the chest's chunk is loaded, so the player can stand on it");
+        assert!(
+            fixture
+                .world
+                .add_player(Arc::clone(&player), ResetReason::InitialJoin),
+            "the listener has to be tracked for the block event to reach it"
+        );
+        packets.lock().clear();
+        (fixture, player, packets)
     }
 
     fn chest_hit() -> BlockHitResult {
@@ -528,6 +580,24 @@ mod tests {
                 .display_name(|| TextComponent::translated(translations::CONTAINER_CHEST.msg())),
             TextComponent::plain("Storage"),
         );
+    }
+
+    #[test]
+    fn opening_a_chest_broadcasts_the_lid_event_to_clients() {
+        // `ContainerOpenersCounter.openerCountChanged` sends
+        // `level.blockEvent(pos, block, 1, current)`, and the client animates the
+        // lid from that event.
+        let (fixture, player, packets) = listening_chest_fixture("chest_lid_event");
+
+        assert_eq!(use_chest(&fixture, &player), InteractionResult::Success);
+        fixture.world.run_block_events();
+
+        let events = block_events(&packets);
+        assert_eq!(events.len(), 1, "opening sends exactly one block event");
+        assert_eq!(events[0].0, TEST_POS);
+        assert_eq!(events[0].1, 1, "event id 1 is the lid event");
+        assert_eq!(events[0].2, 1, "the parameter carries the viewer count");
+        assert_eq!(events[0].3, vanilla_blocks::CHEST.id() as i32);
     }
 
     #[test]

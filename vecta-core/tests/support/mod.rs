@@ -45,7 +45,9 @@ use vecta_utils::ChunkPos;
 mod connection;
 mod player;
 
-pub(crate) use connection::TestConnection;
+pub(crate) use connection::{
+    SentPackets, TestConnection, block_events, played_sounds, recording_connection,
+};
 pub(crate) use player::{TestPlayerBuilder, test_runtime_config};
 
 /// Edge length of the cube searched for dropped items in tests.

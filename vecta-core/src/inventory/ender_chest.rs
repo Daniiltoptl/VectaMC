@@ -1,12 +1,14 @@
 //! Ender chest container implementation.
 
+use std::ptr;
 use std::sync::{Arc, Weak};
 
 use vecta_registry::item_stack::ItemStack;
 use vecta_utils::locks::SyncMutex;
-use vecta_utils::{DowncastType, DowncastTypeKey};
+use vecta_utils::{Downcast, DowncastType, DowncastTypeKey};
 
-use crate::block_entity::BlockEntity;
+use crate::block_entity::entities::EnderChestBlockEntity;
+use crate::block_entity::{BlockEntity, SharedBlockEntity};
 use crate::inventory::container::Container;
 use crate::player::Player;
 
@@ -53,6 +55,45 @@ impl PlayerEnderChestContainer {
     /// Clears the active block entity.
     pub fn clear_active_chest(&mut self) {
         self.active_chest = None;
+    }
+
+    /// Vanilla `PlayerEnderChestContainer.isActiveChest`: whether `chest` is the
+    /// very block entity this container was opened from. The comparison is by
+    /// identity, so a chest in another dimension at the same position does not
+    /// count.
+    #[must_use]
+    pub fn is_active_chest(&self, chest: &dyn BlockEntity) -> bool {
+        // `ptr::eq` compares the address and the metadata of a wide pointer, so
+        // this is the same identity check as `activeChest == this` in Vanilla.
+        self.active_chest()
+            .is_some_and(|active| ptr::eq(Arc::as_ptr(&active), chest))
+    }
+
+    /// Vanilla `PlayerEnderChestContainer.startOpen`: the player's storage is
+    /// shared, so the viewers are counted by the block entity it is open from.
+    pub fn start_open(&self, player: &Player) {
+        let Some(chest) = self.active_chest() else {
+            return;
+        };
+        if let Some(ender_chest) = chest.downcast_ref::<EnderChestBlockEntity>() {
+            ender_chest.start_open(player);
+        }
+    }
+
+    /// Vanilla `PlayerEnderChestContainer.stopOpen`: forwards the close to the
+    /// active chest and forgets it, so a later validity check can't consult a
+    /// stale one.
+    pub fn stop_open(&mut self, player: &Player) {
+        if let Some(chest) = self.active_chest()
+            && let Some(ender_chest) = chest.downcast_ref::<EnderChestBlockEntity>()
+        {
+            ender_chest.stop_open(player);
+        }
+        self.active_chest = None;
+    }
+
+    fn active_chest(&self) -> Option<SharedBlockEntity> {
+        self.active_chest.as_ref()?.upgrade()
     }
 
     /// Checks if the container is still valid for the given player.

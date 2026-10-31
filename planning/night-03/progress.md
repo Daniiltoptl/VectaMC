@@ -666,3 +666,68 @@ Vecta paths: `block_entity/container_openers.rs` (`CHECK_TICK_DELAY`,
 - Double chest (W04-022) пока не делит контейнер: `CompoundContainer` нет,
   поэтому `owns_container` сравнивает один `ContainerRef`.
 - Бочка/шалкер пока не используют общий счётчик (W04-026).
+
+## W04-026 — barrel, shulker и ender storage
+
+Связь: W04-023. Java 26.3: `BarrelBlockEntity` (счётчик
+`ContainerOpenersCounter`, `OPEN` через `updateBlockState`, звук из грани
+`FACING`, `BarrelBlock.tick` → `recheckOpen`), `ShulkerBoxBlockEntity`
+(свой `openCount`, `blockEvent(1, count)`, звук и game event только при
+переходе через 1), `EnderChestBlockEntity` (общий счётчик, звук в центре
+блока, `openerCountChanged` → `blockEvent(1, current)`,
+`isOwnContainer` = `isActiveChest`, `EnderChestBlock.tick` → `recheckOpen`),
+`PlayerEnderChestContainer.startOpen`/`stopOpen`/`isActiveChest`.
+
+Что теперь делает игрок:
+- Бочка открывается/закрывается со звуком из той грани, куда она смотрит,
+  свойство `OPEN` переключается у первого/последнего зрителя, а ушедший
+  игрок перестаёт держать крышку открытой (recount по scheduled tick).
+- Шалкер-бокс при открытии поднимает крышку: `startOpen` считает зрителей,
+  шлёт block event 1 (анимация + коллизия) и играет звук; при закрытии —
+  `stopOpen`, звук и анимация закрытия. Второй зритель звук не повторяет.
+  Свой счётчик оставлен намеренно: в 26.3 `ShulkerBoxBlockEntity` не
+  использует `ContainerOpenersCounter` и не планирует recount.
+- Эндер-сундук снова щёлкает крышкой: общий счётчик, звук открытия/закрытия,
+  block event 1 для клиентской анимации, recount по тику. Хранилище осталось
+  пер-игроковым: `PlayerEnderChestContainer` пересылает open/close в активный
+  сундук и забывает его при закрытии.
+
+Vecta paths: `block_entity/entities/barrel.rs` (`open_count`, `start_open`,
+`stop_open`, `recheck_open`, `play_sound`, `update_open_state`, листенер),
+`block_entity/entities/shulker_box.rs` (`open_count`, `start_open`,
+`stop_open`, `send_open_count`, `play_open_sound`),
+`block_entity/entities/ender_chest.rs` (счётчик, листенер, `trigger_event`),
+`inventory/ender_chest.rs` (`is_active_chest`, `start_open`, `stop_open`),
+`inventory/menu/kinds/shulker_box_menu.rs` (`ShulkerBoxKind::with_close_hook`,
+`shulker_box_with_kind`), `inventory/menu/kinds/ender_chest_menu.rs`
+(`removed` → `stop_open`), `behavior/blocks/container/{barrel,shulker_box,
+ender_chest}_block.rs`.
+
+Проверки: `barrel` 14, `shulker_box` 7, `ender_chest` 4. Звуки проверяются по
+реально отправленному `C_SOUND` пакету (общий `RecordingConnection` и
+`played_sounds` в `tests/support/connection.rs`), а не по вызову в коде.
+
+Незакрытое:
+- Double chest (W04-022) по-прежнему без `CompoundContainer`.
+- `PiglinAi.angerNearbyPiglins` для бочки/шалкера/эндер-сундука — TODO.
+- Анимация крышки эндер-сундука считается на клиенте по block event 1:
+  серверного `getOpenNess` нет, как и у сундука.
+
+### Найденный по пути дефект: block event не доходил до клиентов
+
+Пока писался тест на звук/анимацию, выяснилось, что block event вообще не
+публиковался: `World::do_block_event` спрашивает
+`BLOCK_BEHAVIORS.get_behavior(block).trigger_event(...)`, а дефолт
+`BlockBehavior::trigger_event` возвращает `false`. В ванили это делает
+унаследованный `BaseEntityBlock.triggerEvent`, который пересылает событие в
+`blockEntity.triggerEvent(id, param)`. У `ShulkerBoxBlock` пересылка была, у
+`ChestBlock`/`EnderChestBlock` — нет, поэтому крышка сундука (W04-023) и
+эндер-сундука не анимировалась у клиента: событие ставилось в очередь и
+отбрасывалось.
+
+Исправлено: `ChestBlock::trigger_event` и `EnderChestBlock::trigger_event`
+пересылают событие в блок-энтити, как `BaseEntityBlock`. Тесты
+`opening_a_chest_broadcasts_the_lid_event_to_clients` и проверка block event в
+`opening_an_ender_chest_counts_the_viewer_and_plays_the_lid_sound` читают
+реально отправленный `C_BLOCK_EVENT` (позиция, id 1, счётчик зрителей, id
+блока) — до исправления первый падал с «0 пакетов».

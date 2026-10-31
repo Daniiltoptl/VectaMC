@@ -42,9 +42,10 @@ impl MenuKind for EnderChestKind {
         self.container.lock().still_valid(player)
     }
 
-    /// `PlayerEnderChestContainer.stopOpen`
-    /// drops the active chest so a later validity check can't consult a stale one.
-    fn removed(&mut self, _behavior: &mut MenuBehavior, _player: &Player) {
-        self.container.lock().clear_active_chest();
+    /// `ChestMenu.removed` calls `container.stopOpen(player)`, which forwards the
+    /// close to the active chest and then drops it so a later validity check
+    /// can't consult a stale one.
+    fn removed(&mut self, _behavior: &mut MenuBehavior, player: &Player) {
+        self.container.lock().stop_open(player);
     }
 }

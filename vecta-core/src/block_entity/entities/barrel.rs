@@ -11,11 +11,15 @@ use std::{
 use simdnbt::ToNbtTag;
 use simdnbt::borrow::{BaseNbtCompound as BorrowedNbtCompound, NbtCompound as NbtCompoundView};
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
+use vecta_protocol::packets::game::SoundSource;
+use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
+use vecta_registry::blocks::properties::BlockStateProperties;
 use vecta_registry::data_components::DataComponentMap;
 use vecta_registry::data_components::vanilla_components::CONTAINER;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::item_stack_template::ItemStackTemplate;
-use vecta_registry::vanilla_block_entity_types;
+use vecta_registry::{sound_events, vanilla_block_entity_types};
+use vecta_utils::types::UpdateFlags;
 use vecta_utils::{
     BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
 };
@@ -25,7 +29,9 @@ use crate::block_entity::container_component::{
 };
 use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::container_loot::ContainerLoot;
-use crate::block_entity::{BlockEntity, BlockEntityBase};
+use crate::block_entity::container_openers::{ContainerOpenersCounter, ContainerOpenersListener};
+use crate::block_entity::{BlockEntity, BlockEntityBase, BlockEntityLifecycleExt as _};
+use crate::entity::Entity as _;
 use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::player::Player;
@@ -43,6 +49,7 @@ pub struct BarrelBlockEntity {
     container_ref: ContainerRef,
     identity: ContainerIdentity,
     loot: ContainerLoot,
+    openers: ContainerOpenersCounter,
 }
 
 struct BarrelContainer {
@@ -81,6 +88,7 @@ impl BarrelBlockEntity {
             container,
             identity: ContainerIdentity::new(),
             loot: ContainerLoot::new(),
+            openers: ContainerOpenersCounter::default(),
         }
     }
 
@@ -88,6 +96,93 @@ impl BarrelBlockEntity {
     #[must_use]
     pub const fn identity(&self) -> &ContainerIdentity {
         &self.identity
+    }
+
+    /// Returns how many players currently have this barrel open.
+    #[must_use]
+    pub fn open_count(&self) -> i32 {
+        self.openers.opener_count()
+    }
+
+    /// Records a player opening this barrel's menu (`BarrelBlockEntity.startOpen`).
+    pub fn start_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        self.openers.increment_openers(
+            self,
+            player,
+            &world,
+            self.get_block_pos(),
+            self.get_block_state(),
+            player.block_interaction_range(),
+        );
+    }
+
+    /// Records a player closing this barrel's menu (`BarrelBlockEntity.stopOpen`).
+    pub fn stop_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        self.openers.decrement_openers(
+            self,
+            player,
+            &world,
+            self.get_block_pos(),
+            self.get_block_state(),
+        );
+    }
+
+    /// Vanilla `BarrelBlockEntity.recheckOpen`, driven by the block tick that
+    /// `ContainerOpenersCounter` schedules while the barrel is open.
+    pub fn recheck_open(&self) {
+        if self.is_removed() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        self.openers
+            .recheck_openers(self, &world, self.get_block_pos(), self.get_block_state());
+    }
+
+    /// Vanilla `BarrelBlockEntity.playSound`: the sound comes from the face the
+    /// barrel opens towards.
+    fn play_sound(world: &Arc<World>, pos: BlockPos, state: BlockStateId, opening: bool) {
+        let facing = state.get_value(&BlockStateProperties::FACING);
+        let (dx, dy, dz) = facing.offset();
+        let sound = if opening {
+            &sound_events::BLOCK_BARREL_OPEN
+        } else {
+            &sound_events::BLOCK_BARREL_CLOSE
+        };
+        world.play_sound_at(
+            sound,
+            SoundSource::Blocks,
+            glam::DVec3::new(
+                f64::from(pos.x()) + 0.5 + f64::from(dx) / 2.0,
+                f64::from(pos.y()) + 0.5 + f64::from(dy) / 2.0,
+                f64::from(pos.z()) + 0.5 + f64::from(dz) / 2.0,
+            ),
+            0.5,
+            rand::random::<f32>() * 0.1 + 0.9,
+            None,
+        );
+    }
+
+    /// Vanilla `BarrelBlockEntity.updateBlockState`.
+    fn update_open_state(world: &Arc<World>, pos: BlockPos, state: BlockStateId, is_open: bool) {
+        world.set_block(
+            pos,
+            state.set_value(&BlockStateProperties::OPEN, is_open),
+            UpdateFlags::UPDATE_ALL,
+        );
     }
 
     /// Rolls this barrel's pending loot table, if any.
@@ -222,6 +317,33 @@ impl BlockEntity for BarrelBlockEntity {
 
     fn container_ref(&self) -> Option<ContainerRef> {
         Some(self.container_ref.clone())
+    }
+}
+
+impl ContainerOpenersListener for BarrelBlockEntity {
+    fn on_open(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
+        Self::play_sound(world, pos, state, true);
+        Self::update_open_state(world, pos, state, true);
+    }
+
+    fn on_close(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
+        Self::play_sound(world, pos, state, false);
+        Self::update_open_state(world, pos, state, false);
+    }
+
+    fn opener_count_changed(
+        &self,
+        _world: &Arc<World>,
+        _pos: BlockPos,
+        _state: BlockStateId,
+        _previous: i32,
+        _current: i32,
+    ) {
+        // Vanilla `BarrelBlockEntity` sends no block event for barrels.
+    }
+
+    fn is_own_container(&self, player: &Player) -> bool {
+        player.has_container_open_for(&self.container_ref)
     }
 }
 

@@ -9,6 +9,7 @@ use simdnbt::{
     borrow::{BaseNbtCompound, NbtCompound as NbtCompoundView},
     owned::{NbtCompound, NbtList, NbtTag},
 };
+use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::{
     ItemStackTemplate, REGISTRY,
     blocks::{
@@ -18,7 +19,7 @@ use vecta_registry::{
         DataComponentMap, DataComponentPatch, ItemContainerContents, vanilla_components::CONTAINER,
     },
     item_stack::ItemStack,
-    vanilla_block_entity_types,
+    sound_events, vanilla_block_entity_types, vanilla_game_events,
 };
 use vecta_utils::{
     BlockLocalAabb, BlockPos, BlockStateId, Direction, DowncastType, DowncastTypeKey, Identifier,
@@ -31,9 +32,10 @@ use vecta_utils::{
 use crate::{
     behavior::blocks::ShulkerBoxBlock,
     block_entity::{
-        BlockEntity, BlockEntityBase, container_identity::ContainerIdentity,
-        container_loot::ContainerLoot,
+        BlockEntity, BlockEntityBase, BlockEntityLifecycleExt as _,
+        container_identity::ContainerIdentity, container_loot::ContainerLoot,
     },
+    entity::Entity as _,
     inventory::{
         container::Container,
         lock::{ContainerRef, SharedContainer},
@@ -41,6 +43,7 @@ use crate::{
     physics::{CollisionWorld as _, MoverType, WorldCollisionProvider},
     player::Player,
     world::World,
+    world::game_event::GameEventContext,
 };
 
 /// Number of slots in a shulker box (3 rows of 9).
@@ -48,7 +51,7 @@ pub const SHULKER_BOX_SLOTS: usize = 27;
 const ANIMATION_STEPS: u8 = 10;
 
 /// The current animation state of a shulker box.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AnimationStatus {
     /// Fully closed.
     Closed,
@@ -149,6 +152,92 @@ impl ShulkerBoxBlockEntity {
             self.get_block_pos(),
             &mut self.container.lock().items,
             player,
+        );
+    }
+
+    /// Returns how many players currently have this box open.
+    #[must_use]
+    pub fn open_count(&self) -> i32 {
+        self.open_count.load(Ordering::Relaxed)
+    }
+
+    /// Vanilla `ShulkerBoxBlockEntity.startOpen`.
+    ///
+    /// Unlike a chest, a shulker box keeps its own counter instead of a
+    /// `ContainerOpenersCounter`: Vanilla drives the lid animation from this
+    /// count through block event 1 and never schedules a recount.
+    pub fn start_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        // `startOpen` clamps a negative counter back to zero before counting.
+        let count = self.open_count().max(0) + 1;
+        self.open_count.store(count, Ordering::Relaxed);
+        self.send_open_count(&world, count);
+        if count == 1 {
+            world.game_event(
+                &vanilla_game_events::CONTAINER_OPEN,
+                self.get_block_pos(),
+                &GameEventContext::new(Some(player), None),
+            );
+            Self::play_open_sound(&world, self.get_block_pos(), true);
+        }
+    }
+
+    /// Vanilla `ShulkerBoxBlockEntity.stopOpen`.
+    pub fn stop_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        let count = self.open_count() - 1;
+        self.open_count.store(count, Ordering::Relaxed);
+        self.send_open_count(&world, count);
+        if count <= 0 {
+            world.game_event(
+                &vanilla_game_events::CONTAINER_CLOSE,
+                self.get_block_pos(),
+                &GameEventContext::new(Some(player), None),
+            );
+            Self::play_open_sound(&world, self.get_block_pos(), false);
+        }
+    }
+
+    /// Vanilla `level.blockEvent(pos, block, EVENT_SET_OPEN_COUNT, openCount)`:
+    /// every count change is broadcast, and event 1 starts the lid animation.
+    fn send_open_count(&self, world: &Arc<World>, count: i32) {
+        world.block_event(
+            self.get_block_pos(),
+            self.get_block_state().get_block(),
+            1,
+            count,
+        );
+    }
+
+    /// Vanilla `ShulkerBoxBlockEntity.startOpen`/`stopOpen` sound: played at the
+    /// centre of the block, at a fixed volume of 0.5.
+    fn play_open_sound(world: &Arc<World>, pos: BlockPos, opening: bool) {
+        let sound = if opening {
+            &sound_events::BLOCK_SHULKER_BOX_OPEN
+        } else {
+            &sound_events::BLOCK_SHULKER_BOX_CLOSE
+        };
+        world.play_sound_at(
+            sound,
+            SoundSource::Blocks,
+            DVec3::new(
+                f64::from(pos.x()) + 0.5,
+                f64::from(pos.y()) + 0.5,
+                f64::from(pos.z()) + 0.5,
+            ),
+            0.5,
+            rand::random::<f32>() * 0.1 + 0.9,
+            None,
         );
     }
 

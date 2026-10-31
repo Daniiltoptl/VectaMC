@@ -29,7 +29,7 @@ use crate::{
     inventory::{
         container::calculate_redstone_signal_from_container,
         lock::{ContainerLockGuard, ContainerRef},
-        menu::kinds::shulker_box,
+        menu::kinds::{ShulkerBoxKind, shulker_box_with_kind},
     },
     player::Player,
     world::{LevelReader, World},
@@ -100,35 +100,59 @@ impl BlockBehavior for ShulkerBoxBlock {
         _hit_result: &BlockHitResult,
         _inv: &mut InventoryAccess,
     ) -> InteractionResult {
-        if let Some(block_entity) = world.get_block_entity(pos)
-            && let Some(block_entity) = block_entity.downcast_ref::<ShulkerBoxBlockEntity>()
-            && let Some(container_ref) = block_entity.container_ref()
-            && block_entity.can_open(state, world, pos)
-        {
-            let display_name = block_entity.identity().display_name(|| {
-                TextComponent::translated(translations::CONTAINER_SHULKER_BOX.msg())
-            });
-            // `BaseContainerBlockEntity.createMenu` refuses to build a menu for
-            // a locked box after telling the player which item unlocks it.
-            if !block_entity.identity().can_open(player) {
-                player.close_container();
-                ContainerIdentity::send_locked_notification(world, player, pos, display_name);
-                player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
-                return InteractionResult::Success;
-            }
-
-            // `RandomizableContainerBlockEntity.createMenu` rolls the pending
-            // loot table before the menu exists.
-            block_entity.unpack_loot_table(Some(player));
-
-            let inventory = Arc::clone(&player.inventory);
-            player.open_menu(display_name, move |context| {
-                shulker_box(inventory, context.container_id, container_ref)
-            });
-
-            player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
-            // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
+        let Some(block_entity) = world.get_block_entity(pos) else {
+            return InteractionResult::Success;
+        };
+        let Some(shulker) = block_entity.downcast_ref::<ShulkerBoxBlockEntity>() else {
+            return InteractionResult::Success;
+        };
+        let Some(container_ref) = shulker.container_ref() else {
+            return InteractionResult::Success;
+        };
+        if !shulker.can_open(state, world, pos) {
+            return InteractionResult::Success;
         }
+
+        let display_name = shulker
+            .identity()
+            .display_name(|| TextComponent::translated(translations::CONTAINER_SHULKER_BOX.msg()));
+        // `BaseContainerBlockEntity.createMenu` refuses to build a menu for
+        // a locked box after telling the player which item unlocks it.
+        if !shulker.identity().can_open(player) {
+            player.close_container();
+            ContainerIdentity::send_locked_notification(world, player, pos, display_name);
+            player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
+            return InteractionResult::Success;
+        }
+
+        // `RandomizableContainerBlockEntity.createMenu` rolls the pending
+        // loot table before the menu exists.
+        shulker.unpack_loot_table(Some(player));
+
+        let inventory = Arc::clone(&player.inventory);
+        player.open_menu(display_name, move |context| {
+            // `ShulkerBoxMenu` calls `container.startOpen(player)` in its
+            // constructor, after the previous menu has been closed.
+            if let Some(shulker_box) = block_entity.downcast_ref::<ShulkerBoxBlockEntity>() {
+                shulker_box.start_open(context.player);
+            }
+            let container = container_ref.clone();
+            shulker_box_with_kind(
+                inventory,
+                context.container_id,
+                container.clone(),
+                ShulkerBoxKind::new(container).with_close_hook(move |player| {
+                    if let Some(shulker_box) = block_entity.downcast_ref::<ShulkerBoxBlockEntity>()
+                    {
+                        shulker_box.stop_open(player);
+                    }
+                }),
+            )
+        });
+
+        player.award_custom_stat(&vanilla_custom_stats::OPEN_SHULKER_BOX);
+        // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
+
         InteractionResult::Success
     }
 
@@ -306,19 +330,23 @@ mod tests {
     use std::io::Cursor;
     use std::sync::Arc;
 
-    use glam::DVec3;
+    use glam::{DVec3, IVec3};
     use simdnbt::borrow::read_compound as read_borrowed_compound;
     use simdnbt::owned::NbtCompound;
+    use vecta_protocol::packets::game::SoundSource;
     use vecta_registry::item_stack::ItemStack;
-    use vecta_registry::{vanilla_blocks, vanilla_items};
-    use vecta_utils::types::{InteractionHand, UpdateFlags};
+    use vecta_registry::{sound_events, vanilla_blocks, vanilla_items};
+    use vecta_utils::types::{GameType, InteractionHand, UpdateFlags};
     use vecta_utils::{BlockPos, ChunkPos};
 
     use super::*;
+    use crate::block_entity::SharedBlockEntity;
     use crate::bootstrap::init_globals;
-    use crate::entity::Entity as _;
+    use crate::entity::{Entity as _, next_entity_id};
+    use crate::player::ResetReason;
     use crate::test_support::{
-        TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+        SentPackets, TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk,
+        played_sounds, recording_connection,
     };
 
     const TEST_POS: BlockPos = BlockPos::new(4, 64, 4);
@@ -400,5 +428,151 @@ mod tests {
 
         assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
         assert!(player.has_container_open());
+    }
+
+    fn shulker_box(fixture: &TestWorld) -> SharedBlockEntity {
+        fixture
+            .world
+            .get_block_entity(TEST_POS)
+            .expect("a placed shulker box has a block entity")
+    }
+
+    fn open_count(fixture: &TestWorld) -> i32 {
+        shulker_box(fixture)
+            .downcast_ref::<ShulkerBoxBlockEntity>()
+            .expect("the shulker box block must create its block entity")
+            .open_count()
+    }
+
+    fn animation_status(fixture: &TestWorld) -> AnimationStatus {
+        shulker_box(fixture)
+            .downcast_ref::<ShulkerBoxBlockEntity>()
+            .expect("the shulker box block must create its block entity")
+            .animation_status()
+    }
+
+    /// A shulker box fixture whose viewer receives packets, so the sound the
+    /// server plays can be inspected instead of assumed.
+    fn listening_shulker_fixture(name: &'static str) -> (TestWorld, Arc<Player>, SentPackets) {
+        init_globals();
+        let fixture = fresh_test_world(name);
+        insert_ready_full_chunk(&fixture.world, ChunkPos::from_block_pos(TEST_POS));
+        assert!(fixture.world.set_block(
+            TEST_POS,
+            vanilla_blocks::SHULKER_BOX.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let (connection, packets) = recording_connection();
+        let player = TestPlayerBuilder::new(
+            Arc::clone(&fixture.world),
+            "ShulkerListener",
+            next_entity_id(),
+        )
+        .connection(connection)
+        .build();
+        player
+            .try_set_position(DVec3::new(4.5, 65.0, 4.5))
+            .expect("the box's chunk is loaded, so the player can stand on it");
+        assert!(
+            fixture
+                .world
+                .add_player(Arc::clone(&player), ResetReason::InitialJoin),
+            "the listener has to be tracked for the sound packet to reach it"
+        );
+        packets.lock().clear();
+        (fixture, player, packets)
+    }
+
+    /// `ShulkerBoxBlockEntity.startOpen`/`stopOpen` play at the block centre.
+    const BLOCK_CENTRE_SOUND_POS: IVec3 = IVec3::new(36, 516, 36);
+
+    #[test]
+    fn opening_a_shulker_box_counts_the_viewer_and_starts_the_lid() {
+        let (fixture, player) = shulker_fixture("shulker_open");
+        assert_eq!(animation_status(&fixture), AnimationStatus::Closed);
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+
+        assert_eq!(open_count(&fixture), 1);
+        // `startOpen` calls `blockEvent(1, openCount)`, which is what starts the
+        // lid animation; Vecta runs the queue on the next block-event pass.
+        fixture.world.run_block_events();
+        assert!(matches!(
+            animation_status(&fixture),
+            AnimationStatus::Opening
+        ));
+
+        player.close_container();
+        assert_eq!(open_count(&fixture), 0);
+        fixture.world.run_block_events();
+        assert!(matches!(
+            animation_status(&fixture),
+            AnimationStatus::Closing
+        ));
+    }
+
+    #[test]
+    fn opening_plays_the_shulker_box_open_sound() {
+        let (fixture, player, packets) = listening_shulker_fixture("shulker_open_sound");
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+
+        let sounds = played_sounds(&packets);
+        assert_eq!(sounds.len(), 1, "opening a box plays exactly one sound");
+        assert_eq!(sounds[0].0, sound_events::BLOCK_SHULKER_BOX_OPEN.key);
+        assert_eq!(sounds[0].1, SoundSource::Blocks.as_varint());
+        assert_eq!(sounds[0].2, BLOCK_CENTRE_SOUND_POS);
+        assert!((sounds[0].3 - 0.5).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn closing_plays_the_shulker_box_close_sound() {
+        let (fixture, player, packets) = listening_shulker_fixture("shulker_close_sound");
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+        packets.lock().clear();
+
+        player.close_container();
+
+        let sounds = played_sounds(&packets);
+        assert_eq!(sounds.len(), 1, "closing a box plays exactly one sound");
+        assert_eq!(sounds[0].0, sound_events::BLOCK_SHULKER_BOX_CLOSE.key);
+        assert_eq!(sounds[0].1, SoundSource::Blocks.as_varint());
+        assert_eq!(sounds[0].2, BLOCK_CENTRE_SOUND_POS);
+    }
+
+    #[test]
+    fn the_second_viewer_of_two_does_not_replay_the_open_sound() {
+        // `startOpen` only plays the sound and fires the game event when the
+        // count reaches one.
+        let (fixture, player, packets) = listening_shulker_fixture("shulker_two_viewers");
+        let second = TestPlayerBuilder::new(Arc::clone(&fixture.world), "ShulkerSecond", 2).build();
+        second.base().set_position_local(DVec3::new(4.5, 64.0, 4.5));
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+        packets.lock().clear();
+        assert_eq!(use_shulker(&fixture, &second), InteractionResult::Success);
+
+        assert_eq!(open_count(&fixture), 2);
+        assert!(
+            played_sounds(&packets).is_empty(),
+            "the second viewer does not re-open the box"
+        );
+
+        second.close_container();
+        assert_eq!(open_count(&fixture), 1, "one viewer is still there");
+
+        player.close_container();
+        assert_eq!(open_count(&fixture), 0);
+    }
+
+    #[test]
+    fn a_spectator_does_not_count_as_a_viewer() {
+        // `ShulkerBoxBlockEntity.startOpen` returns early for spectators.
+        let (fixture, player) = shulker_fixture("shulker_spectator");
+        player.restore_game_modes(GameType::Spectator, None);
+
+        assert_eq!(use_shulker(&fixture, &player), InteractionResult::Success);
+        assert_eq!(open_count(&fixture), 0);
+        assert_eq!(animation_status(&fixture), AnimationStatus::Closed);
     }
 }

@@ -16,6 +16,23 @@ pub fn shulker_box(
     container: impl Into<ContainerRef>,
 ) -> Menu {
     let container = container.into();
+    shulker_box_with_kind(
+        inventory,
+        container_id,
+        container.clone(),
+        ShulkerBoxKind::new(container),
+    )
+}
+
+/// Builds the same layout as [`shulker_box`] under a caller-supplied menu kind.
+#[must_use]
+pub fn shulker_box_with_kind(
+    inventory: Shared<PlayerInventory>,
+    container_id: u8,
+    container: impl Into<ContainerRef>,
+    kind: impl MenuKind + 'static,
+) -> Menu {
+    let container = container.into();
 
     let mut builder = MenuBuilder::new(&vanilla_menu_types::SHULKER_BOX, container_id);
     let shulker_box = builder.section_with(
@@ -32,12 +49,17 @@ pub fn shulker_box(
     builder.route(shulker_box, player.all(), FillDirection::Backward);
     builder.route(player.all(), shulker_box, FillDirection::Forward);
 
-    builder.build(ShulkerBoxKind { container })
+    builder.build(kind)
 }
 
-/// Per-menu shulker box state: just the backing container for the validity check.
+/// Callback invoked once when a shulker box menu closes.
+pub type ShulkerBoxCloseHook = Box<dyn Fn(&Player) + Send + Sync>;
+
+/// Per-menu shulker box state: the backing container for the validity check and
+/// an optional close hook, mirroring `ShulkerBoxMenu.removed`.
 pub struct ShulkerBoxKind {
     container: ContainerRef,
+    on_close: Option<ShulkerBoxCloseHook>,
 }
 
 // SAFETY: This Vecta-owned key uniquely identifies the concrete menu kind
@@ -46,8 +68,33 @@ unsafe impl DowncastType for ShulkerBoxKind {
     const TYPE_KEY: DowncastTypeKey = DowncastTypeKey::new("vecta:menu/shulker_box");
 }
 
+impl ShulkerBoxKind {
+    /// Creates a shulker box kind for `container`.
+    #[must_use]
+    pub const fn new(container: ContainerRef) -> Self {
+        Self {
+            container,
+            on_close: None,
+        }
+    }
+
+    /// Adds a callback that runs when the menu closes.
+    #[must_use]
+    pub fn with_close_hook(mut self, hook: impl Fn(&Player) + Send + Sync + 'static) -> Self {
+        self.on_close = Some(Box::new(hook));
+        self
+    }
+}
+
 impl MenuKind for ShulkerBoxKind {
     fn still_valid(&self, _behavior: &MenuBehavior, player: &Player) -> bool {
         self.container.still_valid(player)
+    }
+
+    /// `ShulkerBoxMenu.removed` calls `container.stopOpen(player)`.
+    fn removed(&mut self, _behavior: &mut MenuBehavior, player: &Player) {
+        if let Some(on_close) = &self.on_close {
+            on_close(player);
+        }
     }
 }

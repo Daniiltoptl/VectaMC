@@ -27,6 +27,6 @@ pub use grindstone_menu::{GrindstoneKind, grindstone};
 pub use inventory_menu::{INVENTORY_MENU_CONTAINER_ID, InventoryKind, inventory_menu};
 pub use lectern_menu::{LecternKind, lectern};
 pub use loom_menu::{LoomKind, loom};
-pub use shulker_box_menu::{ShulkerBoxKind, shulker_box};
+pub use shulker_box_menu::{ShulkerBoxKind, shulker_box, shulker_box_with_kind};
 pub use smithing_menu::{SmithingKind, smithing};
 pub use stonecutter_menu::{StonecutterKind, stonecutter};
