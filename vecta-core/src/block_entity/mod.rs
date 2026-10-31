@@ -24,6 +24,7 @@
 //! ```
 
 pub(crate) mod block_state_nbt;
+pub mod container_openers;
 pub mod entities;
 mod load_context;
 mod registry;

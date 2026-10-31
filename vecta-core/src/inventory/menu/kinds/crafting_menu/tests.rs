@@ -254,7 +254,7 @@ mod crafted_result {
     }
 
     #[test]
-    fn taking_half_of_the_result_takes_and_counts_half() {
+    fn right_clicking_the_result_takes_it_all_but_counts_half() {
         let mut fixture = fixture("CrafterHalf");
         fixture.fill_grid_with_a_log();
 
@@ -263,7 +263,9 @@ mod crafted_result {
             button: MouseButton::Right,
         });
 
-        assert_eq!(fixture.carried().count(), 2);
+        // `ResultContainer.removeItem` ignores the requested amount, while
+        // `ResultSlot.remove` counts only `min(amount, count)`.
+        assert_eq!(fixture.carried().count(), 4);
         assert_eq!(fixture.crafted(planks()), 2);
     }
 
@@ -325,7 +327,7 @@ mod crafted_result {
     }
 
     #[test]
-    fn throwing_one_item_drops_one_item_and_counts_one() {
+    fn throwing_one_drops_the_whole_result_but_counts_one() {
         let mut fixture = fixture("CrafterThrow");
         fixture.fill_grid_with_a_log();
 
@@ -337,7 +339,7 @@ mod crafted_result {
         let dropped = fixture.dropped_items();
         assert_eq!(dropped.len(), 1);
         assert!(dropped[0].is(&vanilla_items::OAK_PLANKS));
-        assert_eq!(dropped[0].count(), 1);
+        assert_eq!(dropped[0].count(), 4);
         assert_eq!(fixture.crafted(planks()), 1);
     }
 

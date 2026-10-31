@@ -10,16 +10,20 @@ use vecta_registry::data_components::vanilla_components::BLOCK_ENTITY_DATA;
 fn add_block_data_to_item(item_stack: &mut ItemStack, block_entity: &dyn BlockEntity) {
     let mut nbt = block_entity.save_custom_only();
     block_entity.remove_components_from_tag(&mut nbt);
-    if !nbt.is_empty()
-        && let Some(data) = CustomData::try_from_compound(nbt)
-    {
-        let data = match item_stack.get(BLOCK_ENTITY_DATA) {
-            Some(existing) => existing.data().merged_with(&data),
-            None => data,
-        };
+    // `BlockItem.setBlockEntityData` replaces the component outright and
+    // removes it when nothing is left to store.
+    nbt.remove("id");
+    if nbt.is_empty() {
+        item_stack.remove(BLOCK_ENTITY_DATA);
+    } else if let Some(data) = CustomData::try_from_compound(nbt) {
         item_stack.set(
             BLOCK_ENTITY_DATA,
             BlockEntityData::new(block_entity.get_type(), data),
+        );
+    } else {
+        log::warn!(
+            "block entity at {:?} produced NBT that is not valid custom data",
+            block_entity.get_block_pos()
         );
     }
 

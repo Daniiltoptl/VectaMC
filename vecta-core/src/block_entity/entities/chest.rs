@@ -5,23 +5,27 @@
 
 use std::{
     mem,
-    sync::{
-        Arc, Weak,
-        atomic::{AtomicI32, Ordering},
-    },
+    sync::{Arc, Weak},
 };
+
+use glam::DVec3;
 
 use simdnbt::ToNbtTag;
 use simdnbt::borrow::{BaseNbtCompound as BorrowedNbtCompound, NbtCompound as NbtCompoundView};
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
+use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
+use vecta_registry::blocks::properties::{BlockStateProperties, ChestType};
 use vecta_registry::item_stack::ItemStack;
-use vecta_registry::vanilla_block_entity_types;
+use vecta_registry::{sound_events, vanilla_block_entity_types};
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, locks::SyncMutex};
 
-use crate::block_entity::{BlockEntity, BlockEntityBase};
+use crate::block_entity::container_openers::{ContainerOpenersCounter, ContainerOpenersListener};
+use crate::block_entity::{BlockEntity, BlockEntityBase, BlockEntityLifecycleExt as _};
+use crate::entity::Entity as _;
 use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
+use crate::player::Player;
 use crate::world::World;
 
 /// Number of slots in a chest (3 rows of 9).
@@ -35,8 +39,7 @@ pub struct ChestBlockEntity {
     base: Arc<BlockEntityBase>,
     container: Arc<SyncMutex<ChestContainer>>,
     container_ref: ContainerRef,
-    /// Number of players currently looking at this chest's menu.
-    open_count: AtomicI32,
+    openers: ContainerOpenersCounter,
 }
 
 struct ChestContainer {
@@ -72,46 +75,107 @@ impl ChestBlockEntity {
             container_ref: ContainerRef::owned_by_block_entity(shared_container, Arc::clone(&base)),
             base,
             container,
-            open_count: AtomicI32::new(0),
+            openers: ContainerOpenersCounter::default(),
         }
     }
 
     /// Returns how many players currently have this chest open.
     #[must_use]
     pub fn open_count(&self) -> i32 {
-        self.open_count.load(Ordering::Relaxed)
+        self.openers.opener_count()
     }
 
-    /// Records that one more player opened this chest.
-    ///
-    /// Mirrors `ContainerOpenersCounter.incrementOpeners` for the part the
-    /// server observes: the new viewer count is broadcast as a block event so
-    /// clients open the lid.
-    pub fn player_open(&self) {
-        let count = self.open_count.fetch_add(1, Ordering::Relaxed) + 1;
-        self.broadcast_lid_event(count);
-    }
-
-    /// Records that one player closed this chest.
-    pub fn player_close(&self) {
-        let previous = self.open_count.load(Ordering::Relaxed);
-        let count = previous.saturating_sub(1).max(0);
-        self.open_count.store(count, Ordering::Relaxed);
-        if previous != count {
-            self.broadcast_lid_event(count);
+    /// Records a player opening this chest's menu (`ChestBlockEntity.startOpen`).
+    pub fn start_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
         }
-    }
-
-    fn broadcast_lid_event(&self, count: i32) {
         let Some(world) = self.get_level() else {
             return;
         };
-        world.block_event(
+        self.openers.increment_openers(
+            self,
+            player,
+            &world,
             self.get_block_pos(),
-            self.get_block_state().get_block(),
-            CHEST_LID_EVENT,
-            count,
+            self.get_block_state(),
         );
+    }
+
+    /// Records a player closing this chest's menu (`ChestBlockEntity.stopOpen`).
+    pub fn stop_open(&self, player: &Player) {
+        if self.is_removed() || player.is_spectator() {
+            return;
+        }
+        let Some(world) = self.get_level() else {
+            return;
+        };
+        self.openers.decrement_openers(
+            self,
+            player,
+            &world,
+            self.get_block_pos(),
+            self.get_block_state(),
+        );
+    }
+
+    /// Plays a lid sound from the chest's center; for a double chest only the
+    /// right half plays it, from the middle of both halves.
+    fn play_lid_sound(world: &Arc<World>, pos: BlockPos, state: BlockStateId, opening: bool) {
+        let chest_type = state
+            .try_get_value(&BlockStateProperties::CHEST_TYPE)
+            .unwrap_or(ChestType::Single);
+        if chest_type == ChestType::Left {
+            return;
+        }
+        let mut sound_pos = DVec3::new(
+            f64::from(pos.x()) + 0.5,
+            f64::from(pos.y()) + 0.5,
+            f64::from(pos.z()) + 0.5,
+        );
+        if chest_type == ChestType::Right
+            && let Some(facing) = state.try_get_value(&BlockStateProperties::HORIZONTAL_FACING)
+        {
+            // `ChestBlock.getConnectedDirection` for the right half.
+            let (dx, _, dz) = facing.rotate_y_counter_clockwise().offset();
+            sound_pos.x += f64::from(dx) * 0.5;
+            sound_pos.z += f64::from(dz) * 0.5;
+        }
+        let sound = if opening {
+            &sound_events::BLOCK_CHEST_OPEN
+        } else {
+            &sound_events::BLOCK_CHEST_CLOSE
+        };
+        world.play_sound_at(
+            sound,
+            SoundSource::Blocks,
+            sound_pos,
+            0.5,
+            rand::random::<f32>() * 0.1 + 0.9,
+            None,
+        );
+    }
+}
+
+impl ContainerOpenersListener for ChestBlockEntity {
+    fn on_open(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
+        Self::play_lid_sound(world, pos, state, true);
+    }
+
+    fn on_close(&self, world: &Arc<World>, pos: BlockPos, state: BlockStateId) {
+        Self::play_lid_sound(world, pos, state, false);
+    }
+
+    fn opener_count_changed(
+        &self,
+        world: &Arc<World>,
+        pos: BlockPos,
+        state: BlockStateId,
+        _previous: i32,
+        current: i32,
+    ) {
+        // `ChestBlockEntity.signalOpenCount`.
+        world.block_event(pos, state.get_block(), CHEST_LID_EVENT, current);
     }
 }
 
@@ -121,7 +185,6 @@ impl BlockEntity for ChestBlockEntity {
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {
-        self.open_count.store(0, Ordering::Relaxed);
         let items = {
             let mut container = self.container.lock();
             mem::replace(&mut container.items, vec![ItemStack::empty(); CHEST_SLOTS])
@@ -169,15 +232,10 @@ impl BlockEntity for ChestBlockEntity {
         nbt.insert("Items", NbtList::Compound(items));
     }
 
-    fn trigger_event(&self, param_a: i32, param_b: i32) -> bool {
-        if param_a == CHEST_LID_EVENT {
-            // The lid animation itself is client-side; the server only owns the
-            // viewer count that the event carries.
-            let count = param_b.max(0);
-            self.open_count.store(count, Ordering::Relaxed);
-            return true;
-        }
-        false
+    fn trigger_event(&self, param_a: i32, _param_b: i32) -> bool {
+        // The lid itself animates client-side; accepting the event lets the
+        // server broadcast it.
+        param_a == CHEST_LID_EVENT
     }
 
     fn container_ref(&self) -> Option<ContainerRef> {
@@ -231,34 +289,18 @@ mod tests {
     }
 
     #[test]
-    fn open_count_tracks_viewers_without_going_negative() {
-        let chest = test_chest();
-        chest.player_open();
-        chest.player_open();
-        assert_eq!(chest.open_count(), 2);
-
-        chest.player_close();
-        assert_eq!(chest.open_count(), 1);
-        chest.player_close();
-        chest.player_close();
-        assert_eq!(chest.open_count(), 0);
-    }
-
-    #[test]
-    fn pre_remove_clears_items_and_viewers() {
+    fn pre_remove_clears_items() {
         let chest = test_chest();
         chest
             .container
             .lock()
             .set_item(0, ItemStack::new(&vanilla_items::STONE));
-        chest.player_open();
 
         chest.pre_remove_side_effects(
             BlockPos::new(1, 2, 3),
             vanilla_blocks::CHEST.default_state(),
         );
 
-        assert_eq!(chest.open_count(), 0);
         let container = chest.container.lock();
         assert_eq!(container.items.len(), CHEST_SLOTS);
         assert!(container.items.iter().all(ItemStack::is_empty));

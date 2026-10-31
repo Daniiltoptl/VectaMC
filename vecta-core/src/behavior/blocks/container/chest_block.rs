@@ -10,14 +10,14 @@ use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{
-    BlockStateProperties, ChestType, Direction, EnumProperty,
+    BlockStateProperties, BoolProperty, ChestType, Direction, EnumProperty,
 };
 use vecta_registry::{vanilla_block_entity_types, vanilla_custom_stats};
 use vecta_utils::{BlockPos, BlockStateId, Downcast as _, translations};
 
 use crate::behavior::BlockEntityCreation;
 use crate::behavior::InventoryAccess;
-use crate::behavior::block::BlockBehavior;
+use crate::behavior::block::{BlockBehavior, schedule_water_tick_if_waterlogged};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
 use crate::block_entity::BLOCK_ENTITIES;
 use crate::block_entity::entities::ChestBlockEntity;
@@ -25,12 +25,13 @@ use crate::inventory::container::calculate_redstone_signal_from_container;
 use crate::inventory::lock::{ContainerLockGuard, ContainerRef};
 use crate::inventory::menu::kinds::{ChestKind, chest_with_kind};
 use crate::player::Player;
-use crate::world::{LevelReader, World};
+use crate::world::{LevelReader, ScheduledTickAccess, World, is_redstone_conductor};
 
 /// Number of rows a chest menu shows.
 const CHEST_ROWS: usize = 3;
 
 const FACING: &EnumProperty<Direction> = &BlockStateProperties::HORIZONTAL_FACING;
+const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 
 /// Behavior for chest blocks.
 #[block_behavior]
@@ -44,6 +45,13 @@ impl ChestBlock {
     pub const fn new(block: BlockRef) -> Self {
         Self { block }
     }
+
+    /// `ChestBlock.isChestBlockedAt`: a redstone conductor above the chest
+    /// keeps it shut. The sitting-cat half needs cats, which Vecta lacks.
+    fn is_blocked(world: &World, pos: BlockPos) -> bool {
+        let above = pos.above();
+        is_redstone_conductor(world, world.get_block_state(above), above)
+    }
 }
 
 impl BlockBehavior for ChestBlock {
@@ -54,8 +62,23 @@ impl BlockBehavior for ChestBlock {
             self.block
                 .default_state()
                 .set_value(FACING, context.horizontal_direction().opposite())
-                .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Single),
+                .set_value(&BlockStateProperties::CHEST_TYPE, ChestType::Single)
+                .set_value(WATERLOGGED, context.is_water_source()),
         )
+    }
+
+    fn update_shape(
+        &self,
+        state: BlockStateId,
+        world: &dyn ScheduledTickAccess,
+        pos: BlockPos,
+        _direction: Direction,
+        _neighbor_pos: BlockPos,
+        _neighbor_state: BlockStateId,
+    ) -> BlockStateId {
+        // Neighbour chest joining is W04-022.
+        schedule_water_tick_if_waterlogged(state, world, pos);
+        state
     }
 
     fn use_without_item(
@@ -67,31 +90,38 @@ impl BlockBehavior for ChestBlock {
         _hit_result: &BlockHitResult,
         _inv: &mut InventoryAccess,
     ) -> InteractionResult {
+        // Vanilla returns SUCCESS whether or not a menu opens.
+        if Self::is_blocked(world, pos) {
+            return InteractionResult::Success;
+        }
         let Some(block_entity) = world.get_block_entity(pos) else {
-            return InteractionResult::Pass;
+            return InteractionResult::Success;
         };
+        if block_entity.downcast_ref::<ChestBlockEntity>().is_none() {
+            return InteractionResult::Success;
+        }
         let Some(container_ref) = ContainerRef::from_block_entity(Arc::clone(&block_entity)) else {
-            return InteractionResult::Pass;
+            return InteractionResult::Success;
         };
-        let Some(chest) = block_entity.downcast_ref::<ChestBlockEntity>() else {
-            return InteractionResult::Pass;
-        };
-        chest.player_open();
 
         let inventory = Arc::clone(&player.inventory);
-        let closer = Arc::clone(&block_entity);
         player.open_menu(
             TextComponent::translated(translations::CONTAINER_CHEST.msg()),
             move |context| {
+                // `ChestMenu` starts the opener in its constructor, after the
+                // previous menu has been closed.
+                if let Some(chest) = block_entity.downcast_ref::<ChestBlockEntity>() {
+                    chest.start_open(context.player);
+                }
                 let container = container_ref.clone();
                 chest_with_kind(
                     inventory,
                     context.container_id,
                     container.clone(),
                     CHEST_ROWS,
-                    ChestKind::new(container).with_close_hook(move |_| {
-                        if let Some(chest) = closer.downcast_ref::<ChestBlockEntity>() {
-                            chest.player_close();
+                    ChestKind::new(container).with_close_hook(move |player| {
+                        if let Some(chest) = block_entity.downcast_ref::<ChestBlockEntity>() {
+                            chest.stop_open(player);
                         }
                     }),
                 )
@@ -99,6 +129,7 @@ impl BlockBehavior for ChestBlock {
         );
 
         player.award_custom_stat(&vanilla_custom_stats::OPEN_CHEST);
+        // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins) once piglin AI exists.
         InteractionResult::Success
     }
 
@@ -151,7 +182,7 @@ mod tests {
     use simdnbt::borrow::read_compound as read_borrowed_compound;
     use simdnbt::owned::NbtCompound;
     use vecta_registry::{item_stack::ItemStack, vanilla_blocks, vanilla_items};
-    use vecta_utils::types::{InteractionHand, UpdateFlags};
+    use vecta_utils::types::{GameType, InteractionHand, UpdateFlags};
     use vecta_utils::{BlockPos, ChunkPos};
 
     use super::*;
@@ -217,6 +248,65 @@ mod tests {
 
         player.close_container();
         assert_eq!(chest.open_count(), 0);
+    }
+
+    fn use_chest(fixture: &TestWorld, player: &Arc<Player>) -> InteractionResult {
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
+        ChestBlock::new(&vanilla_blocks::CHEST).use_without_item(
+            fixture.world.get_block_state(TEST_POS),
+            &fixture.world,
+            TEST_POS,
+            player,
+            &chest_hit(),
+            &mut inventory,
+        )
+    }
+
+    fn open_count(fixture: &TestWorld) -> i32 {
+        fixture
+            .world
+            .get_block_entity(TEST_POS)
+            .expect("a placed chest has a block entity")
+            .downcast_ref::<ChestBlockEntity>()
+            .expect("the chest block must create a chest block entity")
+            .open_count()
+    }
+
+    #[test]
+    fn a_conductor_above_keeps_the_chest_shut() {
+        let (fixture, player) = chest_fixture("chest_blocked");
+        assert!(fixture.world.set_block(
+            TEST_POS.above(),
+            vanilla_blocks::STONE.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+
+        assert_eq!(use_chest(&fixture, &player), InteractionResult::Success);
+        assert_eq!(open_count(&fixture), 0);
+    }
+
+    #[test]
+    fn a_spectator_does_not_count_as_a_viewer() {
+        let (fixture, player) = chest_fixture("chest_spectator");
+        player.restore_game_modes(GameType::Spectator, None);
+
+        assert_eq!(use_chest(&fixture, &player), InteractionResult::Success);
+        assert_eq!(open_count(&fixture), 0);
+        player.close_container();
+        assert_eq!(open_count(&fixture), 0);
+    }
+
+    #[test]
+    fn reopening_the_same_chest_closes_the_previous_view_first() {
+        let (fixture, player) = chest_fixture("chest_reopen");
+
+        use_chest(&fixture, &player);
+        use_chest(&fixture, &player);
+        assert_eq!(open_count(&fixture), 1);
+
+        player.close_container();
+        assert_eq!(open_count(&fixture), 0);
     }
 
     #[test]

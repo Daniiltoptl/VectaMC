@@ -167,11 +167,13 @@ impl Slot for ResultSlot {
             self.remove_count
                 .fetch_add(amount.min(count), Ordering::Relaxed);
         }
-        let item = self.get_item_mut(guard);
-        if item.is_empty() || amount <= 0 {
-            return ItemStack::empty();
-        }
-        item.split(amount)
+        // Vanilla `Slot.remove` delegates to the container; `ResultContainer`
+        // hands over the whole stack whatever `amount` says, so right-click and
+        // Q take the full result while the statistic counts only `amount`.
+        guard
+            .get_mut(self.result_container().container_id())
+            .expect("result container not locked")
+            .remove_item(0, amount)
     }
 
     fn is_fake(&self) -> bool {
