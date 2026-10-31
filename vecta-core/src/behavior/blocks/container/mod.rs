@@ -14,6 +14,7 @@ mod loom_block;
 mod shulker_box_block;
 mod smithing_table_block;
 mod stonecutter_block;
+mod trapped_chest_block;
 
 pub use anvil_block::*;
 pub use barrel_block::*;
@@ -31,3 +32,4 @@ pub use loom_block::*;
 pub use shulker_box_block::*;
 pub use smithing_table_block::*;
 pub use stonecutter_block::*;
+pub use trapped_chest_block::*;

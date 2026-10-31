@@ -13,6 +13,7 @@ use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{
     BlockStateProperties, BoolProperty, ChestType, Direction, EnumProperty,
 };
+use vecta_registry::stat::custom::CustomStatRef;
 use vecta_registry::{vanilla_block_entity_types, vanilla_custom_stats};
 use vecta_utils::{BlockPos, BlockStateId, Downcast as _, translations};
 
@@ -49,7 +50,7 @@ enum ChestHalf {
 }
 
 /// Vanilla `DoubleBlockCombiner.NeighborCombineResult` for a chest.
-enum ChestPair {
+pub(crate) enum ChestPair {
     /// No block entity, or a half is covered so the chest cannot be used.
     None,
     /// A chest on its own.
@@ -99,31 +100,44 @@ impl ChestBlock {
         }
     }
 
-    /// Vanilla `ChestBlock.chestCanConnectTo`.
-    fn chest_can_connect_to(&self, state: BlockStateId) -> bool {
-        state.get_block() == self.block
+    /// Vanilla `ChestBlock.chestCanConnectTo`: only the same chest block joins,
+    /// so a plain chest and a trapped chest never pair up.
+    pub(crate) fn chest_can_connect_to(block: BlockRef, state: BlockStateId) -> bool {
+        state.get_block() == block
     }
 
     /// Vanilla `ChestBlock.candidatePartnerFacing`: the facing of a lone chest
     /// in `neighbour_direction`, which this chest may join.
     fn candidate_partner_facing(
-        &self,
+        block: BlockRef,
         level: &World,
         pos: BlockPos,
         neighbour_direction: Direction,
     ) -> Option<Direction> {
         let state = level.get_block_state(pos.relative(neighbour_direction));
-        (self.chest_can_connect_to(state) && state.get_value(CHEST_TYPE) == ChestType::Single)
+        (Self::chest_can_connect_to(block, state)
+            && state.get_value(CHEST_TYPE) == ChestType::Single)
             .then(|| state.get_value(FACING))
     }
 
     /// Vanilla `ChestBlock.getChestType`: the half this chest becomes when it is
     /// placed next to a lone chest facing `facing`.
-    fn get_chest_type(&self, level: &World, pos: BlockPos, facing: Direction) -> ChestType {
-        if self.candidate_partner_facing(level, pos, facing.rotate_y_clockwise()) == Some(facing) {
-            ChestType::Left
-        } else if self.candidate_partner_facing(level, pos, facing.rotate_y_counter_clockwise())
+    fn get_chest_type(
+        block: BlockRef,
+        level: &World,
+        pos: BlockPos,
+        facing: Direction,
+    ) -> ChestType {
+        if Self::candidate_partner_facing(block, level, pos, facing.rotate_y_clockwise())
             == Some(facing)
+        {
+            ChestType::Left
+        } else if Self::candidate_partner_facing(
+            block,
+            level,
+            pos,
+            facing.rotate_y_counter_clockwise(),
+        ) == Some(facing)
         {
             ChestType::Right
         } else {
@@ -131,9 +145,79 @@ impl ChestBlock {
         }
     }
 
+    /// Vanilla `ChestBlock.getStateForPlacement`.
+    pub(crate) fn placement_state(
+        block: BlockRef,
+        context: &BlockPlaceContext<'_>,
+    ) -> BlockStateId {
+        let pos = context.place_pos();
+        let level = context.world;
+        let mut facing = context.horizontal_direction().opposite();
+        let mut chest_type = ChestType::Single;
+        let secondary_use = context.is_secondary_use_active();
+        let clicked_face = context.clicked_face();
+
+        // Sneaking against a horizontal face joins that chest's front instead of
+        // turning to face the player.
+        if clicked_face.is_horizontal()
+            && secondary_use
+            && let Some(partner_facing) =
+                Self::candidate_partner_facing(block, level, pos, clicked_face.opposite())
+            && partner_facing.get_axis() != clicked_face.get_axis()
+        {
+            facing = partner_facing;
+            chest_type = if facing.rotate_y_counter_clockwise() == clicked_face.opposite() {
+                ChestType::Right
+            } else {
+                ChestType::Left
+            };
+        }
+
+        if chest_type == ChestType::Single && !secondary_use {
+            chest_type = Self::get_chest_type(block, level, pos, facing);
+        }
+
+        block
+            .default_state()
+            .set_value(FACING, facing)
+            .set_value(CHEST_TYPE, chest_type)
+            .set_value(WATERLOGGED, context.is_water_source())
+    }
+
+    /// Vanilla `ChestBlock.updateShape`.
+    pub(crate) fn shape_state(
+        block: BlockRef,
+        state: BlockStateId,
+        world: &dyn ScheduledTickAccess,
+        pos: BlockPos,
+        direction: Direction,
+        neighbor_state: BlockStateId,
+    ) -> BlockStateId {
+        schedule_water_tick_if_waterlogged(state, world, pos);
+
+        if Self::chest_can_connect_to(block, neighbor_state) && direction.is_horizontal() {
+            let neighbour_type = neighbor_state.get_value(CHEST_TYPE);
+            if state.get_value(CHEST_TYPE) == ChestType::Single
+                && neighbour_type != ChestType::Single
+                && state.get_value(FACING) == neighbor_state.get_value(FACING)
+                && Self::get_connected_direction(neighbor_state) == direction.opposite()
+            {
+                return state.set_value(CHEST_TYPE, neighbour_type.opposite());
+            }
+        } else if Self::get_connected_direction(state) == direction {
+            return state.set_value(CHEST_TYPE, ChestType::Single);
+        }
+
+        state
+    }
+
     /// Vanilla `ChestBlock.combine`: resolves the chest at `pos` into the block
     /// entities that back it, refusing a half that is covered.
-    fn combine(state: BlockStateId, level: &dyn LevelReader, pos: BlockPos) -> ChestPair {
+    pub(crate) fn combine(
+        state: BlockStateId,
+        level: &dyn LevelReader,
+        pos: BlockPos,
+    ) -> ChestPair {
         let Some(block_entity) = level.get_block_entity(pos) else {
             return ChestPair::None;
         };
@@ -177,6 +261,7 @@ impl ChestBlock {
         world: &Arc<World>,
         player: &Player,
         halves: &[SharedBlockEntity],
+        open_stat: CustomStatRef,
     ) -> InteractionResult {
         let mut chests = Vec::with_capacity(halves.len());
         for block_entity in halves {
@@ -220,7 +305,7 @@ impl ChestBlock {
                     display_name,
                 );
             }
-            player.award_custom_stat(&vanilla_custom_stats::OPEN_CHEST);
+            player.award_custom_stat(open_stat);
             return InteractionResult::Success;
         }
 
@@ -268,94 +353,19 @@ impl ChestBlock {
             )
         });
 
-        player.award_custom_stat(&vanilla_custom_stats::OPEN_CHEST);
+        player.award_custom_stat(open_stat);
         // TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins) once piglin AI exists.
         InteractionResult::Success
     }
-}
 
-/// Centre of a block, which is where Vanilla places container sounds.
-fn centre_of(pos: BlockPos) -> glam::DVec3 {
-    glam::DVec3::new(
-        f64::from(pos.x()) + 0.5,
-        f64::from(pos.y()) + 0.5,
-        f64::from(pos.z()) + 0.5,
-    )
-}
-
-impl BlockBehavior for ChestBlock {
-    fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        let pos = context.place_pos();
-        let level = context.world;
-        let mut facing = context.horizontal_direction().opposite();
-        let mut chest_type = ChestType::Single;
-        let secondary_use = context.is_secondary_use_active();
-        let clicked_face = context.clicked_face();
-
-        // Sneaking against a horizontal face joins that chest's front instead of
-        // turning to face the player.
-        if clicked_face.is_horizontal()
-            && secondary_use
-            && let Some(partner_facing) =
-                self.candidate_partner_facing(level, pos, clicked_face.opposite())
-            && partner_facing.get_axis() != clicked_face.get_axis()
-        {
-            facing = partner_facing;
-            chest_type = if facing.rotate_y_counter_clockwise() == clicked_face.opposite() {
-                ChestType::Right
-            } else {
-                ChestType::Left
-            };
-        }
-
-        if chest_type == ChestType::Single && !secondary_use {
-            chest_type = self.get_chest_type(level, pos, facing);
-        }
-
-        Some(
-            self.block
-                .default_state()
-                .set_value(FACING, facing)
-                .set_value(CHEST_TYPE, chest_type)
-                .set_value(WATERLOGGED, context.is_water_source()),
-        )
-    }
-
-    fn update_shape(
-        &self,
-        state: BlockStateId,
-        world: &dyn ScheduledTickAccess,
-        pos: BlockPos,
-        direction: Direction,
-        _neighbor_pos: BlockPos,
-        neighbor_state: BlockStateId,
-    ) -> BlockStateId {
-        schedule_water_tick_if_waterlogged(state, world, pos);
-
-        if self.chest_can_connect_to(neighbor_state) && direction.is_horizontal() {
-            let neighbour_type = neighbor_state.get_value(CHEST_TYPE);
-            if state.get_value(CHEST_TYPE) == ChestType::Single
-                && neighbour_type != ChestType::Single
-                && state.get_value(FACING) == neighbor_state.get_value(FACING)
-                && Self::get_connected_direction(neighbor_state) == direction.opposite()
-            {
-                return state.set_value(CHEST_TYPE, neighbour_type.opposite());
-            }
-        } else if Self::get_connected_direction(state) == direction {
-            return state.set_value(CHEST_TYPE, ChestType::Single);
-        }
-
-        state
-    }
-
-    fn use_without_item(
-        &self,
-        state: BlockStateId,
+    /// Vanilla `ChestBlock.useWithoutItem` for the chest at `pos`, awarding
+    /// `open_stat` to the player.
+    pub(crate) fn open_at(
         world: &Arc<World>,
-        pos: BlockPos,
         player: &Player,
-        _hit_result: &BlockHitResult,
-        _inv: &mut InventoryAccess,
+        state: BlockStateId,
+        pos: BlockPos,
+        open_stat: CustomStatRef,
     ) -> InteractionResult {
         // Vanilla returns SUCCESS whether or not a menu opens.
         let halves = match Self::combine(state, world.as_ref(), pos) {
@@ -363,11 +373,11 @@ impl BlockBehavior for ChestBlock {
             ChestPair::Single(block_entity) => vec![block_entity],
             ChestPair::Double(first, second) => vec![first, second],
         };
-        Self::open_menu(world, player, &halves)
+        Self::open_menu(world, player, &halves, open_stat)
     }
 
-    fn tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        // Vanilla `ChestBlock.tick` recounts the viewers of an open chest.
+    /// Vanilla `ChestBlock.tick`: recounts the viewers of an open chest.
+    pub(crate) fn recheck_at(world: &Arc<World>, pos: BlockPos) {
         let Some(block_entity) = world.get_block_entity(pos) else {
             return;
         };
@@ -376,11 +386,9 @@ impl BlockBehavior for ChestBlock {
         }
     }
 
-    /// Vanilla `BaseEntityBlock.triggerEvent`, which `ChestBlock` inherits: the
-    /// block entity decides whether the event is published to clients.
-    fn trigger_event(
-        &self,
-        _state: BlockStateId,
+    /// Vanilla `BaseEntityBlock.triggerEvent`: the block entity decides whether
+    /// the event is published to clients.
+    pub(crate) fn dispatch_block_event(
         world: &Arc<World>,
         pos: BlockPos,
         event: i32,
@@ -392,30 +400,12 @@ impl BlockBehavior for ChestBlock {
         block_entity.trigger_event(event, data)
     }
 
-    fn new_block_entity(
-        &self,
-        level: Weak<World>,
-        pos: BlockPos,
-        state: BlockStateId,
-    ) -> BlockEntityCreation {
-        BlockEntityCreation::from_registered_factory(BLOCK_ENTITIES.create(
-            &vanilla_block_entity_types::CHEST,
-            level,
-            pos,
-            state,
-        ))
-    }
-
-    fn has_analog_output_signal(&self, _state: BlockStateId) -> bool {
-        true
-    }
-
-    fn get_analog_output_signal(
-        &self,
+    /// Vanilla `ChestBlock.getAnalogOutputSignal`: the fullness of both halves
+    /// of the joined container.
+    pub(crate) fn analog_output(
         state: BlockStateId,
         world: &dyn LevelReader,
         pos: BlockPos,
-        _direction: Direction,
     ) -> i32 {
         let halves = match Self::combine(state, world, pos) {
             ChestPair::None => return 0,
@@ -443,6 +433,103 @@ impl BlockBehavior for ChestBlock {
             .filter_map(|container| guard.get(container.container_id()))
             .collect();
         calculate_redstone_signal_from_containers(locked)
+    }
+}
+
+/// Centre of a block, which is where Vanilla places container sounds.
+fn centre_of(pos: BlockPos) -> glam::DVec3 {
+    glam::DVec3::new(
+        f64::from(pos.x()) + 0.5,
+        f64::from(pos.y()) + 0.5,
+        f64::from(pos.z()) + 0.5,
+    )
+}
+
+impl BlockBehavior for ChestBlock {
+    fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
+        Some(Self::placement_state(self.block, context))
+    }
+
+    fn update_shape(
+        &self,
+        state: BlockStateId,
+        world: &dyn ScheduledTickAccess,
+        pos: BlockPos,
+        direction: Direction,
+        _neighbor_pos: BlockPos,
+        neighbor_state: BlockStateId,
+    ) -> BlockStateId {
+        Self::shape_state(self.block, state, world, pos, direction, neighbor_state)
+    }
+
+    fn use_without_item(
+        &self,
+        state: BlockStateId,
+        world: &Arc<World>,
+        pos: BlockPos,
+        player: &Player,
+        _hit_result: &BlockHitResult,
+        _inv: &mut InventoryAccess,
+    ) -> InteractionResult {
+        Self::open_at(world, player, state, pos, &vanilla_custom_stats::OPEN_CHEST)
+    }
+
+    fn tick(&self, _state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
+        Self::recheck_at(world, pos);
+    }
+
+    /// Vanilla `BaseEntityBlock.triggerEvent`, which `ChestBlock` inherits: the
+    /// block entity decides whether the event is published to clients.
+    fn trigger_event(
+        &self,
+        _state: BlockStateId,
+        world: &Arc<World>,
+        pos: BlockPos,
+        event: i32,
+        data: i32,
+    ) -> bool {
+        Self::dispatch_block_event(world, pos, event, data)
+    }
+
+    fn new_block_entity(
+        &self,
+        level: Weak<World>,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> BlockEntityCreation {
+        BlockEntityCreation::from_registered_factory(BLOCK_ENTITIES.create(
+            &vanilla_block_entity_types::CHEST,
+            level,
+            pos,
+            state,
+        ))
+    }
+
+    fn has_analog_output_signal(&self, _state: BlockStateId) -> bool {
+        true
+    }
+
+    /// Vanilla `ChestBlock.affectNeighborsAfterRemoval`, which defers to
+    /// `Containers.updateNeighboursAfterDestroy`: a removed chest must make the
+    /// comparator that read it re-evaluate.
+    fn affect_neighbors_after_removal(
+        &self,
+        _state: BlockStateId,
+        world: &Arc<World>,
+        pos: BlockPos,
+        _moved_by_piston: bool,
+    ) {
+        world.update_neighbor_for_output_signal(pos, self.block);
+    }
+
+    fn get_analog_output_signal(
+        &self,
+        state: BlockStateId,
+        world: &dyn LevelReader,
+        pos: BlockPos,
+        _direction: Direction,
+    ) -> i32 {
+        Self::analog_output(state, world, pos)
     }
 }
 

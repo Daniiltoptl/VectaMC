@@ -799,3 +799,64 @@ table), `block_entity/container_identity.rs`
 - `PiglinAi.angerNearbyPiglins` — TODO, как и раньше.
 - Shift-click по паре проверен на уровне меню (`chest_parts_with_kind` +
   `Click::QuickMove`), а не через реальный пакет клиента.
+
+## W04-024 — сундук-ловушка: сигнал от числа зрителей
+
+Связь: W04-022 (общая механика пары), W04-023 (счётчик зрителей). Java 26.3:
+`TrappedChestBlock` (`isSignalSource`, `ownSignal`,
+`getDirectSignal`, `getOpenChestStat`), `TrappedChestBlockEntity`
+(`signalOpenCount` с `ExperimentalRedstoneUtils.initialOrientation` и двумя
+`updateNeighborsAt`), `ChestBlockEntity.getOpenCount`, `ChestBlock` как база
+(`combine`, `getMenuProvider`, `affectNeighborsAfterRemoval` →
+`Containers.updateNeighboursAfterDestroy`), `BlockBehaviour.isSignalSource`/
+`getSignal`/`ownSignal`/`getDirectSignal`, `RedstoneLampBlock`.
+
+Что теперь делает игрок:
+- Сундук-ловушка ставится и срастается в пару ровно как обычный сундук, но
+  пара образуется только из двух ловушек: `chestCanConnectTo` сравнивает
+  блок, поэтому ловушка рядом с обычным сундуком оставляет оба одиночными.
+- Открытие даёт сигнал редстоуна силой, равной числу зрителей (1 на
+  игрока, максимум 15), закрытие — снова 0. Пыль соединяется с ловушкой,
+  потому что `isSignalSource` у неё всегда true.
+- Напрямую (direct signal) ловушка питает только блок сверху; в остальные
+  пять сторон direct-сигнала нет, слабый сигнал есть во все стороны.
+- Открытие и закрытие будят соседей (`updateNeighborsAt` по своей позиции и
+  по позиции снизу), поэтому лампа рядом загорается сразу при открытии и
+  гаснет после задержки, без сторонних обновлений блоков.
+- Открытие начисляет статистику `trigger_trapped_chest`, а не `open_chest`.
+- Слом ловушки обновляет компаратор (`affectNeighborsAfterRemoval`), это же
+  получил и обычный сундук.
+
+Vecta paths: `behavior/blocks/container/trapped_chest_block.rs` (новый
+`TrappedChestBlock`: делегирует `ChestBlock::placement_state`/`shape_state`/
+`open_at`/`analog_output`/`recheck_at`/`dispatch_block_event`, плюс
+`is_signal_source`/`get_own_signal`/`get_direct_signal`),
+`behavior/blocks/container/chest_block.rs` (общая логика вынесена в
+ассоциированные функции `pub(crate)`: `placement_state`, `shape_state`,
+`combine`, `open_at`, `analog_output`, `recheck_at`,
+`dispatch_block_event`; добавлен `affect_neighbors_after_removal`),
+`block_entity/entities/chest.rs` (`ChestVariant::{Chest,Trapped}`,
+`new_trapped`, `open_count_at` = ванильный `ChestBlockEntity.getOpenCount`,
+`opener_count_changed` для ловушки зовёт `update_neighbors_at` по `pos` и
+`pos.below()`), `block_entity/registry.rs` (фабрика
+`vanilla_block_entity_types::TRAPPED_CHEST` → `new_trapped`).
+
+Решение по ванильному наследованию: `TrappedChestBlockEntity extends
+ChestBlockEntity` в Rust не выразить, поэтому один `ChestBlockEntity` носит
+флаг варианта. Флаг нужен только для двух отличий — типа блока-сущности
+(иначе ловушка сохранилась бы как `minecraft:chest`) и дополнительных
+обновлений соседей в `signalOpenCount`.
+
+Проверки: узкий прогон `trapped` 12 passed, `chest` 54 passed. Тесты
+проверяют реальные пути: `world.get_signal`/`get_direct_signal` через
+реестр поведений, настоящий `C_RECORDING`-поток для `C_OPEN_SCREEN`
+(`generic_9x6` у пары), лампу как приёмник обновления соседей. Негативная
+проверка: с закомментированными `update_neighbors_at` оба теста с лампой
+падают, с ними — проходят.
+
+Незакрытое:
+- `ExperimentalRedstoneUtils.initialOrientation` не воспроизводится: в Vecta
+  `update_neighbors_at` не принимает `Orientation` (как и остальной
+  редстоун-код), это уже отмечено в `world/block_updates/mod.rs`.
+- `PiglinAi.angerNearbyPiglins` — TODO, как и у обычного сундука.
+- Кот на сундуке (`isCatSittingOnChest`) — котов в Vecta нет.

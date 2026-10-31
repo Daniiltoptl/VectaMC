@@ -14,6 +14,7 @@ use simdnbt::ToNbtTag;
 use simdnbt::borrow::{BaseNbtCompound as BorrowedNbtCompound, NbtCompound as NbtCompoundView};
 use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use vecta_protocol::packets::game::SoundSource;
+use vecta_registry::block_entity_type::BlockEntityTypeRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::blocks::properties::{BlockStateProperties, ChestType};
 use vecta_registry::data_components::DataComponentMap;
@@ -22,7 +23,8 @@ use vecta_registry::item_stack::ItemStack;
 use vecta_registry::item_stack_template::ItemStackTemplate;
 use vecta_registry::{sound_events, vanilla_block_entity_types};
 use vecta_utils::{
-    BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
+    BlockPos, BlockStateId, Downcast as _, DowncastType, DowncastTypeKey, Identifier,
+    locks::SyncMutex,
 };
 
 use crate::block_entity::container_component::{
@@ -36,13 +38,26 @@ use crate::entity::Entity as _;
 use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::player::Player;
-use crate::world::World;
+use crate::world::{LevelReader, World};
 
 /// Number of slots in a chest (3 rows of 9).
 pub const CHEST_SLOTS: usize = 27;
 
 /// Block event id clients use to drive the chest lid.
 pub const CHEST_LID_EVENT: i32 = 1;
+
+/// Which vanilla chest block entity this is.
+///
+/// Vanilla models the trapped chest as a subclass of `ChestBlockEntity` that
+/// only overrides `signalOpenCount`; Vecta keeps one implementation and switches
+/// the extra redstone behaviour on with this flag.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ChestVariant {
+    /// `ChestBlockEntity`, which only publishes the lid event.
+    Chest,
+    /// `TrappedChestBlockEntity`, which also re-evaluates its neighbours.
+    Trapped,
+}
 
 /// Chest block entity.
 pub struct ChestBlockEntity {
@@ -52,6 +67,7 @@ pub struct ChestBlockEntity {
     openers: ContainerOpenersCounter,
     identity: ContainerIdentity,
     loot: ContainerLoot,
+    variant: ChestVariant,
 }
 
 struct ChestContainer {
@@ -73,12 +89,35 @@ impl ChestBlockEntity {
     /// Creates a new chest block entity.
     #[must_use]
     pub fn new(level: Weak<World>, pos: BlockPos, state: BlockStateId) -> Self {
-        let base = Arc::new(BlockEntityBase::new(
+        Self::with_variant(
             &vanilla_block_entity_types::CHEST,
+            ChestVariant::Chest,
             level,
             pos,
             state,
-        ));
+        )
+    }
+
+    /// Creates a new trapped chest block entity (`TrappedChestBlockEntity`).
+    #[must_use]
+    pub fn new_trapped(level: Weak<World>, pos: BlockPos, state: BlockStateId) -> Self {
+        Self::with_variant(
+            &vanilla_block_entity_types::TRAPPED_CHEST,
+            ChestVariant::Trapped,
+            level,
+            pos,
+            state,
+        )
+    }
+
+    fn with_variant(
+        block_entity_type: BlockEntityTypeRef,
+        variant: ChestVariant,
+        level: Weak<World>,
+        pos: BlockPos,
+        state: BlockStateId,
+    ) -> Self {
+        let base = Arc::new(BlockEntityBase::new(block_entity_type, level, pos, state));
         let container = Arc::new(SyncMutex::new(ChestContainer {
             items: vec![ItemStack::empty(); CHEST_SLOTS],
         }));
@@ -90,7 +129,19 @@ impl ChestBlockEntity {
             openers: ContainerOpenersCounter::default(),
             identity: ContainerIdentity::new(),
             loot: ContainerLoot::new(),
+            variant,
         }
+    }
+
+    /// Vanilla `ChestBlockEntity.getOpenCount`: how many players have the chest
+    /// at `pos` open, or zero when there is no chest there.
+    pub fn open_count_at(level: &dyn LevelReader, pos: BlockPos) -> i32 {
+        let Some(block_entity) = level.get_block_entity(pos) else {
+            return 0;
+        };
+        block_entity
+            .downcast_ref::<ChestBlockEntity>()
+            .map_or(0, ChestBlockEntity::open_count)
     }
 
     /// Returns the custom name and lock of this chest.
@@ -229,11 +280,19 @@ impl ContainerOpenersListener for ChestBlockEntity {
         world: &Arc<World>,
         pos: BlockPos,
         state: BlockStateId,
-        _previous: i32,
+        previous: i32,
         current: i32,
     ) {
         // `ChestBlockEntity.signalOpenCount`.
         world.block_event(pos, state.get_block(), CHEST_LID_EVENT, current);
+
+        if self.variant == ChestVariant::Trapped && previous != current {
+            // `TrappedChestBlockEntity.signalOpenCount` re-evaluates the chest
+            // and the block below it, because both can feed a circuit.
+            let block = state.get_block();
+            world.update_neighbors_at(pos, block);
+            world.update_neighbors_at(pos.below(), block);
+        }
     }
 }
 
