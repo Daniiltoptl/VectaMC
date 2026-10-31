@@ -918,3 +918,101 @@ CopperChests}` вместо жёсткого сравнения блоков; `p
   (`copper_chest_transformation_preserves_entity_identity`).
 - `PiglinAi.angerNearbyPiglins` — TODO, как и у обычного сундука.
 - Кот на сундуке (`isCatSittingOnChest`) — котов в Vecta нет.
+
+## W04-027 — воронка
+
+Связь: W04-022 (пара сундуков как один контейнер). Java 26.3:
+`HopperBlock`, `HopperBlockEntity`, `Hopper` (`SUCK_AABB =
+Block.column(16.0, 11.0, 32.0)`), `HopperMenu`, `BaseContainerBlockEntity`,
+`RandomizableContainerBlockEntity`, `CompoundContainer.setChanged`,
+`ChestBlock.combine(..., ignoreBeingBlocked)`, `Entity.checkInsideBlocks`.
+
+Что теперь делает игрок:
+- Воронка ставится лицом в противоположную от кликнутой грань
+  (`clickedFace.getOpposite()`, вертикальный клик схлопывается в `down`),
+  вращается/зеркалится по `facing`, `enabled` следует редстоун-сигналу
+  соседей через `checkPoweredState` при установке и при `neighborChanged`.
+- Раз в 8 тиков (и на первом же тике после установки) воронка перекладывает
+  ровно один предмет: сначала выталкивает в контейнер, на который смотрит,
+  затем втягивает один предмет из контейнера сверху либо из предметов в
+  верхней половине своего блока. Успешный перенос перезапускает кулдаун.
+- Стак доливается до лимита предмета (63+1 → 64), следующий предмет уходит в
+  следующий слот, при полном контейнере предмет остаётся в воронке.
+- Двойной сундук сверху и снизу видится одним контейнером на 54 слота:
+  предметы попадают в ту половину, которой принадлежит логический слот.
+- Отключённая сигналом воронка не двигает ничего и не сбрасывает кулдаун, а
+  после снятия сигнала продолжает с сохранённого значения.
+- Предмет в `Hopper.SUCK_AABB` втягивается сразу через `entityInside`, не
+  дожидаясь тика; предмет ниже зоны захвата игнорируется; полный блок сверху
+  вне тега `#does_not_block_hoppers` блокирует захват предметов.
+- ПКМ открывает меню `minecraft:hopper` (5 слотов + инвентарь) и начисляет
+  `inspect_hopper`; запертая воронка не открывается, но показывает предмет
+  замка и стат всё равно начисляет.
+- Компаратор читает заполненность (1 полный слот из 5 = сигнал 3), слом
+  обновляет компаратор и выбрасывает содержимое.
+- `TransferCooldown` сохраняется в NBT и восстанавливается при загрузке:
+  после перезагрузки воронка ждёт остаток кулдауна, а не начинает заново.
+- Воронка не проходима для мобов (`isPathfindable` = false).
+
+Vecta paths: `block_entity/entities/hopper.rs` (новая блок-сущность:
+`pushItemsTick`, `tryMoveItems`, `ejectItems`, `suckInItems`,
+`tryTakeInItemFromSlot`, `tryMoveInItem`, `addItem`, `getItemsAtAndAbove`,
+`TransferTarget`), `behavior/blocks/container/hopper_block.rs` (новая
+поведение-обёртка), `inventory/menu/kinds/hopper_menu.rs` (меню),
+`block_entity/registry.rs` (`HOPPER` → `HopperBlockEntity`),
+`behavior/blocks/container/chest_block.rs` (`combine` получил ванильный
+`ignore_blocked`), плюс `mod.rs`-экспорты.
+
+Решения:
+- `TransferTarget` — один логический контейнер. В ванили пара сундуков это
+  `CompoundContainer` с непрерывным пространством слотов; у Vecta каждая
+  половина — свой контейнер, поэтому логический слот отображается в
+  (половина, локальный слот). `slots_for_face` применяется только к
+  одиночному контейнеру (аналог `WorldlyContainer`), пара всегда плоская —
+  как `CompoundContainer`.
+- Воронка и цель блокируются одним `ContainerLockGuard`, как один
+  `CompoundContainer` в ванили: это исключает межпоточный дедлок и даёт
+  согласованный снимок для `isFullContainer`/`addItem`.
+- Цель для вставки (`TransferTarget` воронки) измеряется **до** взятия
+  блокировок. Иначе `TransferTarget::single` внутри уже залоченной секции
+  берёт лок на ту же воронку и вешает поток; это поймано интеграционным
+  тестом на «сундук сверху» и зафиксировано комментарием в коде.
+- `skipTickCount`: если источник — воронка, которая уже тикала в этом игровом
+  тике, кулдаун ставится 7, а не 8 (`MOVE_ITEM_SPEED - skip`).
+- `TransferCooldown` пишется всегда, вне loot-ветки, как в
+  `saveAdditional`; при загрузке отсутствие тега даёт `-1`.
+- Лут-таблицы воронки и цели разворачиваются вручную
+  (`unpack_pending_loot`/`unpack_loot_table`), потому что Vecta читает блоки
+  без ванильной ленивой обёртки `RandomizableContainerBlockEntity`.
+- Кулдаун и `tickedGameTime` — атомики: тик читает их без удержания лока
+  контейнера, как и ванильные поля.
+
+Проверки: узкий прогон `hopper` — 21 passed (5 блок-сущность, 2 меню, 14
+поведение/интеграция через настоящий тикер). Полный прогон workspace —
+**3102 passed / 0 failed / 1 ignored** в `vecta-core` плюс все
+интеграционные наборы; `cargo clippy --workspace --all-targets
+--all-features -D warnings` и `cargo fmt --all --check` чистые.
+
+Негативные проверки: отключение гейта `ENABLED` роняет тест с редстоуном;
+удаление записи `TransferCooldown` роняет тест восстановления кулдауна;
+возврат построения `TransferTarget` внутрь guard вешает оба теста с
+контейнером сверху (самодедлок).
+
+Побочное: три чужих теста (`chunk::data::dummy_factory_outcomes…`,
+`chunk::full_chunk::insertion_rejects_an_entity_owned_by_another_chunk`,
+`chunk::full_chunk::stale_no_entity_promotion…`) использовали `HOPPER` как
+пример блока с типом блок-сущности без фабрики. Воронка теперь
+зарегистрирована, поэтому фикстура заменена на `ENCHANTING_TABLE` (тот же
+смысл: тип есть, фабрики нет).
+
+Незакрытое:
+- Коты на сундуке/воронке (`isCatSittingOnChest`) и
+  `PiglinAi.angerNearbyPiglins` — животных AI в Vecta нет, как и у сундука.
+- `ExperimentalRedstoneUtils.initialOrientation` не смоделирован (как и у
+  остальных блоков).
+- `isGridAligned` в Vecta всегда true, поэтому ванильная ветка с
+  `BlockPos.containing(...)` и округлением координат не исполняется.
+- Отдельная форма взаимодействия воронки (`interaction_shapes_mask` в
+  `classes.json`) не потребляется — как и у остальных контейнеров.
+- W04-028 (сторонняя автоматизация, слоты печи) и W04-029 (дозатор) не
+  начаты.

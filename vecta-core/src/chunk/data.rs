@@ -1551,7 +1551,7 @@ mod tests {
                 .set_block_state_for_generation(
                     ChunkStatus::Empty,
                     unbacked_pos,
-                    vanilla_blocks::HOPPER.default_state(),
+                    vanilla_blocks::ENCHANTING_TABLE.default_state(),
                     UpdateFlags::UPDATE_NONE,
                 )
                 .is_some()

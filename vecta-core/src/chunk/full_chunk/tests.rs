@@ -540,16 +540,16 @@ fn insertion_rejects_an_entity_owned_by_another_chunk() {
     let chunk = FullChunkRef::from_full_context(&chunk_owner);
     let local_pos = BlockPos::new(0, 2, 0);
     let foreign_pos = BlockPos::new(16, 2, 0);
-    // A hopper has a block-entity type but no registered factory, so setting
-    // the block does not create an entity on its own.
-    let unbacked = vanilla_blocks::HOPPER.default_state();
+    // An enchanting table has a block-entity type but no registered factory,
+    // so setting the block does not create an entity on its own.
+    let unbacked = vanilla_blocks::ENCHANTING_TABLE.default_state();
     assert!(
         chunk
             .set_block_state(local_pos, unbacked, UpdateFlags::UPDATE_NONE)
             .is_some()
     );
     let foreign: SharedBlockEntity = Arc::new(UnimplementedBlockEntity::new(
-        &vanilla_block_entity_types::HOPPER,
+        &vanilla_block_entity_types::ENCHANTING_TABLE,
         Weak::new(),
         foreign_pos,
         unbacked,
@@ -600,7 +600,7 @@ fn stale_no_entity_promotion_cannot_consume_a_replacement_marker() {
     );
     chunk.set_pending_block_entity(pos);
 
-    let unbacked = vanilla_blocks::HOPPER.default_state();
+    let unbacked = vanilla_blocks::ENCHANTING_TABLE.default_state();
     assert_eq!(
         chunk.set_block_state(pos, unbacked, UpdateFlags::UPDATE_NONE),
         Some(moving_piston)

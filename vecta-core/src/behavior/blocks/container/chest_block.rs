@@ -236,16 +236,21 @@ impl ChestBlock {
     }
 
     /// Vanilla `ChestBlock.combine`: resolves the chest at `pos` into the block
-    /// entities that back it, refusing a half that is covered.
+    /// entities that back it.
+    ///
+    /// `ignore_blocked` mirrors vanilla's `ignoreBeingBlocked`: a hopper moves
+    /// items through a covered chest, so it asks for the pair without the
+    /// blocked check.
     pub(crate) fn combine(
         state: BlockStateId,
         level: &dyn LevelReader,
         pos: BlockPos,
+        ignore_blocked: bool,
     ) -> ChestPair {
         let Some(block_entity) = level.get_block_entity(pos) else {
             return ChestPair::None;
         };
-        if Self::is_blocked(level, pos) {
+        if !ignore_blocked && Self::is_blocked(level, pos) {
             return ChestPair::None;
         }
         let half = Self::half(state);
@@ -265,7 +270,7 @@ impl ChestBlock {
         {
             return ChestPair::Single(block_entity);
         }
-        if Self::is_blocked(level, neighbour_pos) {
+        if !ignore_blocked && Self::is_blocked(level, neighbour_pos) {
             return ChestPair::None;
         }
         let Some(neighbour) = level.get_block_entity(neighbour_pos) else {
@@ -392,7 +397,7 @@ impl ChestBlock {
         open_stat: CustomStatRef,
     ) -> InteractionResult {
         // Vanilla returns SUCCESS whether or not a menu opens.
-        let halves = match Self::combine(state, world.as_ref(), pos) {
+        let halves = match Self::combine(state, world.as_ref(), pos, false) {
             ChestPair::None => return InteractionResult::Success,
             ChestPair::Single(block_entity) => vec![block_entity],
             ChestPair::Double(first, second) => vec![first, second],
@@ -431,7 +436,7 @@ impl ChestBlock {
         world: &dyn LevelReader,
         pos: BlockPos,
     ) -> i32 {
-        let halves = match Self::combine(state, world, pos) {
+        let halves = match Self::combine(state, world, pos, false) {
             ChestPair::None => return 0,
             ChestPair::Single(block_entity) => vec![block_entity],
             ChestPair::Double(first, second) => vec![first, second],
