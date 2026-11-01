@@ -44,3 +44,6 @@ impl ItemBehavior for EggItem {
         InteractionResult::Success
     }
 }
+
+#[cfg(test)]
+mod tests;

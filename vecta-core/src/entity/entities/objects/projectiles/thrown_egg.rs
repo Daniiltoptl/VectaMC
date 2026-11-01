@@ -269,9 +269,12 @@ impl ThrowableItemProjectile for ThrownEggEntity {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use std::sync::{Arc, Weak};
 
     use glam::DVec3;
+    use simdnbt::borrow::read_compound;
+    use simdnbt::owned::NbtCompound;
     use vecta_registry::{
         RegistryReference, init_vanilla_registry, vanilla_blocks, vanilla_chicken_variants,
         vanilla_damage_types, vanilla_entities, vanilla_items,
@@ -457,6 +460,42 @@ mod tests {
                 .get_entities_in_aabb(&WorldAabb::of_size(pos, 1.0, 2.0, 1.0))
                 .iter()
                 .any(|entity| entity.entity_type() == &vanilla_entities::CHICKEN)
+        );
+    }
+
+    /// The variant lives in the item component, so the projectile's saved `Item`
+    /// tag has to carry it; otherwise a reloaded egg hatches the default chicken.
+    #[test]
+    fn saved_egg_keeps_its_variant_component() {
+        init_vanilla_registry();
+        let egg =
+            ThrownEggEntity::new(&vanilla_entities::EGG, 1, DVec3::ZERO, Weak::<World>::new());
+        let owner = uuid::Uuid::new_v4();
+        egg.set_owner_uuid(Some(owner));
+        egg.set_item_clamped(ItemStack::with_count(&vanilla_items::BLUE_EGG, 3));
+
+        let mut nbt = NbtCompound::new();
+        egg.save_additional(&mut nbt);
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed = read_compound(&mut Cursor::new(&bytes)).expect("saved egg NBT");
+
+        let loaded =
+            ThrownEggEntity::new(&vanilla_entities::EGG, 2, DVec3::ZERO, Weak::<World>::new());
+        loaded.load_additional((&borrowed).into());
+
+        assert_eq!(loaded.projectile_owner_uuid(), Some(owner));
+        assert_eq!(
+            loaded.get_item(),
+            ItemStack::new(&vanilla_items::BLUE_EGG),
+            "the saved egg keeps the blue egg item and its chicken variant"
+        );
+        assert_eq!(
+            loaded
+                .get_item()
+                .get(CHICKEN_VARIANT)
+                .map(|value| value.value().key.clone()),
+            Some(vanilla_chicken_variants::COLD.key.clone())
         );
     }
 }

@@ -408,7 +408,7 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
         DEFAULT_POWER, DEFAULT_UNCERTAINTY, DispenseConfig, ProjectileDispenseBehavior,
         ThrowableItemProjectileFactory,
     };
-    use crate::entity::entities::{SnowballEntity, ThrownExperienceBottleEntity};
+    use crate::entity::entities::{SnowballEntity, ThrownEggEntity, ThrownExperienceBottleEntity};
     use crate::entity::next_entity_id;
 
     registry.register(
@@ -425,6 +425,30 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
             }),
         ),
     );
+
+    // Vanilla registers every `EggItem`; the three colours share one entity type
+    // and carry their chicken variant as an item component. `EggItem` does not
+    // override `createDispenseConfig`, so the dispenser uses the default power.
+    for egg in [
+        &*vanilla_items::EGG,
+        &*vanilla_items::BLUE_EGG,
+        &*vanilla_items::BROWN_EGG,
+    ] {
+        registry.register(
+            egg,
+            ProjectileDispenseBehavior::new(
+                DispenseConfig::DEFAULT,
+                ThrowableItemProjectileFactory::new(|world, position| {
+                    ThrownEggEntity::new(
+                        &vanilla_entities::EGG,
+                        next_entity_id(),
+                        position,
+                        Arc::downgrade(world),
+                    )
+                }),
+            ),
+        );
+    }
 
     registry.register(
         &vanilla_items::EXPERIENCE_BOTTLE,
@@ -450,6 +474,7 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 
 #[cfg(test)]
 mod tests {
+    mod egg;
     mod equipment;
     mod experience_bottle;
     mod projectile;

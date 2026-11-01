@@ -78,3 +78,66 @@ cargo fmt --all --check                                          → exit 0
   событий и состояния, не глазами.
 - Опыт выдаётся через `award_with_direction`; раскладка орбов по попаданию
   проверена существующими тестами, но не сверялась с живым Mojang-сервером.
+
+## G002 / W06-006…010 — три варианта яиц
+
+Старый ID: W05-002, продолжение W04-032. Статус: **реализовано и проверено**
+на серверном уровне; клиент не запускался.
+
+### Что было
+
+`EggItem` уже был привязан кодогеном ко всем трём предметам (`egg`, `blue_egg`,
+`brown_egg`), `ThrownEggEntity` умел вылупление с ванильными вероятностями и
+наследованием `chicken/variant`, а `BLUE_EGG`/`BROWN_EGG` несут вариант в
+извлечённых данных предмета. Не было регистрации в раздатчике и тестов на
+ручное использование.
+
+### Что изменилось для игрока
+
+Импульс раздатчика с любым из трёх яиц запускает настоящий `ThrownEgg`
+(единый entity type `minecraft:egg`), расходует одно яйцо и сохраняет вариант
+курицы. Ручной бросок из обеих рук расходует яйцо только в survival.
+
+### Ванильные методы
+
+- `world/item/EggItem.use` (звук, `spawnProjectileFromRotation(…, 0.0, 1.5, 1.0)`,
+  стат, расход). `EggItem` **не** переопределяет `createDispenseConfig`, поэтому
+  раздатчик использует `DispenseConfig.DEFAULT` (power 1.1), а не 1.5.
+- `world/entity/projectile/throwableitemprojectile/ThrownEgg.onHit`
+  (`nextInt(8)`, `nextInt(32)` → 1 или 4 цыплёнка, `setAge(-24000)`, `snapTo`,
+  вариант из компонента).
+
+### Изменения Vecta
+
+- `dispenser_block.rs`: регистрация `EGG`, `BLUE_EGG`, `BROWN_EGG` с
+  `DispenseConfig::DEFAULT` и общей фабрикой `ThrownEggEntity`.
+- `behavior/items/egg/tests.rs` (новый): матрица ручного броска.
+- `dispenser_block/tests/egg.rs` (новый): три цвета через раздатчик.
+- `thrown_egg.rs`: тест сохранения варианта в NBT.
+
+### Карточки
+
+| ID | Результат |
+| --- | --- |
+| W06-006 | три item-варианта через общий consumer, velocity = Java dispenser config — `dispensed_eggs_launch_one_projectile_that_keeps_the_egg_item` |
+| W06-007 | вариант проходит item → projectile → (существующий) hatch — тест на компонент у снаряда + существующий `hatchling_inherits_egg_variant_component` |
+| W06-008 | вылупление, возраст, вероятности — существующие `hatch_count_matches_vanilla_odds`, `hatchling_spawns_baby_chicken_at_egg_position`, `hatchling_fits_when_egg_lands_on_top_of_solid_block`, `hatchling_does_not_spawn_fully_enclosed_in_solid_block` |
+| W06-009 | обе руки × survival/creative, расход и стат — `egg_use_spawns_owned_projectile_and_consumes_only_in_survival` |
+| W06-010 | reload сохраняет вариант — `saved_egg_keeps_its_variant_component`. Вторая половина карточки: повторного вылупления нет, потому что попадание делает `set_removed(Discarded)`; отдельного guard внутри `on_hit` в vanilla нет, и добавлять его значило бы разойтись с эталоном |
+
+### Проверки
+
+```
+cargo test -p vecta-core --lib egg -j 1        → 19 passed, 0 failed
+cargo test -p vecta-core --lib dispenser -j 1  → 35 passed, 0 failed
+cargo fmt --all --check                        → exit 0
+```
+
+Логи: `D:/CodexBuilds/logs/w06-g002-*.log`.
+
+### Границы
+
+- Клиент не проверялся: частицы разбивания (`handleEntityEvent` 3) и вид
+  снаряда подтверждены только серверным событием.
+- Вероятности вылупления проверены функцией `hatch_count`, а не статистическим
+  прогоном на живом сервере.
