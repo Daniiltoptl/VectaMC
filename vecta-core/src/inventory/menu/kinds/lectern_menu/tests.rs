@@ -62,9 +62,11 @@ fn lectern_entity(fixture: &Fixture) -> &LecternBlockEntity {
 }
 
 fn menu_for(fixture: &Fixture) -> Menu {
-    let container = ContainerRef::from_block_entity(Arc::clone(&fixture.entity))
-        .expect("the lectern exposes its book container");
-    lectern(1, container, Arc::clone(&fixture.entity))
+    lectern(
+        1,
+        lectern_entity(fixture).book_access(),
+        Arc::clone(&fixture.entity),
+    )
 }
 
 fn writable_book(pages: usize) -> ItemStack {

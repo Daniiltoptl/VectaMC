@@ -38,7 +38,7 @@ use crate::{
         sender::CommandSender,
     },
     entity::Entity as _,
-    inventory::{lock::ContainerRef, menu::kinds::lectern},
+    inventory::menu::kinds::lectern,
     player::Player,
     world::{LevelReader, SignalQueryContext, World},
 };
@@ -137,7 +137,10 @@ impl LecternBlock {
         let Some(block_entity) = world.get_block_entity(pos) else {
             return;
         };
-        let Some(container) = ContainerRef::from_block_entity(Arc::clone(&block_entity)) else {
+        let Some(container) = block_entity
+            .downcast_ref::<LecternBlockEntity>()
+            .map(LecternBlockEntity::book_access)
+        else {
             return;
         };
         let menu_block_entity: SharedBlockEntity = block_entity;

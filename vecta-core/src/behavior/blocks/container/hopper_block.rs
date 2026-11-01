@@ -258,10 +258,13 @@ impl BlockBehavior for HopperBlock {
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
     use std::slice;
     use std::sync::Arc;
 
     use glam::DVec3;
+    use simdnbt::borrow::read_compound as read_borrowed_compound;
+    use simdnbt::owned::NbtCompound;
     use vecta_registry::RegistryEntry as _;
     use vecta_registry::data_components::vanilla_components::CUSTOM_NAME;
     use vecta_registry::item_stack::ItemStack;
@@ -275,7 +278,8 @@ mod tests {
     use super::*;
     use crate::behavior::context::{PlacementOrientation, PlacementSource};
     use crate::block_entity::entities::{
-        FURNACE_SLOTS, HOPPER_SLOTS, MOVE_ITEM_SPEED, SLOT_FUEL, SLOT_INPUT, SLOT_RESULT,
+        FURNACE_SLOTS, HOPPER_SLOTS, LecternBlockEntity, MOVE_ITEM_SPEED, SLOT_FUEL, SLOT_INPUT,
+        SLOT_RESULT,
     };
     use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
     use crate::bootstrap::init_globals;
@@ -500,6 +504,67 @@ mod tests {
         tick_block_entities(&fixture, MOVE_ITEM_SPEED as usize);
         assert_eq!(item_at(&fixture, pos, 0).count(), 2);
         assert_eq!(item_at(&fixture, above, 0).count(), 1);
+    }
+
+    #[test]
+    fn a_hopper_leaves_the_book_on_a_lectern_above_it() {
+        // `LecternBlockEntity` is not a `Container`, so `getContainerAt` finds
+        // nothing and the book stays put.
+        let (fixture, pos) = hopper_fixture("hopper_lectern", Direction::Down);
+        let above = pos.above();
+        assert!(
+            fixture.world.set_block(
+                above,
+                vanilla_blocks::LECTERN
+                    .default_state()
+                    .set_value(&BlockStateProperties::HAS_BOOK, true),
+                UpdateFlags::UPDATE_ALL,
+            )
+        );
+        let lectern = fixture
+            .world
+            .get_block_entity(above)
+            .expect("a lectern has a block entity");
+        let lectern = lectern
+            .downcast_ref::<LecternBlockEntity>()
+            .expect("the lectern block creates a lectern block entity");
+        lectern.set_book(ItemStack::new(&vanilla_items::WRITTEN_BOOK));
+
+        tick_block_entities(&fixture, 1);
+
+        assert!(item_at(&fixture, pos, 0).is_empty());
+        assert!(lectern.book().is(&vanilla_items::WRITTEN_BOOK));
+    }
+
+    #[test]
+    fn a_hopper_rolls_the_loot_of_a_dropper_above_before_pulling() {
+        // `RandomizableContainerBlockEntity.getItem` unpacks the loot table, so
+        // the first slot read by the hopper already sees the rolled items.
+        let (fixture, pos) = hopper_fixture("hopper_dropper_loot", Direction::Down);
+        let above = pos.above();
+        assert!(fixture.world.set_block(
+            above,
+            vanilla_blocks::DROPPER.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let dropper = fixture
+            .world
+            .get_block_entity(above)
+            .expect("a dropper has a block entity");
+        let mut nbt = NbtCompound::new();
+        nbt.insert("LootTable", "minecraft:chests/simple_dungeon");
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("loot NBT decodes");
+        dropper.load_additional(&borrowed);
+
+        tick_block_entities(&fixture, 1);
+
+        assert!(
+            (0..HOPPER_SLOTS).any(|slot| !item_at(&fixture, pos, slot).is_empty()),
+            "the rolled dungeon loot reaches the hopper"
+        );
     }
 
     #[test]

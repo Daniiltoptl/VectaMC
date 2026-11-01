@@ -106,6 +106,17 @@ impl LecternBlockEntity {
         }
     }
 
+    /// Vanilla `LecternBlockEntity.bookAccess`: the book storage behind the
+    /// lectern menu.
+    ///
+    /// The lectern is deliberately not exposed through
+    /// [`BlockEntity::container_ref`]: in vanilla it is not a `Container`, so
+    /// hoppers and droppers do not see it.
+    #[must_use]
+    pub fn book_access(&self) -> ContainerRef {
+        self.container_ref.clone()
+    }
+
     /// Returns the stored book.
     #[must_use]
     pub fn book(&self) -> ItemStack {
@@ -301,10 +312,6 @@ impl BlockEntity for LecternBlockEntity {
             nbt.insert(BOOK_NBT_KEY, book_nbt);
         }
         nbt.insert(PAGE_NBT_KEY, container.page);
-    }
-
-    fn container_ref(&self) -> Option<ContainerRef> {
-        Some(self.container_ref.clone())
     }
 }
 
