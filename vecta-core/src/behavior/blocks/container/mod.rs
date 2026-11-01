@@ -3,6 +3,8 @@ mod barrel_block;
 mod beacon_block;
 mod beehive_block;
 mod chest_block;
+#[cfg(test)]
+mod chest_multi_viewer_tests;
 mod chiseled_bookshelf_block;
 mod copper_chest_block;
 mod crafting_table_block;
