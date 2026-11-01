@@ -29,7 +29,6 @@ const THROW: ThrowParams = ThrowParams {
 
 /// Splash-potion behavior providing Vanilla's potion-content-dependent name
 /// and the water default instance inherited from `PotionItem`.
-// TODO: Implement the `ProjectileItem` dispenser dispatch.
 #[item_behavior]
 pub struct SplashPotionItem;
 

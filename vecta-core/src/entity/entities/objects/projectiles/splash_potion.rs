@@ -265,6 +265,7 @@ mod tests {
     use vecta_registry::data_components::PotionContents;
     use vecta_registry::data_components::vanilla_components::POTION_CONTENTS;
     use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::potion::PotionRef;
     use vecta_registry::{
         init_vanilla_registry, vanilla_entities, vanilla_items, vanilla_mob_effects,
         vanilla_potions,
@@ -309,7 +310,7 @@ mod tests {
         assert!(potion.is_removed());
     }
 
-    fn splash_stack(potion: vecta_registry::potion::PotionRef) -> ItemStack {
+    fn splash_stack(potion: PotionRef) -> ItemStack {
         let mut stack = ItemStack::new(&vanilla_items::SPLASH_POTION);
         stack.set(POTION_CONTENTS, PotionContents::of(potion));
         stack
@@ -372,10 +373,10 @@ mod tests {
 
         assert!(potion.is_removed());
         let near_effect = near
-            .mob_effect(&vanilla_mob_effects::SPEED)
+            .mob_effect(vanilla_mob_effects::SPEED)
             .expect("the target at the impact point is affected");
         let far_effect = far
-            .mob_effect(&vanilla_mob_effects::SPEED)
+            .mob_effect(vanilla_mob_effects::SPEED)
             .expect("a target three blocks away is still inside the four-block radius");
         assert!(
             near_effect.duration() > far_effect.duration(),
@@ -430,7 +431,7 @@ mod tests {
         );
         assert!(
             target
-                .mob_effect(&vanilla_mob_effects::INSTANT_DAMAGE)
+                .mob_effect(vanilla_mob_effects::INSTANT_DAMAGE)
                 .is_none(),
             "an instant effect is applied immediately, not stored as a timed effect"
         );
