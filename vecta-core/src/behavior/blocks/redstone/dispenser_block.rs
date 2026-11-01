@@ -405,10 +405,22 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
     use vecta_registry::vanilla_items;
 
     use super::dispenser::projectile::{
-        DEFAULT_POWER, DEFAULT_UNCERTAINTY, DispenseConfig, ProjectileDispenseBehavior,
-        ThrowableItemProjectileFactory,
+        DEFAULT_POSITION_OFFSET, DEFAULT_POWER, DEFAULT_UNCERTAINTY, DispenseConfig,
+        ProjectileDispenseBehavior, ThrowableItemProjectileFactory,
     };
-    use crate::entity::entities::{SnowballEntity, ThrownEggEntity, ThrownExperienceBottleEntity};
+
+    /// `ExperienceBottleItem` and `ThrowablePotionItem` both override
+    /// `createDispenseConfig` with the same values: half the default uncertainty
+    /// and 1.25x the default power, keeping the default position function.
+    const THROWN_CONSUMABLE_CONFIG: DispenseConfig = DispenseConfig {
+        position_offset: DEFAULT_POSITION_OFFSET,
+        uncertainty: DEFAULT_UNCERTAINTY * 0.5,
+        power: DEFAULT_POWER * 1.25,
+        override_dispense_event: None,
+    };
+    use crate::entity::entities::{
+        SnowballEntity, SplashPotionEntity, ThrownEggEntity, ThrownExperienceBottleEntity,
+    };
     use crate::entity::next_entity_id;
 
     registry.register(
@@ -453,16 +465,25 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
     registry.register(
         &vanilla_items::EXPERIENCE_BOTTLE,
         ProjectileDispenseBehavior::new(
-            // `ExperienceBottleItem.createDispenseConfig` halves the default
-            // uncertainty and multiplies the default power by 1.25.
-            DispenseConfig {
-                uncertainty: DEFAULT_UNCERTAINTY * 0.5,
-                power: DEFAULT_POWER * 1.25,
-                ..DispenseConfig::DEFAULT
-            },
+            THROWN_CONSUMABLE_CONFIG,
             ThrowableItemProjectileFactory::new(|world, position| {
                 ThrownExperienceBottleEntity::new(
                     &vanilla_entities::EXPERIENCE_BOTTLE,
+                    next_entity_id(),
+                    position,
+                    Arc::downgrade(world),
+                )
+            }),
+        ),
+    );
+
+    registry.register(
+        &vanilla_items::SPLASH_POTION,
+        ProjectileDispenseBehavior::new(
+            THROWN_CONSUMABLE_CONFIG,
+            ThrowableItemProjectileFactory::new(|world, position| {
+                SplashPotionEntity::new(
+                    &vanilla_entities::SPLASH_POTION,
                     next_entity_id(),
                     position,
                     Arc::downgrade(world),
@@ -477,6 +498,7 @@ mod tests {
     mod egg;
     mod equipment;
     mod experience_bottle;
+    mod potion;
     mod projectile;
     use std::ptr;
     use std::slice;

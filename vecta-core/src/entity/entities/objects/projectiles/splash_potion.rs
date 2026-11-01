@@ -262,12 +262,21 @@ mod tests {
     use std::sync::Arc;
 
     use glam::DVec3;
-    use vecta_registry::{init_vanilla_registry, vanilla_entities};
-    use vecta_utils::{BlockPos, Direction};
+    use vecta_registry::data_components::PotionContents;
+    use vecta_registry::data_components::vanilla_components::POTION_CONTENTS;
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{
+        init_vanilla_registry, vanilla_entities, vanilla_items, vanilla_mob_effects,
+        vanilla_potions,
+    };
+    use vecta_utils::{BlockPos, ChunkPos, Direction};
 
     use crate::behavior::init_behaviors;
-    use crate::entity::{Entity, Projectile, ProjectileHit};
-    use crate::test_support::test_world;
+    use crate::entity::entities::PigEntity;
+    use crate::entity::{
+        Entity, LivingEntity, Projectile, ProjectileHit, SharedEntity, ThrowableItemProjectile,
+    };
+    use crate::test_support::{fresh_test_world, insert_ready_full_chunk, test_world};
     use crate::world::ClipHitResult;
 
     use super::SplashPotionEntity;
@@ -298,5 +307,132 @@ mod tests {
 
         Arc::clone(&potion).on_hit(&hit);
         assert!(potion.is_removed());
+    }
+
+    fn splash_stack(potion: vecta_registry::potion::PotionRef) -> ItemStack {
+        let mut stack = ItemStack::new(&vanilla_items::SPLASH_POTION);
+        stack.set(POTION_CONTENTS, PotionContents::of(potion));
+        stack
+    }
+
+    fn block_hit(location: DVec3) -> ProjectileHit {
+        ProjectileHit::Block {
+            location,
+            hit: ClipHitResult {
+                location,
+                direction: Direction::Up,
+                block_pos: BlockPos::new(0, 80, 0),
+                miss: false,
+                inside: false,
+                world_border_hit: false,
+            },
+        }
+    }
+
+    /// A splash potion scales both intensity and duration by `1 - distance / 4`,
+    /// so a target at the impact point keeps the full effect while a distant one
+    /// gets a shorter, weaker version.
+    #[test]
+    fn splash_applies_timed_effects_with_distance_falloff() {
+        init_vanilla_registry();
+        init_behaviors();
+        let fixture = fresh_test_world("splash_potion_falloff");
+        let world = &fixture.world;
+        let hit = DVec3::new(0.5, 80.5, 0.5);
+        insert_ready_full_chunk(world, ChunkPos::from_entity_pos(hit));
+
+        let near = Arc::new(PigEntity::new(
+            &vanilla_entities::PIG,
+            2,
+            hit,
+            Arc::downgrade(world),
+        ));
+        let far = Arc::new(PigEntity::new(
+            &vanilla_entities::PIG,
+            3,
+            hit + DVec3::new(3.0, 0.0, 0.0),
+            Arc::downgrade(world),
+        ));
+        for pig in [&near, &far] {
+            let entity: SharedEntity = Arc::clone(pig) as SharedEntity;
+            world
+                .try_add_entity(entity)
+                .expect("the pigs stand in a loaded chunk");
+        }
+
+        let potion = Arc::new(SplashPotionEntity::new(
+            &vanilla_entities::SPLASH_POTION,
+            1,
+            hit,
+            Arc::downgrade(world),
+        ));
+        potion.set_item(splash_stack(&vanilla_potions::SWIFTNESS));
+
+        Arc::clone(&potion).on_hit(&block_hit(hit));
+
+        assert!(potion.is_removed());
+        let near_effect = near
+            .mob_effect(&vanilla_mob_effects::SPEED)
+            .expect("the target at the impact point is affected");
+        let far_effect = far
+            .mob_effect(&vanilla_mob_effects::SPEED)
+            .expect("a target three blocks away is still inside the four-block radius");
+        assert!(
+            near_effect.duration() > far_effect.duration(),
+            "duration falls off with distance: near {} vs far {}",
+            near_effect.duration(),
+            far_effect.duration()
+        );
+        assert!(
+            far_effect.duration() > 0,
+            "a target inside the radius keeps a positive duration"
+        );
+    }
+
+    /// Instant effects go through the instantaneous consumer instead of being
+    /// stored as a timed effect.
+    #[test]
+    fn splash_instant_effect_damages_the_target_without_leaving_a_timed_effect() {
+        init_vanilla_registry();
+        init_behaviors();
+        let fixture = fresh_test_world("splash_potion_instant");
+        let world = &fixture.world;
+        let hit = DVec3::new(0.5, 80.5, 0.5);
+        insert_ready_full_chunk(world, ChunkPos::from_entity_pos(hit));
+
+        let target = Arc::new(PigEntity::new(
+            &vanilla_entities::PIG,
+            2,
+            hit,
+            Arc::downgrade(world),
+        ));
+        let health = target.get_health();
+        let entity: SharedEntity = Arc::clone(&target) as SharedEntity;
+        world
+            .try_add_entity(entity)
+            .expect("the pig stands in a loaded chunk");
+
+        let potion = Arc::new(SplashPotionEntity::new(
+            &vanilla_entities::SPLASH_POTION,
+            1,
+            hit,
+            Arc::downgrade(world),
+        ));
+        potion.set_item(splash_stack(&vanilla_potions::HARMING));
+
+        Arc::clone(&potion).on_hit(&block_hit(hit));
+
+        assert!(
+            target.get_health() < health,
+            "instant damage lowers the target's health, {} -> {}",
+            health,
+            target.get_health()
+        );
+        assert!(
+            target
+                .mob_effect(&vanilla_mob_effects::INSTANT_DAMAGE)
+                .is_none(),
+            "an instant effect is applied immediately, not stored as a timed effect"
+        );
     }
 }

@@ -141,3 +141,64 @@ cargo fmt --all --check                        → exit 0
   снаряда подтверждены только серверным событием.
 - Вероятности вылупления проверены функцией `hatch_count`, а не статистическим
   прогоном на живом сервере.
+
+## G003 / W06-011…015 — взрывное зелье из раздатчика
+
+Старый ID: W05-003, продолжение W04-032. Статус: **реализовано и проверено**
+на серверном уровне; клиент не запускался.
+
+### Что было
+
+`SplashPotionItem` и `SplashPotionEntity` существовали и были полными
+(радиус 4, спад по расстоянию, мгновенные и timed-эффекты, тушение огня,
+knockback, save/load), но у предмета стоял TODO «Implement the `ProjectileItem`
+dispenser dispatch», и раздатчик выбрасывал зелье как предмет.
+
+### Что изменилось для игрока
+
+Импульс раздатчика с splash-зельем запускает настоящий `ThrownSplashPotion` с
+ванильной конфигурацией, без владельца, расходует ровно одну единицу и
+сохраняет `potion_contents`/`potion_duration_scale` на всём пути полёта.
+При попадании эффекты достаются целям в радиусе 4 со спадом.
+
+### Ванильные методы
+
+- `world/item/ThrowablePotionItem.createDispenseConfig` (uncertainty × 0.5,
+  power × 1.25; `SplashPotionItem` его не переопределяет).
+- `world/entity/projectile/throwableitemprojectile/AbstractThrownPotion.onHit`
+  (`SPLASH_RANGE = 4.0`, `1 - distance / 4`, фильтр spectator/`isAffectedByPotions`,
+  мгновенные эффекты через `applyInstantaneousEffect`).
+
+### Изменения Vecta
+
+- `dispenser_block.rs`: общая константа `THROWN_CONSUMABLE_CONFIG` (её же теперь
+  использует пузырёк опыта) и регистрация `SPLASH_POTION`.
+- `dispenser_block/tests/potion.rs` (новый): запуск и сохранение содержимого.
+- `splash_potion.rs`: два теста на эффекты (спад по расстоянию и мгновенный эффект).
+
+### Карточки
+
+| ID | Результат |
+| --- | --- |
+| W06-011 | запуск с ванильной config и без владельца — `dispensed_splash_potion_launches_one_unowned_projectile` |
+| W06-012 | `potion_contents` сохраняются на снаряде — `dispensed_splash_potion_keeps_its_potion_contents` |
+| W06-013 | мгновенный эффект идёт через instant-consumer, timed не остаётся — `splash_instant_effect_damages_the_target_without_leaving_a_timed_effect` |
+| W06-014 | две цели на разных расстояниях, длительность падает — `splash_applies_timed_effects_with_distance_falloff` |
+| W06-015 | при ударе зелье удаляется (`on_hit_discards_the_splash_potion`), расход один; save/load зелья уже покрыт `save_additional`/`load_additional` и общим тестом throwable-item. Отдельного «повторного hit» нет по той же причине, что у яиц: vanilla не имеет guard внутри `onHit` |
+
+### Проверки
+
+```
+cargo test -p vecta-core --lib splash_potion -j 1  → 5 passed, 0 failed
+cargo test -p vecta-core --lib dispenser -j 1      → 37 passed, 0 failed
+cargo fmt --all --check                            → exit 0
+```
+
+Логи: `D:/CodexBuilds/logs/w06-g003-*.log`.
+
+### Границы
+
+- Клиент не проверялся: цвет частиц и звук разбивания подтверждены уровнем
+  событий, не глазами.
+- `W06-013` «attribution» проверена тем, что мгновенный эффект применяется через
+  общий consumer; конкретный source/damage-type в живом клиенте не наблюдался.
