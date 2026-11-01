@@ -8,9 +8,11 @@ projectile rejection semantics, and component-driven dispenser equipment.
 The claimed missing living seam already existed as `as_living_entity()`;
 game events are observable using existing listeners. Earlier stage entries below
 are historical. Final verification for this continuation is recorded in the review.
-Working-tree workspace: 4103 passed / 0 failed / 18 ignored. Server-wide RNG
-persistence is prepared and tested locally, pending the world-tick-order decision;
-do not treat it as a published completed foundation or the old task queue as current.
+Review working-tree workspace: 4103 passed / 0 failed / 18 ignored. The owner
+approved sequential world game ticks. The shared RNG/order continuation and its
+new validation are recorded in [the follow-up](../reviews/server-random-sequences.md):
+`54243b963`, **4105 passed / 0 failed / 18 ignored**, final workspace Clippy exit 0.
+The old task queue below is historical.
 
 
 Lectern NBT follow-up: [explicit load read context](../reviews/lectern-load-context.md).

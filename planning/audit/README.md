@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `4fb61ced82adef004a814050a8b671a9194bef08`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `54243b963968832378f9e4c783b5ec8faa155dad`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -11,7 +11,7 @@
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
 | items | 1658 | 1278 |
-| blocks | 1286 | 1033 |
+| blocks | 1286 | 1037 |
 | entities | 161 | 26 |
 
 Полный поимённый каталог, включая уже зарегистрированные объекты: [objects.csv](objects.csv).
@@ -19,7 +19,7 @@
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 250.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 232.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -67,13 +67,10 @@
 | `CreakingHeartBlock` | `creaking_heart` |
 | `CryingObsidianBlock` | `crying_obsidian` |
 | `DecoratedPotBlock` | `decorated_pot` |
-| `DispenserBlock` | `dispenser` |
 | `DriedGhastBlock` | `dried_ghast` |
-| `DropperBlock` | `dropper` |
 | `EnchantingTableBlock` | `enchanting_table` |
 | `FrogspawnBlock` | `frogspawn` |
 | `HalfTransparentBlock` | `blue_ice` |
-| `HopperBlock` | `hopper` |
 | `InfestedBlock` | `infested_chiseled_stone_bricks`, `infested_cobblestone`, `infested_cracked_stone_bricks`, `infested_mossy_stone_bricks`, `infested_stone`, `infested_stone_bricks` |
 | `InfestedRotatedPillarBlock` | `infested_deepslate` |
 | `JigsawBlock` | `jigsaw` |
@@ -94,7 +91,6 @@
 | `TintedGlassBlock` | `tinted_glass` |
 | `TntBlock` | `tnt` |
 | `TransparentBlock` | `glass` |
-| `TrappedChestBlock` | `trapped_chest` |
 | `TrialSpawnerBlock` | `trial_spawner` |
 | `VaultBlock` | `vault` |
 | `WeatheringCopperGolemStatueBlock` | `copper_golem_statue`, `exposed_copper_golem_statue`, `oxidized_copper_golem_statue`, `weathered_copper_golem_statue` |
