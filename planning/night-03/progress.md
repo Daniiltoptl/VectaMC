@@ -1571,3 +1571,60 @@ server_state` закрепляет третье: предмет на курсо�
 - `register_dispense_behaviors` пуст: все регистрации ванили живут в
   `DispenseItemBehavior.bootStrap()` и требуют конкретных классов поведения —
   W04-032..035.
+
+## W04-032 — раздатчик: снаряды (частично: снежок)
+
+Карточка требует подключить настоящих потребителей-снарядов, начиная с того,
+что уже готов, и оставить остальные именованными зависимостями. В Vecta готов
+пока один снаряд с полным entity — снежок; стрел (`ArrowItem`) нет вообще
+(`tipped_arrow.rs` до сих пор помечен как заблокированный на них), поэтому
+зарегистрирован только `SNOWBALL`, остальные типы перечислены зависимостями.
+
+Что появилось в `behavior/blocks/redstone/dispenser/projectile.rs`:
+- `DispenseConfig` — ванильный `ProjectileItem.DispenseConfig`: смещение позиции
+  (по умолчанию `(0, 0.1, 0)` поверх `getDispensePosition(source, 0.7, …)`),
+  `power = 1.1`, `uncertainty = 6.0` и необязательный override события запуска.
+- `trait DispenseProjectileFactory` + `ThrowableItemProjectileFactory<E>` —
+  seam вместо `ProjectileItem.asProjectile` + `Projectile.spawnProjectileUsingShoot`:
+  фабрика создаёт сущность, кладёт в неё копию стака (`set_item_clamped`),
+  вызывает `Projectile.shoot(direction, power, uncertainty)` и добавляет в мир.
+- `ProjectileDispenseBehavior` — ванильный `execute` (запуск + `shrink(1)`),
+  `playSound` → событие 1002 (или override) и **унаследованный** `playAnimation`
+  → событие 2000 с `get3DDataValue()` направления. Важно: ванильный класс
+  переопределяет только `execute` и `playSound`, поэтому дым всё равно играет.
+- Регистрация: `register_dispense_behaviors` → `register_projectile_dispense_behaviors`
+  → `SNOWBALL`. `register_dispense_behaviors` перестал быть `const fn`,
+  а у реестра убраны `len`/`is_empty` (нужны были только тесту, а из-за
+  cfg-зависимости `#[expect(dead_code)]` на них не проходил clippy).
+
+Тесты (2 новых):
+- `the_default_config_matches_vanilla` — power 1.1, uncertainty 6.0, смещение
+  `(0, 0.1, 0)`, без override.
+- `a_dispensed_snowball_is_launched_along_the_facing` — из девяти слотов со
+  стаком снежков один предмет уходит; в мире появляется ровно один
+  `SnowballEntity`, он несёт копию стака из одного снежка, владельца нет
+  (раздатчик — не сущность), позиция `center + 0.7*facing + (0, 0.1, 0)`,
+  скорость ≈ 1.1 по направлению с разбросом `0.0172275 * 6`, события
+  1002 и 2000 с данными направления.
+
+Негативная проверка (прогнана): убрать вызов
+`register_projectile_dispense_behaviors(registry)` → падает ровно
+`a_dispensed_snowball_is_launched_along_the_facing` (0 снарядов вместо 1).
+
+Проверки: полный workspace — **4082 passed / 0 failed / 18 ignored** (было
+4080/18, +2 новых); fmt и clippy `-D warnings` чистые.
+
+Осознанные расхождения и незакрытое:
+- Подключён один тип из тринадцати ванильных `registerProjectileBehavior`
+  (`ARROW`, `TIPPED_ARROW`, `SPECTRAL_ARROW`, `EGG`, `BLUE_EGG`, `BROWN_EGG`,
+  `SNOWBALL`, `EXPERIENCE_BOTTLE`, `SPLASH_POTION`, `LINGERING_POTION`,
+  `FIREWORK_ROCKET`, `FIRE_CHARGE`, `WIND_CHARGE`). Задача помечена как
+  частично закрытая.
+- Если `try_add_entity` отверг снаряд, стак не расходуется. В ванили такого
+  пути нет (добавление сущности не может провалиться), поэтому это защита от
+  потери предмета, а не воспроизведение эталона.
+- `getMovementToShoot` в `entity/projectile/mod.rs` сверим с эталоном: он делает
+  `normalize().add(jitter).scale(power)` — второй нормализации в ванильном
+  `Projectile.getMovementToShoot` действительно нет, расхождения нет. Но
+  `triangle_random` использует `rand::random`, а не поток уровня: это общий
+  долг подсистемы снарядов (карточки 061–066), не раздатчика.

@@ -143,16 +143,6 @@ pub struct DispenseBehaviorRegistry {
     behaviors: FxHashMap<Identifier, Box<dyn DispenseItemBehavior>>,
 }
 
-// `register`, `len` and `is_empty` are the registry's public surface and are
-// only exercised by the unit test until W04-032..035 start registering items,
-// so the dead-code lint is expected in every other build.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the registry is empty until W04-032..035 register their items"
-    )
-)]
 impl DispenseBehaviorRegistry {
     /// Creates an empty registry.
     #[must_use]
@@ -169,18 +159,6 @@ impl DispenseBehaviorRegistry {
     #[must_use]
     pub fn get(&self, item: ItemRef) -> Option<&dyn DispenseItemBehavior> {
         self.behaviors.get(&item.key).map(Box::as_ref)
-    }
-
-    /// How many items have their own behavior.
-    #[must_use]
-    pub fn len(&self) -> usize {
-        self.behaviors.len()
-    }
-
-    /// Whether no item has its own behavior.
-    #[must_use]
-    pub fn is_empty(&self) -> bool {
-        self.behaviors.is_empty()
     }
 }
 
@@ -218,16 +196,12 @@ mod tests {
     fn the_registry_only_answers_for_registered_items() {
         init_vanilla_registry();
         let mut registry = DispenseBehaviorRegistry::new();
-        assert!(registry.is_empty(), "a fresh registry has no entries");
-        assert_eq!(registry.len(), 0);
         assert!(
             registry.get(&vanilla_items::STONE).is_none(),
             "vanilla `getDispenseMethod` falls back to `getDefaultDispenseMethod` for an unregistered item"
         );
 
         registry.register(&vanilla_items::STONE, Probe);
-        assert_eq!(registry.len(), 1);
-        assert!(!registry.is_empty());
         assert!(
             registry.get(&vanilla_items::STONE).is_some(),
             "a registered item resolves to its own behavior"

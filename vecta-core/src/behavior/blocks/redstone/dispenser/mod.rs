@@ -5,3 +5,4 @@
 //! behaviors land here as later tasks add them.
 
 pub(super) mod dispense;
+pub(super) mod projectile;

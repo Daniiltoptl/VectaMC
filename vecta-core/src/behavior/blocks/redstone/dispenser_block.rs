@@ -380,12 +380,46 @@ pub(crate) fn init_dispense_behaviors() {
 ///
 /// Vanilla fills `DISPENSER_REGISTRY` from the item classes; Vecta registers
 /// items here instead, so adding a behavior never touches the dispense tick.
-pub(crate) const fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
-    // W04-032 (projectiles), W04-033 (buckets), W04-034 (equipment) and
-    // W04-035 (bonemeal, ignition, bottles, shears) add their items here. Until
-    // they exist every item falls through to `DefaultDispenseItemBehavior`,
-    // which is vanilla's answer for an unregistered item.
-    let _ = registry;
+pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    register_projectile_dispense_behaviors(registry);
+
+    // W04-033 (buckets), W04-034 (equipment) and W04-035 (bonemeal, ignition,
+    // bottles, shears) add their items here. Until they exist every other item
+    // falls through to `DefaultDispenseItemBehavior`, which is vanilla's answer
+    // for an unregistered item.
+}
+
+/// Vanilla `DispenseItemBehavior.bootStrap` projectile registrations that have a
+/// finished projectile entity behind them.
+///
+/// Vanilla registers arrow, egg, snowball, the potions, fireworks and the
+/// charges here. Only the snowball has a complete entity in Vecta so far, so the
+/// rest stay named dependencies of W04-032 instead of being registered against
+/// a stub.
+fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    use vecta_registry::vanilla_entities;
+    use vecta_registry::vanilla_items;
+
+    use super::dispenser::projectile::{
+        DispenseConfig, ProjectileDispenseBehavior, ThrowableItemProjectileFactory,
+    };
+    use crate::entity::entities::SnowballEntity;
+    use crate::entity::next_entity_id;
+
+    registry.register(
+        &vanilla_items::SNOWBALL,
+        ProjectileDispenseBehavior::new(
+            DispenseConfig::DEFAULT,
+            ThrowableItemProjectileFactory::new(|world, position| {
+                SnowballEntity::new(
+                    &vanilla_entities::SNOWBALL,
+                    next_entity_id(),
+                    position,
+                    Arc::downgrade(world),
+                )
+            }),
+        ),
+    );
 }
 
 #[cfg(test)]
@@ -399,11 +433,14 @@ mod tests {
     use vecta_registry::item_stack::ItemStack;
     use vecta_registry::level_events::{
         PARTICLES_SHOOT_SMOKE, SOUND_DISPENSER_DISPENSE, SOUND_DISPENSER_FAIL,
+        SOUND_DISPENSER_PROJECTILE_LAUNCH,
     };
     use vecta_registry::stat::vanilla_stat_types;
-    use vecta_registry::{vanilla_blocks, vanilla_custom_stats, vanilla_items, vanilla_menu_types};
+    use vecta_registry::{
+        vanilla_blocks, vanilla_custom_stats, vanilla_entities, vanilla_items, vanilla_menu_types,
+    };
     use vecta_utils::types::{InteractionHand, UpdateFlags};
-    use vecta_utils::{BlockPos, ChunkPos};
+    use vecta_utils::{BlockPos, ChunkPos, WorldAabb};
 
     use super::super::dispenser::dispense::DefaultDispenseItemBehavior;
     use super::*;
@@ -411,7 +448,8 @@ mod tests {
     use crate::block_entity::SharedBlockEntity;
     use crate::block_entity::entities::{CHEST_SLOTS, DISPENSER_SLOTS};
     use crate::bootstrap::init_globals;
-    use crate::entity::entities::ItemEntity;
+    use crate::entity::entities::{ItemEntity, SnowballEntity};
+    use crate::entity::{Projectile as _, ThrowableItemProjectile as _};
     use crate::entity::{SharedEntity, next_entity_id};
     use crate::player::{Player, ResetReason};
     use crate::test_support::{
@@ -537,6 +575,24 @@ mod tests {
                 f64::from(pos.y()) + 0.5,
                 f64::from(pos.z()) + 0.5,
             ),
+        )
+    }
+
+    /// Snowball projectiles near the centre of `pos`, which is where a dispenser
+    /// launches them.
+    fn snowballs(fixture: &TestWorld, pos: BlockPos) -> Vec<SharedEntity> {
+        fixture.world.get_entities_in_aabb_matching(
+            &WorldAabb::of_size(
+                DVec3::new(
+                    f64::from(pos.x()) + 0.5,
+                    f64::from(pos.y()) + 0.5,
+                    f64::from(pos.z()) + 0.5,
+                ),
+                3.0,
+                3.0,
+                3.0,
+            ),
+            |entity| entity.entity_type() == &vanilla_entities::SNOWBALL,
         )
     }
 
@@ -863,6 +919,80 @@ mod tests {
         // Keep the fixture alive so the world outlives the lookup, which reads
         // the (empty) registry.
         assert!(fixture.world.get_block_entity(TEST_POS).is_some());
+    }
+
+    #[test]
+    fn a_dispensed_snowball_is_launched_along_the_facing() {
+        let (fixture, pos, _player, packets) =
+            listening_dispenser_fixture("dispenser_snowball", Direction::South);
+        set_item_at(
+            &fixture,
+            pos,
+            0,
+            ItemStack::with_count(&vanilla_items::SNOWBALL, 2),
+        );
+        let behavior = DispenserBlock::new(&vanilla_blocks::DISPENSER);
+
+        pulse(&behavior, &fixture, pos);
+
+        assert_eq!(
+            item_at(&fixture, pos, 0).count(),
+            1,
+            "a dispensed projectile consumes exactly one item"
+        );
+        let projectiles = snowballs(&fixture, pos);
+        assert_eq!(
+            projectiles.len(),
+            1,
+            "vanilla `ProjectileDispenseBehavior` spawns one projectile"
+        );
+        let Some(snowball) = projectiles[0].downcast_ref::<SnowballEntity>() else {
+            panic!("the dispensed entity is the snowball projectile");
+        };
+        assert!(
+            snowball.get_item().is(&vanilla_items::SNOWBALL),
+            "the projectile carries the item it was dispensed from"
+        );
+        assert_eq!(
+            snowball.get_item().count(),
+            1,
+            "vanilla keeps a single-item copy on the projectile"
+        );
+        assert!(
+            snowball.get_owner().is_none(),
+            "a dispenser is not an entity, so vanilla gives the projectile no owner"
+        );
+
+        // Vanilla `DispenserBlock.getDispensePosition(source, 0.7, Vec3(0, 0.1, 0))`.
+        let expected = DVec3::new(4.5, 64.5 + 0.1, 4.5 + 0.7);
+        assert!(
+            (projectiles[0].position() - expected).length() < 1e-9,
+            "launched from {expected:?}, got {:?}",
+            projectiles[0].position()
+        );
+
+        // `DispenseConfig::DEFAULT` is power 1.1 with uncertainty 6, and the
+        // jitter is `0.0172275 * 6` per axis before the power scale.
+        let velocity = projectiles[0].velocity();
+        assert!(
+            (velocity.z - 1.1).abs() <= 0.12
+                && velocity.x.abs() <= 0.12
+                && velocity.y.abs() <= 0.12,
+            "a south-facing dispenser launches at power 1.1 with a small spread, got {velocity:?}"
+        );
+
+        assert_eq!(
+            sent_level_events(&packets),
+            [
+                (SOUND_DISPENSER_PROJECTILE_LAUNCH, pos, 0),
+                (
+                    PARTICLES_SHOOT_SMOKE,
+                    pos,
+                    Direction::South.get_3d_data_value()
+                ),
+            ],
+            "vanilla overrides only `playSound`; the inherited smoke animation still plays"
+        );
     }
 
     #[test]
