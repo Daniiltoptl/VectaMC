@@ -20,7 +20,7 @@ use crate::entity::{
 };
 use crate::physics::{MoveResult, MoverType};
 use crate::player::Player;
-use crate::world::World;
+use crate::world::{Explosion, World};
 
 /// Vanilla `GlowItemFrame`.
 ///
@@ -124,6 +124,10 @@ impl Entity for GlowItemFrameEntity {
 
     fn get_pick_result(&self) -> Option<ItemStack> {
         self.inner.get_pick_result()
+    }
+
+    fn ignore_explosion(&self, explosion: &dyn Explosion) -> bool {
+        self.inner.ignore_explosion(explosion)
     }
 
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {

@@ -32,7 +32,7 @@ use crate::entity::{
 };
 use crate::physics::{CollisionWorld as _, MoveResult, MoverType, WorldCollisionProvider};
 use crate::player::Player;
-use crate::world::World;
+use crate::world::{Explosion, World};
 
 const NUM_ROTATIONS: i32 = 8;
 const FRAME_SIZE: f64 = 0.75;
@@ -539,6 +539,13 @@ impl Entity for ItemFrameEntity {
         } else {
             framed.copy_with_count(framed.count())
         })
+    }
+
+    fn ignore_explosion(&self, explosion: &dyn Explosion) -> bool {
+        explosion
+            .direct_source_entity()
+            .is_some_and(Entity::is_in_water)
+            || !explosion.should_affect_blocklike_entities()
     }
 
     fn hurt(&self, world: &World, source: &DamageSource, amount: f32) -> bool {

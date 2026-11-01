@@ -13,7 +13,7 @@ vecta-registry.workspace = true
 vecta-utils.workspace = true
 
 # Async runtime
-tokio.workspace = true
+tokio = { workspace = true, features = ["net", "rt-multi-thread", "io-std", "fs", "signal"] }
 
 # Serialization
 serde.workspace = true

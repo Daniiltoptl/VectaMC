@@ -32,17 +32,7 @@ vecta-worldgen = { path = "vecta-worldgen" }
 vecta-math = { path = "vecta-math" }
 
 # Async runtime
-tokio = { version = "1.53.3", features = [
-    "macros",
-    "net",
-    "rt-multi-thread",
-    "sync",
-    "io-std",
-    "fs",
-    "io-util",
-    "time",
-    "signal",
-] }
+tokio = { version = "1.53.3", features = ["macros", "sync", "io-util", "rt", "time"] }
 tokio-util = { version = "0.7.20", features = ["rt"] }
 futures = "0.3.34"
 

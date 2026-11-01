@@ -13,6 +13,7 @@ use std::sync::Arc;
 use glam::DVec3;
 use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::{NbtCompound, NbtTag};
+use vecta_math::trig;
 use vecta_math::{DEG_TO_RAD, DEGREE_90, DEGREE_360, RAD_TO_DEG, fast_floor, wrap_degrees};
 use vecta_protocol::packets::game::CTakeItemEntity;
 use vecta_registry::attribute::AttributeRef;
@@ -386,6 +387,14 @@ pub trait Mob: LivingEntity + Leashable {
             .items
             .by_entity_data_type(self.entity_type())
             .map(ItemStack::new)
+    }
+
+    /// Checks line of sight using this mob sensing cache
+    fn has_line_of_sight_cached(&self, target: &dyn Entity) -> bool {
+        self.mob_base()
+            .sensing()
+            .lock()
+            .has_line_of_sight(target.id(), || self.has_line_of_sight(target))
     }
 
     fn custom_server_ai_step(&self) {}
@@ -1313,14 +1322,6 @@ pub trait Mob: LivingEntity + Leashable {
         self.mob_flags() & MOB_FLAG_AGGRESSIVE != 0
     }
 
-    /// Whether this mob can see `target`.
-    fn has_line_of_sight_cached(&self, target: &dyn Entity) -> bool {
-        self.mob_base()
-            .sensing()
-            .lock()
-            .has_line_of_sight(target.id(), || self.has_line_of_sight(target))
-    }
-
     /// Maximum degrees the head may pitch up or down independently of the body.
     fn max_head_x_rot(&self) -> f32 {
         40.0
@@ -1463,8 +1464,8 @@ pub trait Mob: LivingEntity + Leashable {
         };
 
         let yaw_radians = self.rotation().0.to_radians();
-        let yaw_sin = f64::from(yaw_radians.sin());
-        let yaw_cos = f64::from(yaw_radians.cos());
+        let yaw_sin = f64::from(trig::sin(yaw_radians));
+        let yaw_cos = f64::from(trig::cos(yaw_radians));
         living_target.knockback(knockback_amount, yaw_sin, -yaw_cos);
 
         let velocity = self.velocity();
@@ -1760,8 +1761,8 @@ pub trait Mob: LivingEntity + Leashable {
         let xa = strafe_forward * distance;
         let za = strafe_right * distance;
         let yaw_radians = self.rotation().0 * DEG_TO_RAD;
-        let sin = yaw_radians.sin();
-        let cos = yaw_radians.cos();
+        let sin = trig::sin(yaw_radians);
+        let cos = trig::cos(yaw_radians);
         let dx = xa.mul_add(cos, -(za * sin));
         let dz = za.mul_add(cos, xa * sin);
         if !self.is_strafe_walkable(dx, dz) {

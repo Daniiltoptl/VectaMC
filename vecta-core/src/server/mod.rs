@@ -101,7 +101,7 @@ use vecta_protocol::packet_traits::{ClientPacket, EncodedPacket};
 use vecta_protocol::packets::game::{
     CCommandSuggestions, CEntityEvent, CLogin, CPlayerInfoUpdate, CRemovePlayerInfo,
     CSetDefaultSpawnPosition, CSystemChat, CTabList, CTickingState, CTickingStep,
-    CommonPlayerSpawnInfo, RelativeMovement,
+    CommonPlayerSpawnInfo, PLAYER_INFO_INIT_ACTIONS, PlayerInfoEntry, RelativeMovement,
 };
 use vecta_protocol::utils::ConnectionProtocol;
 use vecta_registry::vanilla_game_rules::{
