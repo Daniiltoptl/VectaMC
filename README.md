@@ -58,8 +58,8 @@
 
 Конкретные изменения VectaMC перечислены в [CHANGELOG](CHANGELOG.md).
 
-Для следующего длинного сеанса: [готовый запрос WorkBuddy](WORKBUDDY_START_05.md)
-и [100 карточек продолжения](NIGHT_TASK_05.md). [Текущий checkpoint](planning/night-05/checkpoint.md)
+Для следующего длинного сеанса: [готовый запрос WorkBuddy](WORKBUDDY_START_06.md)
+и [600 карточек в 120 направлениях](NIGHT_TASK_06.md). [Текущий checkpoint](planning/night-06/checkpoint.md)
 содержит стартовую точку и результаты проверок; старые пакеты сохранены как история.
 Исходная точка и авторство описаны в [PROVENANCE](PROVENANCE.md).
 Мы не приписываем проекту результаты измерений и проверок upstream как собственные.

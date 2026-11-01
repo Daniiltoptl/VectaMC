@@ -1,5 +1,8 @@
 # Checkpoint для сеанса 05
 
+> Для нового продолжения использовать [пакет 06](../night-06/checkpoint.md).
+> Ниже сохранён checkpoint предыдущей очереди из 100 задач.
+
 Ветка `codex/night-vanilla-03`, каталог `C:\Users\My comp\Desktop\Vecta`.
 Начинать с actual tip после docs-коммита пакета, не с исторического SHA.
 Baseline до переноса: `88f509a7a`, 4105 passed / 0 failed / 18 ignored.

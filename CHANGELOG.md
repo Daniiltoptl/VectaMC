@@ -1,5 +1,14 @@
 # Изменения VectaMC
 
+## 2026-11-01 · Расширенное ТЗ 06
+
+- Пакет продолжения расширен до 600 карточек в 120 направлениях: прежние области
+  разбиты на конкретные contracts, добавлены redstone/pistons/fluids/farming,
+  navigation, spawners/trials/vaults, raids, Nether mobs, bees, bosses и network lifecycle.
+- [ТЗ](NIGHT_TASK_06.md), [запрос WorkBuddy](WORKBUDDY_START_06.md),
+  [маршрут](planning/night-06/route.md) и index с 212 проверенными Java paths.
+- Изменена документация; последний игровой baseline 4185 tests не подменяется новым прогоном.
+
 ## 2026-11-01 · Игровые обновления SteelMC и пакет 05
 
 - Перенесены TNT block/entity и destructive explosions: rays/resistance/exposure,
