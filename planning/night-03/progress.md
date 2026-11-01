@@ -1,5 +1,18 @@
 # Night 03 — progress
 
+## Current continuation — Codex review of `08f355f31` (2026-11-01)
+
+[Detailed review](../reviews/W04-019-034-codex.md): loot modifier/RNG order,
+stack splitting, zero-level uniform bonus, server-wide persistent RandomSequences,
+projectile rejection semantics, and component-driven dispenser equipment.
+The claimed missing living seam already existed as `as_living_entity()`;
+game events are observable using existing listeners. Earlier stage entries below
+are historical. Final verification for this continuation is recorded in the review.
+Working-tree workspace: 4103 passed / 0 failed / 18 ignored. Server-wide RNG
+persistence is prepared and tested locally, pending the world-tick-order decision;
+do not treat it as a published completed foundation or the old task queue as current.
+
+
 Lectern NBT follow-up: [explicit load read context](../reviews/lectern-load-context.md).
 The owner selected a separate read context. Initial disk/worldgen decoding
 precedes Vanilla level binding and leaves pages unresolved; live command NBT

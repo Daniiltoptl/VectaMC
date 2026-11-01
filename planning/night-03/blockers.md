@@ -1,5 +1,18 @@
 # Night 03 — blockers
 
+## Current continuation after `08f355f31`
+
+See [Codex review](../reviews/W04-019-034-codex.md) for the current correction:
+`as_living_entity()` already supports living capability access; a new `as_living`
+seam is unnecessary. Generic dispenser equipment is implemented using it.
+Game-event listeners already allow tests to observe BLOCK_ACTIVATE/EQUIP/UNEQUIP.
+Named random streams have a prepared local move from per-world memory to server-owned
+typed saved data. Landing it is gated on the parallel-world-tick architecture decision:
+current worker dispatch races for draws, unlike sequential Vanilla level ticks.
+Full Java loot-table golden extraction, remaining loot contexts and
+expansion contracts, special dispenser consumers and NBT round-trips remain work.
+Historical blocker descriptions below must be read with their dated follow-ups.
+
 ## B-W03-01 — client recipe list: resolved for the stonecutter, not for the recipe book
 
 Status: **the packet is implemented and sent.** This section records what the
