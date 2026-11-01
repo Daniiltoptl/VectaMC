@@ -615,4 +615,6 @@ impl Menu {
 }
 
 #[cfg(test)]
+mod sync_tests;
+#[cfg(test)]
 mod tests;

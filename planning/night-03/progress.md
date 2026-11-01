@@ -1347,3 +1347,85 @@ conditions}.rs` (`LootContext<'a>` держит `&mut RandomSource`, `next_float
 - `EnchantRandomly`/`EnchantWithLevels`/`SetContents`/`CopyComponents` остаются
   заглушками (не используют RNG), поэтому лут с зачарованиями совпадает лишь
   в части, которая реализована.
+
+## W04-019 — авторитетный sync меню и properties
+
+Что теперь работает у игрока: клиент и сервер больше не расходятся молча.
+Устаревший клик (с `state_id`, который сервер уже перерос) заставляет сервер
+прислать полный снимок окна `C_CONTAINER_SET_CONTENT` вместо точечных
+обновлений, клик по чужому окну не делает ничего, а изменение содержимого или
+свойства (прогресс плавки, стоимость переименования) с серверной стороны
+доезжает до клиента на ближайшем тике одним `C_CONTAINER_SET_SLOT` /
+`C_CONTAINER_SET_DATA` и больше не повторяется.
+
+Сверка с `AbstractContainerMenu.java` + `ServerGamePacketListenerImpl.java`:
+переписывать пришлось **ничего** — расхождений в путях sync не нашлось, вся
+работа этапа это доказательства. Что именно сверено:
+
+- `sendAllDataToRemote` ↔ `send_all_data_to_remote`: один
+  `C_CONTAINER_SET_CONTENT` со всеми слотами и предметом на курсоре, затем по
+  `C_CONTAINER_SET_DATA` на каждый data slot; `state_id` инкрементится ровно
+  один раз (`sendInitialData`), у `C_SET_CURSOR_ITEM` поля `state_id` нет.
+- `sendSlotChange`/`sendCarriedChange`/`sendDataChange` ↔
+  `synchronize_slot_to_remote`/`synchronize_carried_to_remote`/
+  `synchronize_data_slot_to_remote`: инкремент на каждый отправленный слот,
+  сравнение с тем, что клиент уже знает (`RemoteSlot::Known`/`Hashed`), курсор
+  отдельным пакетом, data slot — только при изменении значения.
+- `incrementStateId` = `stateId + 1 & 32767` — 15-битное переполнение.
+- `handleContainerClick`: чужой `containerId` игнорируется целиком;
+  `isValidSlotIndex` (любой отрицательный слот допустим, первый недопустимый —
+  ровно `slots.size()`); при спектаторе или мёртвом игроке — полный ресинк;
+  `suppressRemoteUpdates` вокруг `clicked`, `setRemoteSlotUnsafe` для
+  `changedSlots`, `setRemoteCarried`, затем `broadcastFullState` при
+  несовпадении `stateId` или `broadcastChanges` иначе.
+- Хеши клиента проверяются, а не принимаются на веру: `HashedStack` сверяется
+  по `item_id`, `count`, набору удалённых компонентов и CRC32C-хешу каждого
+  установленного компонента (`validate_component_hashes`), как
+  `HashedPatchMap.HashGenerator`.
+- `containerCounter` = `counter % 100 + 1`, первый id — 1.
+
+Где Vecta сознательно отличается (записано, чтобы не «чинить» случайно):
+- Для fake-слотов (результат крафта) клиентский хеш не записывается, а слот
+  помечается неизвестным (`mark_remote_slot_unknown`), поэтому результат
+  пересылается на каждый клик. Ванильный `setRemoteSlotUnsafe` записал бы хеш;
+  лишний пакет, но состояние клиента не может «залипнуть».
+- `handleContainerClose` сверяет `container_id` с открытым меню, тогда как
+  ванильный `handleContainerClose` id вообще не смотрит и всегда зовёт
+  `doCloseContainer()`. Это территория W04-018 (там пять закреплённых тестов
+  закрытия), менять в этом этапе не стал; вынесено в незакрытое.
+
+Тесты (`vecta-core/src/inventory/menu/sync_tests.rs`, 10 штук, все на реально
+отправленных пакетах через `RecordingConnection`):
+`opening_a_menu_sends_one_full_snapshot_and_no_slot_updates`,
+`a_stale_state_id_resends_the_whole_menu`,
+`a_current_state_id_only_sends_what_the_click_changed`,
+`a_click_for_another_window_is_ignored`,
+`a_click_on_an_out_of_range_slot_is_rejected`,
+`a_client_slot_map_never_becomes_server_state`,
+`a_server_side_slot_change_is_synced_once_on_the_next_tick`,
+`a_property_change_is_synced_once_on_the_next_tick`,
+`suppressed_updates_are_dropped_and_resent_after_resume`,
+`the_state_id_wraps_at_fifteen_bits`.
+В `tests/support/connection.rs` добавлены декодеры `container_contents`,
+`container_slot_changes`, `container_data_changes`, `cursor_items`.
+
+Проверки: `menu::sync_tests` — 10 passed; полный workspace —
+**4059 passed / 0 failed / 18 ignored** (было 4049, +10 новых);
+`cargo fmt --all --check` и clippy `-D warnings` чистые.
+
+Негативные проверки (прогнаны, не на словах): если убрать `& 0x7FFF` в
+`increment_state_id`, падает `the_state_id_wraps_at_fifteen_bits` (state id
+доходит до 32768); если передать `None` вместо `Some(packet.container_id)` в
+`take_open_menu_for_callback`, падает `a_click_for_another_window_is_ignored`
+(чужой клик начинает применяться). Остальные тесты при этих двух поломках
+проходят, то есть ловят именно свою поломку. `a_client_slot_map_never_becomes_
+server_state` закрепляет третье: предмет на курсоре и содержимое слота берутся
+из серверного расчёта, а не из `changedSlots` клиента, и клиенту уходит
+исправление.
+
+Незакрытое:
+- `handleContainerClose` игнорирует id в ванили (см. выше) — решать вместе с
+  W04-018.
+- `INVENTORY_CHANGED` (критерий достижений) в ванили висит на
+  `ContainerListener.slotChanged`; слушателей слотов в Vecta нет вообще, так
+  что критерий не срабатывает. Это к задачам достижений, не к sync.
