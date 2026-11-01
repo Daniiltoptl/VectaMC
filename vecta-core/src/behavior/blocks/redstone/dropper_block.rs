@@ -4,52 +4,36 @@
 //! one item out of a random non-empty slot: into the container it faces when
 //! there is one, or as an item entity in front of it otherwise. Vanilla puts
 //! this pulse logic on `DispenserBlock`, which `DropperBlock` extends; the only
-//! dropper-specific part is that every item uses the plain drop behavior.
+//! dropper-specific parts are the block entity type and the fact that every item
+//! uses the plain drop behavior, so this module reuses the dispenser's pulse,
+//! placement, menu and comparator code and overrides just those three.
 
 use std::slice;
 use std::sync::{Arc, Weak};
 
-use glam::DVec3;
 use text_components::TextComponent;
 use vecta_macros::block_behavior;
 use vecta_registry::block_entity_type::BlockEntityTypeRef;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
-use vecta_registry::blocks::properties::{
-    BlockStateProperties, BoolProperty, Direction, EnumProperty,
-};
+use vecta_registry::blocks::properties::Direction;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::level_events;
 use vecta_registry::{vanilla_block_entity_types, vanilla_custom_stats};
-use vecta_utils::types::UpdateFlags;
-use vecta_utils::{BlockPos, BlockStateId, Downcast as _, axis::Axis, translations};
+use vecta_utils::random::Random as _;
+use vecta_utils::{BlockPos, BlockStateId, Downcast as _, translations};
 
+use super::dispenser::dispense::{BlockSource, DEFAULT_BEHAVIOR, DispenseItemBehavior};
+use super::dispenser_block::{DispenserBlock, FACING};
 use crate::behavior::InventoryAccess;
 use crate::behavior::block::{BlockBehavior, BlockEntityCreation};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
-use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::entities::DropperBlockEntity;
 use crate::block_entity::entities::push_into_container_at;
 use crate::block_entity::{BLOCK_ENTITIES, BlockEntityTicker};
-use crate::entity::Entity;
-use crate::inventory::container::calculate_redstone_signal_from_container;
 use crate::inventory::lock::{ContainerLockGuard, ContainerRef};
-use crate::inventory::menu::kinds::dispenser_menu;
 use crate::player::Player;
-use crate::world::{LevelReader, SignalGetter as _, World};
-
-const FACING: &EnumProperty<Direction> = &BlockStateProperties::FACING;
-const TRIGGERED: &BoolProperty = &BlockStateProperties::TRIGGERED;
-
-/// Vanilla `DispenserBlock.TRIGGER_DURATION`: the scheduled delay between the
-/// redstone edge and the dispense.
-const TRIGGER_DURATION: i32 = 4;
-
-/// Vanilla `DefaultDispenseItemBehavior.DEFAULT_ACCURACY`.
-const DEFAULT_ACCURACY: f64 = 6.0;
-
-/// Vanilla `DefaultDispenseItemBehavior` spawn offset along the facing axis.
-const SPAWN_OFFSET: f64 = 0.7;
+use crate::world::{LevelReader, World};
 
 /// Vanilla dropper block behavior.
 #[block_behavior]
@@ -64,6 +48,12 @@ impl DropperBlock {
         Self { block }
     }
 
+    /// Vanilla `DropperBlock.DISPENSE_BEHAVIOUR`: the dropper never consults the
+    /// item registry, every item is thrown out the same way.
+    fn get_dispense_method() -> &'static dyn DispenseItemBehavior {
+        &DEFAULT_BEHAVIOR
+    }
+
     /// Vanilla `DropperBlock.dispenseFrom`: one item from a random non-empty
     /// slot, into the container in front or as an item entity.
     fn dispense_from(world: &Arc<World>, state: BlockStateId, pos: BlockPos) {
@@ -71,10 +61,16 @@ impl DropperBlock {
             return;
         };
         let Some(dropper) = block_entity.downcast_ref::<DropperBlockEntity>() else {
+            log::warn!(
+                "Ignoring dispensing attempt for Dropper without matching block entity at {pos:?}"
+            );
             return;
         };
-        let Some(slot) = dropper.get_random_slot(|bound| rand::random_range(0..bound)) else {
-            // Vanilla plays the empty-dropper sound and changes nothing.
+        let Some(slot) = dropper
+            .get_random_slot(|bound| world.random().with_level(|rng| rng.next_i32_bounded(bound)))
+        else {
+            // Vanilla plays the empty-dropper sound and changes nothing: unlike
+            // `DispenserBlock` there is no `BLOCK_ACTIVATE` game event here.
             world.level_event(level_events::SOUND_DISPENSER_FAIL, pos, 0, None);
             return;
         };
@@ -92,82 +88,40 @@ impl DropperBlock {
             return;
         }
 
-        let direction = state.get_value(FACING);
-        let target_pos = pos.relative(direction);
+        let facing = state.get_value(FACING);
+        let target_pos = pos.relative(facing);
         let mut one = stack.clone();
         one.set_count(1);
 
         // Vanilla takes the `into == null` branch, not "a block entity is
         // there": `HopperBlockEntity.getContainerAt` also returns null for a
         // block entity that is not a container, and such a dropper ejects.
-        let moved = if let Some(remaining) =
-            push_into_container_at(world, target_pos, &container, &one, direction.opposite())
+        let remaining = if let Some(remaining) =
+            push_into_container_at(world, target_pos, &container, &one, facing.opposite())
         {
-            remaining.is_empty()
+            if remaining.is_empty() {
+                let mut after = stack;
+                after.shrink(1);
+                after
+            } else {
+                // Vanilla keeps `itemStack.copy()` when the neighbour rejects
+                // the item, so a full chest never shrinks the source slot.
+                stack
+            }
         } else {
-            Self::eject_one(world, pos, direction, one);
-            true
+            let source = BlockSource { world, pos, state };
+            Self::get_dispense_method().dispense(&source, stack)
         };
 
-        if moved {
-            let mut after = stack;
-            after.shrink(1);
-            let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
-            guard.set_item(id, slot, after);
-        }
-    }
-
-    /// Vanilla `DefaultDispenseItemBehavior`: one item entity in front of the
-    /// block, with the vanilla spawn offset, velocity and level events.
-    fn eject_one(world: &Arc<World>, pos: BlockPos, direction: Direction, item: ItemStack) {
-        let (dx, _, dz) = direction.offset();
-        let center = DVec3::new(
-            f64::from(pos.x()) + 0.5,
-            f64::from(pos.y()) + 0.5,
-            f64::from(pos.z()) + 0.5,
-        );
-        let spawn = center + DVec3::from(direction.offset_vec()) * SPAWN_OFFSET;
-        // Vanilla lowers the spawn point by 2/16 on the Y axis and 2.5/16 on the
-        // horizontal axes so the item does not clip the block face.
-        let y = spawn.y
-            - if direction.get_axis() == Axis::Y {
-                0.125
-            } else {
-                0.15625
-            };
-
-        let pow = rand::random::<f64>() * 0.1 + 0.2;
-        let deviation = 0.017_227_5 * DEFAULT_ACCURACY;
-        // `RandomSource.triangle(mean, deviation)`.
-        let triangle =
-            |mean: f64| mean + deviation * (rand::random::<f64>() - rand::random::<f64>());
-        let velocity = DVec3::new(
-            triangle(f64::from(dx) * pow),
-            triangle(0.2),
-            triangle(f64::from(dz) * pow),
-        );
-
-        world.spawn_item_with_velocity(DVec3::new(spawn.x, y, spawn.z), item, velocity);
-        world.level_event(level_events::SOUND_DISPENSER_DISPENSE, pos, 0, None);
-        world.level_event(
-            level_events::PARTICLES_SHOOT_SMOKE,
-            pos,
-            direction.get_3d_data_value(),
-            None,
-        );
+        let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
+        guard.set_item(id, slot, remaining);
     }
 }
 
 impl BlockBehavior for DropperBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        // Vanilla `DispenserBlock.getStateForPlacement`: the block faces away
-        // from the player, so it points where the player is looking.
-        Some(
-            self.block
-                .default_state()
-                .set_value(FACING, context.get_nearest_looking_direction().opposite())
-                .set_value(TRIGGERED, false),
-        )
+        // Vanilla inherits `DispenserBlock.getStateForPlacement` unchanged.
+        Some(DispenserBlock::placement_state(self.block, context))
     }
 
     fn handle_neighbor_changed(
@@ -178,29 +132,13 @@ impl BlockBehavior for DropperBlock {
         _source_block: BlockRef,
         _moved_by_piston: bool,
     ) {
-        // Vanilla `DispenserBlock.neighborChanged`: the block above counts too,
-        // a rising edge schedules the pulse, and a falling edge clears the flag.
-        let should_trigger =
-            world.has_neighbor_signal(pos) || world.has_neighbor_signal(pos.above());
-        let is_triggered = state.get_value(TRIGGERED);
-        if should_trigger && !is_triggered {
-            world.schedule_block_tick_default(pos, self.block, TRIGGER_DURATION);
-            world.set_block(
-                pos,
-                state.set_value(TRIGGERED, true),
-                UpdateFlags::UPDATE_CLIENTS,
-            );
-        } else if !should_trigger && is_triggered {
-            world.set_block(
-                pos,
-                state.set_value(TRIGGERED, false),
-                UpdateFlags::UPDATE_CLIENTS,
-            );
-        }
+        // Vanilla inherits `DispenserBlock.neighborChanged` unchanged.
+        DispenserBlock::neighbor_changed(self.block, state, world, pos);
     }
 
     fn tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        // Vanilla `DispenserBlock.tick` dispenses on the scheduled tick.
+        // Vanilla `DispenserBlock.tick` dispenses on the scheduled tick; the
+        // dropper only replaces the body of `dispenseFrom`.
         Self::dispense_from(world, state, pos);
     }
 
@@ -220,30 +158,15 @@ impl BlockBehavior for DropperBlock {
             return InteractionResult::Success;
         };
 
-        let display_name = dropper
-            .identity()
-            .display_name(|| TextComponent::translated(translations::CONTAINER_DROPPER.msg()));
-        if !dropper.can_open(player) {
-            player.close_container();
-            if !player.is_spectator() {
-                ContainerIdentity::send_locked_notification(world, player, pos, display_name);
-            }
-            player.award_custom_stat(&vanilla_custom_stats::INSPECT_DROPPER);
-            return InteractionResult::Success;
-        }
-
-        dropper.unpack_loot_table(Some(player));
-
-        let Some(container) = ContainerRef::from_block_entity(Arc::clone(&block_entity)) else {
-            return InteractionResult::Success;
-        };
-        let inventory = Arc::clone(&player.inventory);
-        player.open_menu(display_name, move |context| {
-            dispenser_menu(inventory, context.container_id, container)
-        });
-
-        player.award_custom_stat(&vanilla_custom_stats::INSPECT_DROPPER);
-        InteractionResult::Success
+        DispenserBlock::open_menu(
+            world,
+            pos,
+            player,
+            &block_entity,
+            dropper,
+            || TextComponent::translated(translations::CONTAINER_DROPPER.msg()),
+            &vanilla_custom_stats::INSPECT_DROPPER,
+        )
     }
 
     fn new_block_entity(
@@ -292,19 +215,13 @@ impl BlockBehavior for DropperBlock {
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {
-        let Some(block_entity) = world.get_block_entity(pos) else {
-            return 0;
-        };
-        if let Some(dropper) = block_entity.downcast_ref::<DropperBlockEntity>() {
-            dropper.unpack_loot_table(None);
-        }
-        let Some(container) = ContainerRef::from_block_entity(block_entity) else {
-            return 0;
-        };
-        let guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
-        guard
-            .get(container.container_id())
-            .map_or(0, calculate_redstone_signal_from_container)
+        DispenserBlock::analog_signal(world, pos, || {
+            if let Some(entity) = world.get_block_entity(pos)
+                && let Some(dropper) = entity.downcast_ref::<DropperBlockEntity>()
+            {
+                dropper.unpack_loot_table(None);
+            }
+        })
     }
 }
 
@@ -325,11 +242,13 @@ mod tests {
     use vecta_utils::types::{InteractionHand, UpdateFlags};
     use vecta_utils::{BlockPos, ChunkPos};
 
+    use super::super::dispenser_block::TRIGGERED;
     use super::*;
     use crate::behavior::context::{PlacementOrientation, PlacementSource};
     use crate::block_entity::SharedBlockEntity;
     use crate::block_entity::entities::{CHEST_SLOTS, DROPPER_SLOTS};
     use crate::bootstrap::init_globals;
+    use crate::entity::Entity as _;
     use crate::entity::entities::ItemEntity;
     use crate::entity::{SharedEntity, next_entity_id};
     use crate::player::{Player, ResetReason};

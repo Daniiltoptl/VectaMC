@@ -204,6 +204,39 @@ impl BlockEntityRegistryLock {
     }
 }
 
+/// Registers the block entities that hold an item container.
+///
+/// Split out of [`init_block_entities`] because the container families keep
+/// growing: barrels, chests, hoppers and the dispenser/dropper pair all share
+/// the same registration shape.
+fn register_container_block_entities(registry: &mut BlockEntityRegistry) {
+    registry.register(&vanilla_block_entity_types::BARREL, |level, pos, state| {
+        Arc::new(BarrelBlockEntity::new(level, pos, state))
+    });
+
+    registry.register(&vanilla_block_entity_types::CHEST, |level, pos, state| {
+        Arc::new(ChestBlockEntity::new(level, pos, state))
+    });
+
+    registry.register(
+        &vanilla_block_entity_types::TRAPPED_CHEST,
+        |level, pos, state| Arc::new(ChestBlockEntity::new_trapped(level, pos, state)),
+    );
+
+    registry.register(&vanilla_block_entity_types::HOPPER, |level, pos, state| {
+        Arc::new(HopperBlockEntity::new(level, pos, state))
+    });
+
+    registry.register(&vanilla_block_entity_types::DROPPER, |level, pos, state| {
+        Arc::new(DropperBlockEntity::new(level, pos, state))
+    });
+
+    registry.register(
+        &vanilla_block_entity_types::DISPENSER,
+        |level, pos, state| Arc::new(DispenserBlockEntity::new(level, pos, state)),
+    );
+}
+
 /// Global block entity registry.
 ///
 /// Access via deref: `BLOCK_ENTITIES.create(type, pos, state)`
@@ -227,27 +260,7 @@ pub fn init_block_entities() {
             |level, pos, state| Arc::new(SignBlockEntity::new_hanging(level, pos, state)),
         );
 
-        // Register barrel block entity factory
-        registry.register(&vanilla_block_entity_types::BARREL, |level, pos, state| {
-            Arc::new(BarrelBlockEntity::new(level, pos, state))
-        });
-
-        registry.register(&vanilla_block_entity_types::CHEST, |level, pos, state| {
-            Arc::new(ChestBlockEntity::new(level, pos, state))
-        });
-
-        registry.register(
-            &vanilla_block_entity_types::TRAPPED_CHEST,
-            |level, pos, state| Arc::new(ChestBlockEntity::new_trapped(level, pos, state)),
-        );
-
-        registry.register(&vanilla_block_entity_types::HOPPER, |level, pos, state| {
-            Arc::new(HopperBlockEntity::new(level, pos, state))
-        });
-
-        registry.register(&vanilla_block_entity_types::DROPPER, |level, pos, state| {
-            Arc::new(DropperBlockEntity::new(level, pos, state))
-        });
+        register_container_block_entities(&mut registry);
 
         registry.register(&vanilla_block_entity_types::BEACON, |level, pos, state| {
             Arc::new(BeaconBlockEntity::new(level, pos, state))

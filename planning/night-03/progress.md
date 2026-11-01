@@ -1484,3 +1484,90 @@ server_state` закрепляет третье: предмет на курсо�
   настоящей воронкой; сама воронка — W04-027, у неё свои тесты.
 - Двойной сундук (объединённый `CompoundContainer`) здесь не участвует — это
   W04-022.
+
+## W04-031 — основа раздатчика (`DispenserBlock`), общий импульс
+
+Ванильный `DropperBlock extends DispenserBlock` и переопределяет ровно три метода:
+`getDispenseMethod`, `newBlockEntity` и `dispenseFrom`. Структура повторена: общий
+импульс, установка, меню и компаратор живут в `DispenserBlock`, дроппер их вызывает.
+
+Что появилось:
+- `block_entity/entities/dispenser.rs` — общий девятислотовый `DispenserBlockEntity`
+  и `DispenserContainer` (ключ `vecta:container/dispenser`) с `with_type(...)`,
+  `identity`, `can_open`, `unpack_loot_table`, `get_random_slot` (reservoir
+  sampling), NBT load/save, компонентами и `pre_remove_side_effects`.
+  `DropperBlockEntity` стал обёрткой `{ inner: DispenserBlockEntity }`, создаётся
+  через `with_type(&vanilla_block_entity_types::DROPPER, …)` и делегирует все хуки,
+  как подкласс в ванили. `DISPENSER` зарегистрирован в `block_entity/registry.rs`
+  (группа контейнеров вынесена в `register_container_block_entities`, иначе
+  `init_block_entities` переваливал за лимит строк), а `unpack_pending_loot` в
+  `hopper.rs` теперь знает и про раздатчик.
+- `behavior/blocks/redstone/dispenser/dispense.rs` — контракт: `BlockSource`
+  (`world`/`pos`/`state`, `center()`, `facing()` читает `FACING` из состояния, как
+  ванильный `getDispensePosition`), `trait DispenseItemBehavior`,
+  `DefaultDispenseItemBehavior` (`execute` + `playSound` + `playAnimation` одним
+  `dispense`), `DispenseBehaviorRegistry` (item → behavior по `Identifier`),
+  `DEFAULT_BEHAVIOR`, `DispenseBehaviorLock`.
+- `behavior/blocks/redstone/dispenser_block.rs` — `#[block_behavior] DispenserBlock`:
+  `dispense_from` (getRandomSlot → `BlockSource` → `behavior.dispense` → запись
+  остатка), `get_dispense_method` (реестр, иначе `DEFAULT_BEHAVIOR`), общий
+  `neighbor_changed`, `placement_state`, `open_menu`, `analog_signal`.
+  `DropperBlock` переопределяет только `getDispenseMethod` (всегда
+  `DefaultDispenseItemBehavior`), `newBlockEntity` (DROPPER) и `dispenseFrom`
+  (`getContainerAt` + `addItem`, событие 1001 без `BLOCK_ACTIVATE`).
+- `init_behaviors` строит `DISPENSE_BEHAVIORS` через `init_dispense_behaviors` →
+  `register_dispense_behaviors`; список пока пуст, это W04-032..035.
+
+Что исправлено по эталону (в старой копии кода это жило в `DropperBlock`):
+- Случайный слот и разброс выброса брались из `rand::random*`. Теперь слот — из
+  level-потока (`world.random().with_level(...next_i32_bounded)`), а скорость — из
+  `rng.triangle(...)`, как `spawnItem` в ванили (`nextDouble`, затем три `triangle`
+  в порядке x/y/z). То же правило, что и в фундаменте лута: игровая случайность
+  только через `vecta_utils::random::Random`.
+- `getDispenseMethod` принимает `&ItemStack`, как ванильный
+  `getDispenseMethod(level, itemStack)`, чтобы W04-034 могла добавить
+  `getDefaultDispenseMethod` по компонентам (`EQUIPPABLE`, sulfur-tag, spawn egg).
+
+Тесты (18 новых):
+- `block_entity/entities/dispenser.rs` (6): девять слотов своего типа, лимит стака,
+  пустой раздатчик без слота, reservoir sampling, NBT round-trip, `pre_remove`.
+- `block_entity/entities/dropper.rs` (6): обёртка использует тип DROPPER и
+  делегирует.
+- `dispenser/dispense.rs` (1): реестр отвечает только на зарегистрированные
+  предметы.
+- `behavior/blocks/redstone/dispenser_block.rs` (10): нет тикера и создаётся
+  `DispenserBlockEntity` типа DISPENSER; facing при установке; пустой → событие
+  1001; выброс одного предмета **даже при сундуке впереди** (отличие от дроппера) с
+  ванильной позицией/скоростью и событиями 1000+2000; один предмет из девяти
+  полных слотов; латч и `scheduleTick(…, 4)` по фронту; блок над раздатчиком,
+  получающий питание, считается сигналом; обычный предмет падает в
+  `DEFAULT_BEHAVIOR`; меню GENERIC_3X3 + `inspect_dispenser`; компаратор.
+
+Негативные проверки (прогнаны):
+- убрать `|| world.has_neighbor_signal(pos.above())` → падает ровно
+  `a_powered_block_above_the_dispenser_counts_as_a_neighbour_signal`;
+- убрать `remaining.shrink(1)` в `DefaultDispenseItemBehavior::dispense` → падают
+  `one_pulse_moves_exactly_one_item_from_nine_full_slots`,
+  `a_pulse_ejects_one_item_even_with_a_container_in_front` и
+  `a_long_powered_signal_dispenses_once_per_rising_edge` (расхода нет).
+
+Проверки: полный workspace — **4080 passed / 0 failed / 18 ignored** (было
+4062/18, +18 новых); `cargo fmt --all --check` и clippy `-D warnings` чистые.
+
+Осознанные расхождения и незакрытое:
+- Ванильный `getDispenseMethod` первым делом отсекает предметы, выключенные
+  enabled feature flags (`isItemEnabled`). В Vecta feature flags нет, поэтому ветки
+  нет — не подделка.
+- `getDefaultDispenseMethod` (equippable / sulfur tag / spawn egg) не реализован:
+  это W04-034. Сейчас незарегистрированный предмет идёт в `DEFAULT_BEHAVIOR`, что
+  для обычных предметов совпадает с ванилью.
+- Ванильный `dispenseFrom` не пишет слот, если поведение — `NOOP`. У нас запись
+  остатка безусловна: значение то же, отличается только `setChanged`. `NOOP`
+  появится вместе с поведениями, которые его возвращают (W04-033).
+- `BLOCK_ACTIVATE` для пустого раздатчика отправляется, но тестом не проверен:
+  `World::game_event` доставляет события только слушателям, а записывающего
+  слушателя в тестовом окружении нет. Это пробел инфраструктуры тестов, а не
+  заглушка в коде.
+- `register_dispense_behaviors` пуст: все регистрации ванили живут в
+  `DispenseItemBehavior.bootStrap()` и требуют конкретных классов поведения —
+  W04-032..035.

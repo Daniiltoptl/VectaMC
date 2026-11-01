@@ -71,6 +71,7 @@ pub use block::{
 };
 pub(crate) use block::{pickup_waterlogged_block, try_drop_experience};
 use block_behaviors::register_block_behaviors;
+use blocks::init_dispense_behaviors;
 pub use consume_effect::{CONSUME_EFFECT_BEHAVIORS, ConsumeEffectBehaviorRegistry};
 pub use context::{
     BlockHitResult, BlockPlaceContext, InteractionResult, InventoryAccess, InventoryTickContext,
@@ -242,6 +243,8 @@ pub fn init_behaviors() {
         register_item_behaviors(&mut item_behaviors);
         item_behaviors
     });
+
+    init_dispense_behaviors();
 
     CONSUME_EFFECT_BEHAVIORS.0.get_or_init(|| {
         let mut consume_effect_behaviors = ConsumeEffectBehaviorRegistry::new();

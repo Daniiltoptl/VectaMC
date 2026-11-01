@@ -41,7 +41,8 @@ use crate::block_entity::container_component::{
 use crate::block_entity::container_identity::ContainerIdentity;
 use crate::block_entity::container_loot::ContainerLoot;
 use crate::block_entity::entities::{
-    BarrelBlockEntity, ChestBlockEntity, DropperBlockEntity, ShulkerBoxBlockEntity,
+    BarrelBlockEntity, ChestBlockEntity, DispenserBlockEntity, DropperBlockEntity,
+    ShulkerBoxBlockEntity,
 };
 use crate::block_entity::{BlockEntity, BlockEntityBase, SharedBlockEntity};
 use crate::entity::entities::ItemEntity;
@@ -566,6 +567,8 @@ fn unpack_pending_loot(block_entity: &SharedBlockEntity) {
         hopper.unpack_loot_table(None);
     } else if let Some(dropper) = block_entity.downcast_ref::<DropperBlockEntity>() {
         dropper.unpack_loot_table(None);
+    } else if let Some(dispenser) = block_entity.downcast_ref::<DispenserBlockEntity>() {
+        dispenser.unpack_loot_table(None);
     }
 }
 
