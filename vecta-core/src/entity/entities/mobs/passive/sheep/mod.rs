@@ -29,7 +29,7 @@ use crate::entity::ai::goal::{
     RandomLookAroundGoal, TemptGoal, WaterAvoidingRandomStrollGoal,
 };
 use crate::entity::damage::DamageSource;
-use crate::entity::living_entity::shearing_loot_items_with_rng;
+use crate::entity::living_entity::shearing_loot_items;
 use crate::entity::{
     AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
     EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
@@ -221,10 +221,7 @@ impl SheepEntity {
             None,
         );
 
-        let mut rng = rand::rng();
-        for drop in
-            shearing_loot_items_with_rng(self, &vanilla_loot_tables::SHEARING_SHEEP, tool, &mut rng)
-        {
+        for drop in shearing_loot_items(self, &vanilla_loot_tables::SHEARING_SHEEP, tool) {
             self.spawn_shearing_drop(&drop);
         }
 

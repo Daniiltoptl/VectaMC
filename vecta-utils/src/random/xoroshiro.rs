@@ -41,6 +41,19 @@ impl Xoroshiro {
         Self::new(lo, hi)
     }
 
+    /// Creates a `Xoroshiro` from an already-mixed 128-bit seed, as
+    /// `RandomSequence` does for a `random_sequence` key.
+    #[must_use]
+    pub const fn from_seed_128(lo: u64, hi: u64) -> Self {
+        Self::new(lo, hi)
+    }
+
+    /// Vanilla `RandomSupport.upgradeSeedTo128bitUnmixed`.
+    #[must_use]
+    pub const fn upgrade_seed_to_128bit_unmixed(seed: u64) -> (u64, u64) {
+        Self::upgrade_seed_to_128_bit(seed)
+    }
+
     const fn new(lo: u64, hi: u64) -> Self {
         let (lo, hi) = if (lo | hi) == 0 {
             (GOLDEN_RATIO_64, SILVER_RATIO_64)
@@ -94,7 +107,7 @@ impl MarsagliaPolarGaussian for Xoroshiro {
     }
 }
 
-const fn mix_stafford_13(z: u64) -> u64 {
+pub(crate) const fn mix_stafford_13(z: u64) -> u64 {
     let z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
     let z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
     z ^ (z >> 31)

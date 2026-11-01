@@ -6,10 +6,10 @@ use crate::vanilla_items;
 use crate::{init_vanilla_registry, vanilla_loot_tables};
 
 use super::*;
-use rand::SeedableRng;
+use vecta_utils::random::{RandomSource, legacy_random::LegacyRandom};
 
-fn test_rng() -> rand::rngs::StdRng {
-    rand::rngs::StdRng::seed_from_u64(12345)
+fn test_rng() -> RandomSource {
+    RandomSource::Legacy(LegacyRandom::from_seed(12_345))
 }
 
 fn init_test_registries() {
@@ -340,7 +340,7 @@ fn roll_killed_by_player(
 
     (0..rolls)
         .flat_map(|seed| {
-            let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+            let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
             let mut ctx = LootContext::new(&mut rng)
                 .with_killed_by_player(true)
                 .with_this_entity(victim)
@@ -487,7 +487,7 @@ fn test_uniform_get_int_reaches_inclusive_max() {
     let provider = NumberProvider::Uniform { min: 1.0, max: 3.0 };
     let mut seen = [false; 4];
     for seed in 0u64..1000 {
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
         let value = provider.get_int(&mut rng);
         seen[value as usize] = true;
     }
@@ -512,7 +512,7 @@ fn test_explosion_decay_function() {
     let initial_count = 10;
 
     for seed in 0u64..100 {
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+        let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
         let mut ctx = LootContext::new(&mut rng).with_explosion(4.0);
         let mut item = ItemStack::with_count(&crate::vanilla_items::STONE, initial_count);
         cond_func.function.apply(&mut item, &mut ctx);
@@ -554,21 +554,83 @@ fn ominous_bottle_amplifier_function_clamps_to_persistent_range() {
 fn test_survives_explosion_condition() {
     init_test_registries();
 
-    // Test that survives_explosion condition works
-    // Gravel has survives_explosion on its alternatives
+    // Gravel keeps its flint/gravel alternatives only when
+    // `survives_explosion` passes, which is a 1/radius chance.
+    //
+    // One stream, many rolls: `new Random(small seed)` produces nearly the same
+    // first `nextFloat` for every small seed, so varying the seed would not
+    // sample the rate.
+    const ROLLS: i32 = 200;
+    let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(0));
     let mut survived = 0;
-    for seed in 0..100 {
-        let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
+    for _ in 0..ROLLS {
         let mut ctx = LootContext::new(&mut rng).with_explosion(4.0);
-        let items = vanilla_loot_tables::BLOCKS_GRAVEL.get_random_items(&mut ctx);
-        if !items.is_empty() {
+        if !vanilla_loot_tables::BLOCKS_GRAVEL
+            .get_random_items(&mut ctx)
+            .is_empty()
+        {
             survived += 1;
         }
     }
 
-    // With radius 4.0, ~25% should survive
+    // Radius 4.0 means ~25% survival; 200 rolls put 3 sigma at about +-18.
     assert!(
-        survived > 10 && survived < 50,
-        "Expected ~25% survival rate, got {survived}%"
+        (30..=70).contains(&survived),
+        "expected ~25% of {ROLLS} rolls to survive, got {survived}"
     );
+}
+
+/// Slot-by-slot fingerprint of a filled container, for comparing two rolls.
+fn chest_layout(slots: &[ItemStack]) -> Vec<(usize, String, i32)> {
+    slots
+        .iter()
+        .enumerate()
+        .filter(|(_, stack)| !stack.is_empty())
+        .map(|(slot, stack)| (slot, stack.item().key.to_string(), stack.count()))
+        .collect()
+}
+
+/// Rolls `chests/simple_dungeon` into a 27-slot container with a loot seed.
+fn roll_dungeon_chest(seed: i64) -> Vec<(usize, String, i32)> {
+    let mut slots = vec![ItemStack::empty(); 27];
+    let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed as u64));
+    let mut ctx = LootContext::new(&mut rng);
+    vanilla_loot_tables::CHESTS_SIMPLE_DUNGEON.fill(&mut slots, &mut ctx);
+    chest_layout(&slots)
+}
+
+#[test]
+fn a_loot_seed_reproduces_the_same_chest_layout() {
+    init_test_registries();
+
+    let first = roll_dungeon_chest(42);
+    let again = roll_dungeon_chest(42);
+    let other = roll_dungeon_chest(43);
+
+    assert!(
+        !first.is_empty(),
+        "a dungeon chest rolls at least one stack"
+    );
+    assert_eq!(
+        first, again,
+        "the same LootTableSeed must produce the same slots and counts"
+    );
+    assert_ne!(
+        first, other,
+        "a different LootTableSeed must produce a different layout"
+    );
+}
+
+#[test]
+fn filling_a_chest_never_reuses_a_slot() {
+    init_test_registries();
+
+    let layout = roll_dungeon_chest(7);
+    let mut slots: Vec<usize> = layout.iter().map(|(slot, ..)| *slot).collect();
+    let count = slots.len();
+    slots.sort_unstable();
+    slots.dedup();
+
+    assert_eq!(slots.len(), count, "each stack lands in its own slot");
+    assert!(slots.iter().all(|slot| *slot < 27));
 }

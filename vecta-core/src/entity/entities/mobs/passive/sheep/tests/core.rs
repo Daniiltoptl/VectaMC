@@ -437,12 +437,10 @@ fn sheep_shear_loot_resolves_the_matching_color_table() {
         .downcast_ref::<SheepEntity>()
         .expect("shared entity should be a sheep");
 
-    let mut rng = rand::rng();
-    let drops = shearing_loot_items_with_rng(
+    let drops = shearing_loot_items(
         sheep,
         &vanilla_loot_tables::SHEARING_SHEEP,
         &ItemStack::new(&vanilla_items::SHEARS),
-        &mut rng,
     );
 
     assert_ne!(drops.len(), 0);

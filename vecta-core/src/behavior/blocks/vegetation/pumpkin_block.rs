@@ -52,8 +52,6 @@ impl BlockBehavior for PumpkinBlock {
         hit_result: &BlockHitResult,
         inv: &mut InventoryAccess,
     ) -> InteractionResult {
-        let mut rng = rand::rng();
-
         let Some(shears) = inv.with_item(|item_stack| {
             item_stack
                 .is(&vanilla_items::SHEARS)
@@ -63,12 +61,12 @@ impl BlockBehavior for PumpkinBlock {
         };
 
         let drops = drop_from_block_interact_loot_table(
+            world,
             &vanilla_loot_tables::CARVE_PUMPKIN,
             state,
             world.get_block_entity(pos),
             Some(&shears),
             Some(player),
-            &mut rng,
         );
 
         let clicked_direction = hit_result.direction;
@@ -83,6 +81,7 @@ impl BlockBehavior for PumpkinBlock {
             (f64::from(x), f64::from(z))
         };
 
+        let mut rng = rand::rng();
         for drop in drops {
             world.spawn_item_with_velocity(
                 DVec3::new(

@@ -44,6 +44,7 @@ use crate::entity::{
 use crate::physics::MoveResult;
 use crate::player::Player;
 use crate::world::World;
+use crate::world::random::with_loot_source;
 
 const CHICKEN_BABY_PASSENGER_ATTACHMENTS: [EntityAttachmentPoint; 1] =
     [EntityAttachmentPoint::new(0.0, 0.375, 0.0)];
@@ -382,14 +383,14 @@ impl ChickenEntity {
     /// `gameplay/chicken_lay` table, returning whether any item was dropped.
     fn drop_gift_loot_table(&self, loot_table: LootTableRef) -> bool {
         let position = self.position();
-        let mut rng = rand::rng();
         let equipment = living_loot_equipment(self);
         // Vanilla `LootContextParamSets.GIFT` carries only ORIGIN and THIS_ENTITY.
-        let mut context = LootContext::new(&mut rng)
-            .with_origin(position.x, position.y, position.z)
-            .with_this_entity(entity_loot_ref(self, Some(&equipment)));
-
-        let items = loot_table.get_random_items(&mut context);
+        let items = with_loot_source(self.level().as_deref(), loot_table, 0, |rng| {
+            let mut context = LootContext::new(rng)
+                .with_origin(position.x, position.y, position.z)
+                .with_this_entity(entity_loot_ref(self, Some(&equipment)));
+            loot_table.get_random_items(&mut context)
+        });
         let dropped_any = !items.is_empty();
         for item in items {
             self.spawn_at_location(item, EGG_LAY_SPAWN_Y_OFFSET);

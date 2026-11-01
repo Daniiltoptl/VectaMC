@@ -125,6 +125,7 @@ mod player_index;
 pub(crate) mod player_spawn_finder;
 mod portals;
 mod properties;
+pub(crate) mod random;
 mod raycast;
 mod redstone;
 mod signal_getter;
@@ -298,6 +299,8 @@ pub struct World {
     navigating_mobs: NavigatingMobTracker,
     /// Weather Data needed for animating starting and stopping of rain clientside
     pub weather: SyncMutex<Weather>,
+    /// Vanilla `Level.random` and the `RandomSequences` loot streams.
+    random: random::LevelRandom,
     /// Per-level recent toggle history used by vanilla redstone-torch burnout.
     redstone_torch_toggles: SyncMutex<redstone::RedstoneTorchToggleTracker>,
     /// World registration and sparse head index for chunk-owned scheduled ticks.
@@ -312,6 +315,14 @@ pub struct World {
     pub poi_storage: SyncMutex<PointOfInterestStorage>,
     /// World-change requests queued by world-local ticks for server safe-point processing.
     pending_world_changes: SyncMutex<Vec<(SharedEntity, WorldChangeRequest)>>,
+}
+
+impl World {
+    /// Returns the level random source and the `random_sequence` streams.
+    #[must_use]
+    pub const fn random(&self) -> &random::LevelRandom {
+        &self.random
+    }
 }
 
 impl World {
@@ -454,6 +465,7 @@ impl World {
                 entity_tracker: EntityTracker::new(),
                 navigating_mobs: NavigatingMobTracker::new(),
                 weather: SyncMutex::new(weather),
+                random: random::LevelRandom::new(seed),
                 redstone_torch_toggles: SyncMutex::new(
                     redstone::RedstoneTorchToggleTracker::default(),
                 ),

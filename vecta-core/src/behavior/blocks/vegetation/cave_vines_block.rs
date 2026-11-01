@@ -10,6 +10,7 @@ use vecta_registry::loot_table::LootContext;
 use vecta_registry::{
     sound_events, vanilla_blocks, vanilla_game_events, vanilla_items, vanilla_loot_tables,
 };
+use vecta_utils::random::Random as _;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
 
@@ -82,17 +83,19 @@ impl CaveVinesBlock {
         if !state.get_value(BERRIES) {
             return InteractionResult::Pass;
         }
-        let mut rng = rand::rng();
         let equipment = loot_equipment(source_entity);
-        let mut ctx = LootContext::new(&mut rng)
-            .with_block_state(state)
-            .with_interacting_entity(entity_loot_ref(source_entity, equipment.as_ref()));
-
-        let items = vanilla_loot_tables::HARVEST_CAVE_VINE.get_random_items(&mut ctx);
+        let items = world
+            .random()
+            .with_loot(&vanilla_loot_tables::HARVEST_CAVE_VINE, 0, |rng| {
+                let mut ctx = LootContext::new(rng)
+                    .with_block_state(state)
+                    .with_interacting_entity(entity_loot_ref(source_entity, equipment.as_ref()));
+                vanilla_loot_tables::HARVEST_CAVE_VINE.get_random_items(&mut ctx)
+            });
         for item in items {
             world.pop_resource(pos, item);
         }
-        let pitch = rng.random_range(0.8..1.2);
+        let pitch = world.random().with_level(|rng| rng.next_f32() * 0.4 + 0.8);
         world.play_sound(
             &sound_events::BLOCK_CAVE_VINES_PICK_BERRIES,
             SoundSource::Blocks,

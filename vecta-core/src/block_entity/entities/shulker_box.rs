@@ -149,6 +149,7 @@ impl ShulkerBoxBlockEntity {
     /// Rolls this box's pending loot table, if any.
     pub fn unpack_loot_table(&self, player: Option<&Player>) {
         self.loot.unpack(
+            self.base.level().as_deref(),
             self.get_block_pos(),
             &mut self.container.lock().items,
             player,

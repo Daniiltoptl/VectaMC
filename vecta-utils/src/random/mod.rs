@@ -4,7 +4,7 @@ use enum_dispatch::enum_dispatch;
 use crate::random::{
     legacy_random::{LegacyRandom, LegacyRandomSplitter},
     name_hash::NameHash,
-    xoroshiro::{Xoroshiro, XoroshiroSplitter},
+    xoroshiro::{Xoroshiro, XoroshiroSplitter, mix_stafford_13},
 };
 
 /// This module contains the gaussian random number generator.
@@ -105,4 +105,32 @@ pub fn get_seed(x: i32, y: i32, z: i32) -> i64 {
         .wrapping_mul(42_317_861_i64)
         .wrapping_add(l.wrapping_mul(11));
     l >> 16
+}
+
+/// Vanilla `RandomSupport.seedFromHashOf`: the first 16 bytes of the MD5 of
+/// `input` read as two big-endian longs.
+#[must_use]
+pub fn seed_from_hash_of(input: &str) -> (u64, u64) {
+    let digest = md5::compute(input.as_bytes());
+    let half = |bytes: &[u8]| {
+        bytes.iter().fold(0_u64, |accumulator, &byte| {
+            (accumulator << 8) | u64::from(byte)
+        })
+    };
+    (half(&digest.0[..8]), half(&digest.0[8..]))
+}
+
+/// Vanilla `RandomSequence`: the persisted Xoroshiro stream one
+/// `random_sequence` key draws from.
+///
+/// `seed` is `worldSeed ^ salt` (or the world seed alone with the default
+/// salt), and the key is mixed in so every table gets its own stream.
+#[must_use]
+pub fn random_sequence(seed: i64, key: &str) -> RandomSource {
+    let (lo, hi) = Xoroshiro::upgrade_seed_to_128bit_unmixed(seed as u64);
+    let (hash_lo, hash_hi) = seed_from_hash_of(key);
+    RandomSource::Xoroshiro(Xoroshiro::from_seed_128(
+        mix_stafford_13(lo ^ hash_lo),
+        mix_stafford_13(hi ^ hash_hi),
+    ))
 }

@@ -7,6 +7,7 @@ use super::*;
 use crate::behavior::{BLOCK_BEHAVIORS, InventoryTickContext, MOB_EFFECT_BEHAVIORS};
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::RecentDamageSource;
+use crate::world::random::with_loot_source;
 
 const BED_SLEEP_POSITION_OFFSET: f64 = 0.125;
 
@@ -1154,27 +1155,14 @@ pub trait LivingEntity: Entity {
         };
 
         let seed = self.death_loot_table_seed();
-        let drops = if seed == 0 {
-            let mut rng = rand::rng();
-            death_loot_items_with_rng(
-                self,
-                loot_table,
-                world.as_ref(),
-                source,
-                killed_by_player,
-                &mut rng,
-            )
-        } else {
-            let mut rng = StdRng::seed_from_u64(seed as u64);
-            death_loot_items_with_rng(
-                self,
-                loot_table,
-                world.as_ref(),
-                source,
-                killed_by_player,
-                &mut rng,
-            )
-        };
+        let drops = death_loot_items(
+            self,
+            loot_table,
+            world.as_ref(),
+            source,
+            killed_by_player,
+            seed,
+        );
 
         if has_custom_death_loot_table && let Some(mob) = self.as_mob() {
             mob.clear_custom_death_loot_table();
@@ -3198,13 +3186,13 @@ fn random_teleport_ground_y(world: &Arc<World>, x: f64, y: f64, z: f64) -> Optio
     None
 }
 
-fn death_loot_items_with_rng<R: rand::Rng, E: LivingEntity + ?Sized>(
+fn death_loot_items<E: LivingEntity + ?Sized>(
     entity: &E,
     loot_table: LootTableRef,
     world: &World,
     source: &DamageSource,
     killed_by_player: bool,
-    rng: &mut R,
+    seed: i64,
 ) -> Vec<ItemStack> {
     let causing_entity = source.causing_entity().map(AsRef::as_ref);
     let direct_entity = source.direct_entity().map(AsRef::as_ref);
@@ -3233,44 +3221,49 @@ fn death_loot_items_with_rng<R: rand::Rng, E: LivingEntity + ?Sized>(
         is_direct: source.is_direct(),
     };
 
-    let mut context = LootContext::new(rng)
-        .with_origin(position.x, position.y, position.z)
-        .with_game_time(world.game_time())
-        .with_killed_by_player(killed_by_player)
-        .with_this_entity(this_entity)
-        .with_damage_source(damage_source);
-    if let Some(entity) = causing_entity {
-        context = context.with_killer_entity(entity);
-    }
-    if let Some(entity) = direct_entity {
-        context = context.with_direct_killer_entity(entity);
-    }
-    if let Some(entity) = last_damage_player {
-        context = context.with_last_damage_player(entity);
-    }
+    world.random().with_loot(loot_table, seed, |rng| {
+        let mut context = LootContext::new(rng)
+            .with_origin(position.x, position.y, position.z)
+            .with_game_time(world.game_time())
+            .with_killed_by_player(killed_by_player)
+            .with_this_entity(this_entity)
+            .with_damage_source(damage_source);
+        if let Some(entity) = causing_entity {
+            context = context.with_killer_entity(entity);
+        }
+        if let Some(entity) = direct_entity {
+            context = context.with_direct_killer_entity(entity);
+        }
+        if let Some(entity) = last_damage_player {
+            context = context.with_last_damage_player(entity);
+        }
 
-    loot_table.get_random_items(&mut context)
+        loot_table.get_random_items(&mut context)
+    })
 }
 
 /// Runs vanilla `LivingEntity.dropFromShearingLootTable` for `loot_table`, returning the
 /// drops resolved with the vanilla shearing loot params (origin, entity, tool).
-pub(crate) fn shearing_loot_items_with_rng<R: rand::Rng, E: LivingEntity + ?Sized>(
+pub(crate) fn shearing_loot_items<E: LivingEntity + ?Sized>(
     entity: &E,
     loot_table: LootTableRef,
     tool: &ItemStack,
-    rng: &mut R,
 ) -> Vec<ItemStack> {
     let position = entity.position();
     let equipment = living_loot_equipment(entity);
-    let mut context = LootContext::new(rng)
-        .with_origin(position.x, position.y, position.z)
-        .with_this_entity(entity_loot_ref(
-            entity.as_entity_event_source(),
-            Some(&equipment),
-        ))
-        .with_tool(tool);
-    if let Some(level) = entity.level() {
-        context = context.with_game_time(level.game_time());
-    }
-    loot_table.get_random_items(&mut context)
+    let level = entity.level();
+    let game_time = level.as_ref().map(|level| level.game_time());
+    with_loot_source(level.as_deref(), loot_table, 0, |rng| {
+        let mut context = LootContext::new(rng)
+            .with_origin(position.x, position.y, position.z)
+            .with_this_entity(entity_loot_ref(
+                entity.as_entity_event_source(),
+                Some(&equipment),
+            ))
+            .with_tool(tool);
+        if let Some(game_time) = game_time {
+            context = context.with_game_time(game_time);
+        }
+        loot_table.get_random_items(&mut context)
+    })
 }

@@ -1240,3 +1240,110 @@ Vecta paths: `behavior/blocks/container/chest_block.rs` (2 теста),
   только на `still_valid` (`anvil_menu/tests.rs`, `stonecutter_menu/tests.rs`).
 - `ContainerOpenersCounter` не имеет хука на удаление блок-сущности, как и в
   ванили; счётчик живёт только в блок-сущности.
+
+## Фундамент: детерминированный лут с сидом (план)
+
+Java 26.3: `LootTable.fill`/`getRandomItems`, `LootContext.Builder`
+(`withOptionalRandomSeed`, `create`), `RandomSequences`/`RandomSequence`,
+`RandomSource.create` = `LegacyRandomSource`, `Mth.nextInt`/`nextFloat`,
+`Util.shuffle`, `WeightedRandom.getRandomItem`.
+
+Порядок работ (каждый шаг коммитится отдельно, если проверен):
+1. `vecta-utils`: `Xoroshiro::from_seed_128`, `upgrade_seed_to_128bit_unmixed`,
+   `seed_from_hash_of` (MD5, как `RandomSupport.seedFromHashOf`).
+2. `vecta-registry::loot_table`: `LootContext` теряет generic `R: rand::Rng` и
+   держит `&mut RandomSource`; все вызовы `rand` заменяются на ванильную
+   последовательность (`next_f32`, `next_i32_bounded`, `next_i32_between`,
+   `next_bool`), `Uniform`-float = `Mth.nextFloat`, `Uniform`-int =
+   `Mth.nextInt`, взвешенный выбор = `nextInt(totalWeight)`, `shuffle` =
+   `nextInt(i)`. `item_stack.rs` (`enchant_randomly` и соседние) переводится на
+   `&mut RandomSource`.
+3. `vecta-core::world`: `Level.random` (`LegacyRandom` с уникальным сидом, как
+   `RandomSource.create()`) и `RandomSequences` (`seed ^ salt`, xor MD5-хеш
+   ключа, `Xoroshiro`), плюс выбор источника по `LootContext.Builder.create`.
+4. `container_loot.rs`: `unpack` берёт `World` и применяет `LootTableSeed`.
+5. Остальные call sites (mob drops, fishing, brushable, advancement rewards,
+   block drops) — на уровень.
+6. Тесты: детерминизм (один сид дважды → одинаково, разные сиды → разное) и
+   фиксированный сид для `chests/simple_dungeon`. Эталона из ванильной сборки
+   локально нет, поэтому точное совпадение набора со SteelExtractor — отдельный
+   запрос; до него фиксируется детерминизм и порядок вызовов.
+
+## Фундамент закрыт: лут на ванильном RandomSource
+
+Java 26.3: `LootTable.fill`/`getRandomItems`/`shuffleAndSplitItems`/
+`getAvailableSlots`, `LootContext.Builder.withOptionalRandomSeed`/`create`,
+`RandomSequences`/`RandomSequence`, `RandomSource.create` = `LegacyRandomSource`,
+`Mth.nextInt`/`nextFloat`, `Util.shuffle`,
+`WeightedRandom.getRandomItem`, `RandomSupport.seedFromHashOf`,
+`UniformGenerator` (floats и ints), `BinomialDistributionGenerator`,
+`ApplyBonusCount`, `SurvivesExplosionCondition`.
+
+Что теперь делает игрок:
+- Сундук из структуры с `LootTableSeed` разыгрывает ровно тот же набор и
+  раскладку слотов, что и ванильный сервер с этим сидом: сид больше не
+  игнорируется. Один и тот же сид даёт одинаковый лут после перезапуска,
+  сохранения и повторного открытия; другой сид — другой лут.
+- Таблицы без сида, но с `random_sequence` (мобы, рыбалка, награды за
+  достижения) идут в свой Xoroshiro-поток, выведенный из сида мира и ключа
+  таблицы: `RandomSequences` с солью 0 и включёнными world seed/sequence id.
+- Остальные таблицы берут поток уровня (`Level.random`), как ванильный
+  `LootContext.Builder.create`.
+- Зачарование/бонус-формулы/`survives_explosion` считают теми же вызовами, что
+  Java (`nextFloat`, `nextInt(bound)`, `nextInt(min,max)`), а не `rand`.
+
+Vecta paths: `vecta-registry/src/loot_table/{context,entries,functions,
+conditions}.rs` (`LootContext<'a>` держит `&mut RandomSource`, `next_float`/
+`next_int` как `Mth`, `shuffle`/`shuffle_and_split_items`/взвешенный выбор на
+`nextInt`), `vecta-registry/src/item_stack.rs` (сигнатуры loot-функций),
+`vecta-utils/src/random/{mod,xoroshiro}.rs` (`random_sequence`,
+`seed_from_hash_of` на MD5, `Xoroshiro::from_seed_128`,
+`upgrade_seed_to_128bit_unmixed`), `vecta-core/src/world/random.rs` (новый
+`LevelRandom`: `with_level`, `with_sequence`, `with_loot`, `with_loot_source`),
+`vecta-core/src/world/mod.rs` (`World::random`), `container_loot.rs`
+(`unpack` берёт мир и применяет `LootTableSeed`), `living_entity.rs`
+(`death_loot_items`/`shearing_loot_items`), `fishing_hook.rs`,
+`brushable.rs`, `chicken/mod.rs`, `advancement/rewards.rs`,
+`behavior/block/mod.rs` (`drop_from_block_interact_loot_table` берёт мир),
+`world/level_effects.rs`, `cave_vines_block.rs`.
+
+Решения:
+- `LootContext` больше не generic: держать `&mut RandomSource` (enum
+  `Xoroshiro|Legacy`) достаточно, а generic заражал все 40+ сигнатур.
+- `with_loot`/`with_loot_source` принимают замыкание, а не возвращают guard:
+  поток `random_sequence` живёт в `SyncMutex<FxHashMap>`, и отдавать наружу
+  `MutexGuard` на элемент карты нельзя, не протекая типом.
+- Уровневый поток сеется уникальным сидом при создании мира, как ванильный
+  `RandomSource.create()`: он не детерминирован по сиду мира и не должен быть.
+- Детерминизм по сиду мира есть только у `random_sequence`, как в ванили.
+- `RandomSequences` пока живёт в памяти: ванильный `data/random_sequences.dat`
+  не пишется, поэтому после перезапуска последовательности начинаются заново.
+  Это записано в блокеры.
+- `Level.random`/`random_sequences` вынесены в `world/random.rs`, чтобы
+  `world/mod.rs` не рос.
+- Разброс скорости выпадения у тыквы/ягод и `ExperienceOrb` остались на
+  runtime-RNG: это инцидентная случайность, не лут.
+
+Проверки: `loot_table::tests` — 25 passed (в т.ч. два новых: одинаковый сид →
+одинаковая раскладка `chests/simple_dungeon`, другой сид → другая; слоты не
+переиспользуются), `world::random::tests` — 3 passed (сид важнее обоих потоков,
+`random_sequence` общий и продолжается, таблица без последовательности берёт
+поток уровня). Полный workspace — **4049 passed / 0 failed / 18 ignored**;
+`cargo fmt --all --check` и clippy `-D warnings` чистые.
+
+Негативные проверки: при возврате `rand::random_range` вместо `next_f32`
+падает `test_survives_explosion_condition` (0% выживших на 200 бросках);
+без `Mth.nextInt`-семантики (`min >= max` без броска) падает
+`test_uniform_get_int_reaches_inclusive_max`; при отключении `LootTableSeed`
+падает `a_loot_seed_reproduces_the_same_chest_layout`.
+
+Незакрытое:
+- `RandomSequences` не сохраняется на диск (см. выше).
+- Эталона «сид → точный набор» из ванильной сборки локально нет (нет ни
+  серверного jar, ни SteelExtractor под рукой). Нужен файл вида
+  `{table, seed, slots:[{slot,item,count}]}` для `chests/simple_dungeon` и
+  пары мобов; до него закреплён детерминизм и порядок вызовов, а не сравнение
+  с ванильным выводом.
+- `EnchantRandomly`/`EnchantWithLevels`/`SetContents`/`CopyComponents` остаются
+  заглушками (не используют RNG), поэтому лут с зачарованиями совпадает лишь
+  в части, которая реализована.

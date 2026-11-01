@@ -4,7 +4,6 @@ use std::str::FromStr as _;
 use std::sync::{Arc, Weak};
 
 use glam::DVec3;
-use rand::{SeedableRng as _, rngs::StdRng};
 use simdnbt::borrow::{BaseNbtCompound as BorrowedNbtCompound, NbtCompound as NbtCompoundView};
 use simdnbt::owned::NbtCompound;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
@@ -24,6 +23,7 @@ use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::entity::{LivingEntity as _, entity_loot_ref, living_loot_equipment};
 use crate::player::Player;
 use crate::world::World;
+use crate::world::random::with_loot_source;
 
 const BRUSH_COOLDOWN_TICKS: i64 = 10;
 const BRUSH_RESET_TICKS: i64 = 40;
@@ -203,39 +203,36 @@ impl BrushableBlockEntity {
         };
         let loot_table = REGISTRY.loot_tables.by_key(&loot_table_key);
 
-        if state.loot_table_seed == 0 {
-            let mut rng = rand::rng();
-            self.unpack_loot_items(state, loot_table, &loot_table_key, &mut rng, player, brush);
-        } else {
-            let mut rng = StdRng::seed_from_u64(state.loot_table_seed as u64);
-            self.unpack_loot_items(state, loot_table, &loot_table_key, &mut rng, player, brush);
-        }
+        self.unpack_loot_items(state, loot_table, &loot_table_key, player, brush);
         self.set_changed();
     }
 
-    fn unpack_loot_items<R: rand::Rng>(
+    fn unpack_loot_items(
         &self,
         state: &mut BrushableState,
         loot_table: Option<LootTableRef>,
         loot_table_key: &Identifier,
-        rng: &mut R,
         player: &Player,
         brush: &ItemStack,
     ) {
+        let seed = state.loot_table_seed;
         let loot = match loot_table {
             Some(table) => {
                 // TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
                 let equipment = living_loot_equipment(player);
-                let mut ctx = LootContext::new(rng)
-                    .with_luck(player.get_luck())
-                    .with_tool(brush)
-                    .with_origin(
-                        f64::from(self.get_block_pos().x()) + 0.5,
-                        f64::from(self.get_block_pos().y()) + 0.5,
-                        f64::from(self.get_block_pos().z()) + 0.5,
-                    )
-                    .with_this_entity(entity_loot_ref(player, Some(&equipment)));
-                table.get_random_items(&mut ctx)
+                let pos = self.get_block_pos();
+                with_loot_source(self.base.level().as_deref(), table, seed, |rng| {
+                    let mut ctx = LootContext::new(rng)
+                        .with_luck(player.get_luck())
+                        .with_tool(brush)
+                        .with_origin(
+                            f64::from(pos.x()) + 0.5,
+                            f64::from(pos.y()) + 0.5,
+                            f64::from(pos.z()) + 0.5,
+                        )
+                        .with_this_entity(entity_loot_ref(player, Some(&equipment)));
+                    table.get_random_items(&mut ctx)
+                })
             }
             None => Vec::new(),
         };

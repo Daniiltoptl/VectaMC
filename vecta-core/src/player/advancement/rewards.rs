@@ -2,6 +2,7 @@
 
 use crate::entity::{Entity, entity_loot_ref, living_loot_equipment};
 use crate::player::Player;
+use crate::world::random::with_loot_source;
 use vecta_registry::advancement::AdvancementRewards;
 use vecta_registry::loot_table::LootContext;
 
@@ -11,14 +12,18 @@ pub fn grant_reward(player: &Player, reward: &AdvancementRewards) {
 
     let position = player.position();
     let equipment = living_loot_equipment(player);
-    let mut rng = rand::rng();
-    let mut ctx = LootContext::new(&mut rng)
-        .with_this_entity(entity_loot_ref(player, Some(&equipment)))
-        .with_origin(position.x, position.y, position.z);
+    let level = player.level();
 
     let mut changes = false;
+    // Vanilla `AdvancementRewards.grant` builds one context per table.
     for loot_table in &reward.loots {
-        for mut item in loot_table.get_random_items(&mut ctx) {
+        let items = with_loot_source(level.as_deref(), loot_table, 0, |rng| {
+            let mut ctx = LootContext::new(rng)
+                .with_this_entity(entity_loot_ref(player, Some(&equipment)))
+                .with_origin(position.x, position.y, position.z);
+            loot_table.get_random_items(&mut ctx)
+        });
+        for mut item in items {
             if player.add_item_with_sound(&mut item) {
                 changes = true;
                 continue;

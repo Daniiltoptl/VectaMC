@@ -533,23 +533,30 @@ impl FishingHookEntity {
                     };
 
                     if let Some(luck) = luck {
-                        let mut rng = rng();
-
-                        // This is equivalent to `LootParams params` in the java src.
-                        let mut loot_ctx = LootContext::new(&mut rng)
-                            .with_origin(self.position().x, self.position().y, self.position().z)
-                            .with_tool(rod)
-                            .with_this_entity(entity_loot_ref(self, None))
-                            .with_luck(luck as f32 + player.get_luck());
-
-                        let items =
-                            vanilla_loot_tables::GAMEPLAY_FISHING.get_random_items(&mut loot_ctx);
-
-                        // TODO: criteria triggers (advancements)
-
                         let Some(world) = self.level() else {
                             return damage;
                         };
+
+                        // This is equivalent to `LootParams params` in the java src.
+                        let items = world.random().with_loot(
+                            &vanilla_loot_tables::GAMEPLAY_FISHING,
+                            0,
+                            |rng| {
+                                let mut loot_ctx = LootContext::new(rng)
+                                    .with_origin(
+                                        self.position().x,
+                                        self.position().y,
+                                        self.position().z,
+                                    )
+                                    .with_tool(rod)
+                                    .with_this_entity(entity_loot_ref(self, None))
+                                    .with_luck(luck as f32 + player.get_luck());
+                                vanilla_loot_tables::GAMEPLAY_FISHING
+                                    .get_random_items(&mut loot_ctx)
+                            },
+                        );
+
+                        // TODO: criteria triggers (advancements)
 
                         self.spawn_loot_award_stat(items, &world, owner.as_ref());
 

@@ -1,9 +1,10 @@
 use super::{
     BlockStateExt, DamageSourceInfo, DyeColor, EntityEquipmentRef, EntityRef, EntityRefFlags,
     Identifier, ItemStack, LootContext, LootContextEntity, NumberProvider, NumberProviderRange,
-    REGISTRY, RegistryExt, RngExt, TaggedRegistryExt,
+    REGISTRY, RegistryExt, TaggedRegistryExt,
 };
 use crate::equipment::EquipmentSlot;
+use vecta_utils::random::Random as _;
 
 /// A property check for block state conditions.
 #[derive(Debug, Clone)]
@@ -219,12 +220,12 @@ pub struct DamageTagPredicate {
 
 impl LootCondition {
     /// Test if this condition passes given the loot context.
-    pub fn test<R: rand::Rng>(&self, ctx: &mut LootContext<'_, R>) -> bool {
+    pub fn test(&self, ctx: &mut LootContext<'_>) -> bool {
         match self {
             LootCondition::SurvivesExplosion => {
                 if let Some(radius) = ctx.explosion_radius {
                     // Vanilla: 1/radius chance to survive
-                    ctx.rng.random::<f32>() <= (1.0 / radius)
+                    ctx.rng.next_f32() <= (1.0 / radius)
                 } else {
                     true // No explosion, always survives
                 }
@@ -251,7 +252,7 @@ impl LootCondition {
                     false // No block state in context
                 }
             }
-            LootCondition::RandomChance(chance) => ctx.rng.random::<f32>() < *chance,
+            LootCondition::RandomChance(chance) => ctx.rng.next_f32() < *chance,
             LootCondition::RandomChanceWithEnchantedBonus {
                 enchantment,
                 unenchanted_chance,
@@ -269,7 +270,7 @@ impl LootCondition {
                 } else {
                     *unenchanted_chance
                 };
-                ctx.rng.random::<f32>() < effective_chance
+                ctx.rng.next_f32() < effective_chance
             }
             LootCondition::MatchTool(predicate) => {
                 if let Some(tool) = ctx.tool {
@@ -286,7 +287,7 @@ impl LootCondition {
                 let level = ctx.get_enchantment_level_by_id(enchantment);
                 let index = (level as usize).min(chances.len().saturating_sub(1));
                 let chance = chances.get(index).copied().unwrap_or(0.0);
-                ctx.rng.random::<f32>() < chance
+                ctx.rng.next_f32() < chance
             }
             LootCondition::Inverted(inner) => !inner.test(ctx),
             LootCondition::AnyOf(conditions) => conditions.iter().any(|c| c.test(ctx)),
@@ -348,7 +349,7 @@ impl LootCondition {
 impl ToolPredicate {
     /// Test if the tool matches this predicate.
     #[must_use]
-    pub fn test<R: rand::Rng>(&self, tool: &ItemStack, _ctx: &LootContext<'_, R>) -> bool {
+    pub fn test(&self, tool: &ItemStack, _ctx: &LootContext<'_>) -> bool {
         match self {
             ToolPredicate::Item(item_id) => tool.item.key == *item_id,
             ToolPredicate::HasEnchantment {
@@ -396,7 +397,7 @@ fn tool_enchantment_matches(
 }
 
 impl EntityPredicate {
-    fn test<R: rand::Rng>(&self, entity: EntityRef<'_>, ctx: &LootContext<'_, R>) -> bool {
+    fn test(&self, entity: EntityRef<'_>, ctx: &LootContext<'_>) -> bool {
         if let Some(entity_type) = &self.entity_type
             && entity.entity_type != Some(entity_type)
         {
@@ -457,11 +458,7 @@ impl EntityFlags {
 }
 
 impl EntityEquipment {
-    fn test<R: rand::Rng>(
-        &self,
-        equipment: Option<EntityEquipmentRef<'_>>,
-        ctx: &LootContext<'_, R>,
-    ) -> bool {
+    fn test(&self, equipment: Option<EntityEquipmentRef<'_>>, ctx: &LootContext<'_>) -> bool {
         let slot_predicates = self.slot_predicates();
         if slot_predicates
             .iter()
@@ -492,7 +489,7 @@ impl EntityEquipment {
 }
 
 impl DamageSourcePredicate {
-    fn test<R: rand::Rng>(&self, ctx: &LootContext<'_, R>) -> bool {
+    fn test(&self, ctx: &LootContext<'_>) -> bool {
         let Some(damage_source) = ctx.damage_source else {
             return false;
         };

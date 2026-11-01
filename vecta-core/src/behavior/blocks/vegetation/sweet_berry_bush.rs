@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use glam::DVec3;
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -145,15 +144,13 @@ impl BlockBehavior for SweetBerryBushBlock {
             return InteractionResult::Pass;
         }
 
-        let mut rng = rand::rng();
-
         let items = drop_from_block_interact_loot_table(
+            world,
             &vanilla_loot_tables::HARVEST_SWEET_BERRY_BUSH,
             state,
             world.get_block_entity(pos),
             None,
             Some(player),
-            &mut rng,
         );
 
         for item in items {
@@ -164,7 +161,7 @@ impl BlockBehavior for SweetBerryBushBlock {
             &sound_events::BLOCK_SWEET_BERRY_BUSH_PICK_BERRIES,
             pos,
             1.0,
-            rng.random_range(0.8..1.2),
+            rand::random_range(0.8..1.2),
             Some(player.id()),
         );
 

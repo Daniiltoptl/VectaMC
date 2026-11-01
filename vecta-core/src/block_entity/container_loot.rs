@@ -17,10 +17,12 @@ use vecta_registry::data_components::vanilla_components::CONTAINER_LOOT;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::loot_table::LootContext;
 use vecta_registry::{REGISTRY, RegistryExt as _};
-use vecta_utils::{BlockPos, Identifier, locks::SyncMutex};
+use vecta_utils::{BlockPos, Identifier, locks::SyncMutex, random::RandomSource};
 
 use crate::entity::{LivingEntity as _, entity_loot_ref, loot_equipment};
 use crate::player::Player;
+use crate::world::World;
+use crate::world::random::with_loot_source;
 
 /// NBT key holding the loot table resource location.
 pub const LOOT_TABLE_TAG: &str = "LootTable";
@@ -124,14 +126,21 @@ impl ContainerLoot {
     /// The table reference is cleared before the roll, so a failure to resolve
     /// the table cannot leave a container that would roll again on the next
     /// read.
-    pub fn unpack(&self, pos: BlockPos, slots: &mut [ItemStack], player: Option<&Player>) {
-        let key = {
+    pub fn unpack(
+        &self,
+        world: Option<&World>,
+        pos: BlockPos,
+        slots: &mut [ItemStack],
+        player: Option<&Player>,
+    ) {
+        let (key, seed) = {
             let mut state = self.state.lock();
             let Some(key) = state.table.take() else {
                 return;
             };
+            let seed = state.seed;
             state.seed = 0;
-            key
+            (key, seed)
         };
         let Some(table) = REGISTRY.loot_tables.by_key(&key) else {
             log::warn!("loot table {key} is not registered; the container stays empty");
@@ -143,16 +152,18 @@ impl ContainerLoot {
             f64::from(pos.y()) + 0.5,
             f64::from(pos.z()) + 0.5,
         );
-        let mut rng = rand::rng();
-        let mut ctx = LootContext::new(&mut rng).with_origin(center.x, center.y, center.z);
         let equipment = player.and_then(|player| loot_equipment(player));
-        if let Some(player) = player {
-            ctx = ctx
-                .with_luck(player.get_luck())
-                .with_interacting_entity(entity_loot_ref(player, equipment.as_ref()));
-        }
+        let roll = |rng: &mut RandomSource| {
+            let mut ctx = LootContext::new(rng).with_origin(center.x, center.y, center.z);
+            if let Some(player) = player {
+                ctx = ctx
+                    .with_luck(player.get_luck())
+                    .with_interacting_entity(entity_loot_ref(player, equipment.as_ref()));
+            }
+            table.fill(slots, &mut ctx);
+        };
 
-        table.fill(slots, &mut ctx);
+        with_loot_source(world, table, seed, roll);
     }
 }
 
@@ -216,7 +227,7 @@ mod tests {
         loot.set(Some(Identifier::vanilla_static("chests/simple_dungeon")), 0);
         let mut slots = vec![ItemStack::empty(); 27];
 
-        loot.unpack(BlockPos::new(0, 64, 0), &mut slots, None);
+        loot.unpack(None, BlockPos::new(0, 64, 0), &mut slots, None);
 
         assert!(!loot.is_randomized(), "the table is consumed exactly once");
         let mut nbt = NbtCompound::new();
@@ -233,10 +244,10 @@ mod tests {
         let loot = ContainerLoot::new();
         loot.set(Some(Identifier::vanilla_static("chests/simple_dungeon")), 0);
         let mut slots = vec![ItemStack::empty(); 27];
-        loot.unpack(BlockPos::new(0, 64, 0), &mut slots, None);
+        loot.unpack(None, BlockPos::new(0, 64, 0), &mut slots, None);
         let first: Vec<ItemStack> = slots.clone();
 
-        loot.unpack(BlockPos::new(0, 64, 0), &mut slots, None);
+        loot.unpack(None, BlockPos::new(0, 64, 0), &mut slots, None);
 
         assert_eq!(slots.len(), first.len());
         for (before, after) in first.iter().zip(&slots) {

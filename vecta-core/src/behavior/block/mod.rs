@@ -3,7 +3,6 @@
 use std::sync::{Arc, Weak};
 
 use glam::DVec3;
-use rand::rngs::ThreadRng;
 use smallvec::SmallVec;
 use vecta_registry::DyeColor;
 use vecta_registry::block_entity_type::BlockEntityTypeRef;
@@ -67,30 +66,31 @@ pub(crate) fn default_can_be_replaced(
 /// each item from it in a [`Vec`].
 #[must_use]
 pub(crate) fn drop_from_block_interact_loot_table(
+    world: &Arc<World>,
     key: LootTableRef,
     interacted_block_state: BlockStateId,
     _interacted_block_entity: Option<SharedBlockEntity>,
     tool: Option<&ItemStack>,
     interacting_entity: Option<&dyn Entity>,
-    rng: &mut ThreadRng,
 ) -> Vec<ItemStack> {
-    let mut ctx = LootContext::new(rng).with_block_state(interacted_block_state);
-
     // TODO: Add the block entity to the context when it can be done.
 
     let interacting_equipment = interacting_entity.and_then(loot_equipment);
-    if let Some(interacting_entity) = interacting_entity {
-        ctx = ctx.with_interacting_entity(entity_loot_ref(
-            interacting_entity,
-            interacting_equipment.as_ref(),
-        ));
-    }
+    world.random().with_loot(key, 0, |rng| {
+        let mut ctx = LootContext::new(rng).with_block_state(interacted_block_state);
+        if let Some(interacting_entity) = interacting_entity {
+            ctx = ctx.with_interacting_entity(entity_loot_ref(
+                interacting_entity,
+                interacting_equipment.as_ref(),
+            ));
+        }
 
-    if let Some(tool) = tool {
-        ctx = ctx.with_tool(tool);
-    }
+        if let Some(tool) = tool {
+            ctx = ctx.with_tool(tool);
+        }
 
-    key.get_random_items(&mut ctx)
+        key.get_random_items(&mut ctx)
+    })
 }
 
 /// Samples and applies enchantment effects to a block experience drop.
