@@ -46,6 +46,20 @@ pub struct ConditionalLootFunction {
     pub conditions: &'static [LootCondition],
 }
 
+impl ConditionalLootFunction {
+    pub(super) fn apply_all(functions: &[Self], item: &mut ItemStack, ctx: &mut LootContext<'_>) {
+        for function in functions {
+            if function
+                .conditions
+                .iter()
+                .all(|condition| condition.test(ctx))
+            {
+                function.function.apply(item, ctx);
+            }
+        }
+    }
+}
+
 /// A function that modifies loot items.
 #[derive(Debug, Clone)]
 pub enum LootFunction {
@@ -559,12 +573,7 @@ impl BonusFormula {
                 }
             }
             BonusFormula::UniformBonusCount { bonus_multiplier } => {
-                // Vanilla: count + random(0..bonusMultiplier * level + 1)
-                if level > 0 {
-                    count + rng.next_i32_bounded(bonus_multiplier * level + 1)
-                } else {
-                    count
-                }
+                count + rng.next_i32_bounded(bonus_multiplier * level + 1)
             }
             BonusFormula::BinomialWithBonusCount { extra, probability } => {
                 // Vanilla: for each of (level + extra) trials, probability p to add 1

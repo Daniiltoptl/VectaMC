@@ -8,6 +8,8 @@ use crate::{init_vanilla_registry, vanilla_loot_tables};
 use super::*;
 use vecta_utils::random::{RandomSource, legacy_random::LegacyRandom};
 
+mod evaluation_order;
+
 fn test_rng() -> RandomSource {
     RandomSource::Legacy(LegacyRandom::from_seed(12_345))
 }
@@ -412,7 +414,7 @@ fn enchanted_count_increase_limit_caps_the_stack_not_the_bonus() {
         200,
     )
     .into_iter()
-    .filter(|item| item.item.key == tipped_arrow)
+    .filter(|item| !item.is_empty() && item.item.key == tipped_arrow)
     .collect();
 
     assert_ne!(arrows, Vec::<ItemStack>::new());
