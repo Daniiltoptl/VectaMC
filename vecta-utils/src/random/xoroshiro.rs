@@ -48,6 +48,12 @@ impl Xoroshiro {
         Self::new(lo, hi)
     }
 
+    /// Returns the two seed words encoded by `XoroshiroRandomSource.CODEC`.
+    #[must_use]
+    pub const fn seed_words(&self) -> [i64; 2] {
+        [self.seed_lo as i64, self.seed_hi as i64]
+    }
+
     /// Vanilla `RandomSupport.upgradeSeedTo128bitUnmixed`.
     #[must_use]
     pub const fn upgrade_seed_to_128bit_unmixed(seed: u64) -> (u64, u64) {

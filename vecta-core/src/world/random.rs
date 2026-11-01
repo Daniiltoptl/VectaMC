@@ -3,30 +3,27 @@
 //! Loot tables that carry no seed draw from one of two streams: the level's own
 //! legacy source, or — when the table declares a `random_sequence` — a
 //! Xoroshiro stream derived from the world seed and the table key. Vanilla
-//! persists the sequence states in `data/random_sequences.dat`; Vecta keeps
-//! them in memory, so a restart rewinds every sequence to its seed-derived
-//! state.
+//! shares sequence states across the server; Vecta binds every hosted world
+//! to its server's saved-data-backed sequence owner before game ticks start.
 
-use rustc_hash::FxHashMap;
+use std::sync::Arc;
 use vecta_registry::loot_table::LootTable;
 use vecta_utils::{
     Identifier,
-    locks::SyncMutex,
-    random::{RandomSource, legacy_random::LegacyRandom, random_sequence},
+    locks::{SyncMutex, SyncRwLock},
+    random::{RandomSource, legacy_random::LegacyRandom},
 };
+
+use crate::server::random_sequences::RandomSequences;
 
 use crate::world::World;
 
-/// Vanilla `RandomSequences` default salt (`setSeedDefaults`).
-const DEFAULT_SALT: i32 = 0;
-
 /// The random streams one loaded world hands out.
 pub struct LevelRandom {
-    world_seed: i64,
     /// Vanilla `Level.random`.
     level: SyncMutex<RandomSource>,
     /// Vanilla `RandomSequences`: one persisted stream per `random_sequence`.
-    sequences: SyncMutex<FxHashMap<Identifier, RandomSource>>,
+    sequences: SyncRwLock<Arc<RandomSequences>>,
 }
 
 impl LevelRandom {
@@ -34,13 +31,14 @@ impl LevelRandom {
     #[must_use]
     pub fn new(world_seed: i64) -> Self {
         Self {
-            world_seed,
             // Vanilla `Level.random = RandomSource.create()`: a legacy stream
             // seeded once with a unique seed, unrelated to the world seed.
             level: SyncMutex::new(RandomSource::Legacy(
                 LegacyRandom::from_seed(rand::random()),
             )),
-            sequences: SyncMutex::new(FxHashMap::default()),
+            // Standalone worlds own a stream bank until server initialization
+            // binds them to the shared server bank, before gameplay starts.
+            sequences: SyncRwLock::new(Arc::new(RandomSequences::new(world_seed))),
         }
     }
 
@@ -51,11 +49,11 @@ impl LevelRandom {
 
     /// Runs `f` against the stream of `key`, creating it on first use.
     pub fn with_sequence<T>(&self, key: &Identifier, f: impl FnOnce(&mut RandomSource) -> T) -> T {
-        let mut sequences = self.sequences.lock();
-        let source = sequences.entry(key.clone()).or_insert_with(|| {
-            random_sequence(self.world_seed ^ i64::from(DEFAULT_SALT), &key.to_string())
-        });
-        f(source)
+        self.sequences.read().with_sequence(key, f)
+    }
+
+    pub(crate) fn bind_sequences(&self, sequences: Arc<RandomSequences>) {
+        *self.sequences.write() = sequences;
     }
 
     /// Runs `f` against the stream Vanilla `LootContext.Builder.create` picks

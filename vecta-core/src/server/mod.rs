@@ -154,6 +154,7 @@ pub struct CommandDataSaveResults {
 }
 
 mod known_players;
+pub(crate) mod random_sequences;
 
 use known_players::KnownPlayerCacheState;
 
@@ -204,6 +205,9 @@ pub async fn test_server_with_worlds_and_config(
     let command_storage = DomainCommandStorage::load(&worlds)
         .await
         .map_err(|error| format!("test command storage should load: {error}"))?;
+    let random_sequences = random_sequences::RandomSequences::load_and_bind(&worlds)
+        .await
+        .map_err(|error| format!("test random sequences should load: {error}"))?;
     let player_data_storage = PlayerDataStorage::in_memory();
     let registered_commands = create_registered_dispatcher(CommandRegistry::new())
         .map_err(|error| format!("test commands should register: {error}"))?;
@@ -250,6 +254,7 @@ pub async fn test_server_with_worlds_and_config(
         tick_rate_manager: SyncRwLock::new(TickRateManager::new()),
         scoreboards,
         command_storage,
+        random_sequences,
         command_dispatcher: SyncRwLock::new(registered_commands.dispatcher),
         command_permission_keys,
         command_requests: CommandRequestQueue::new(),
@@ -496,6 +501,8 @@ pub struct Server {
     pub scoreboards: DomainScoreboards,
     /// Command NBT storage isolated by Vecta domain.
     pub(crate) command_storage: DomainCommandStorage,
+    /// Named loot streams shared across every world of this server.
+    pub(crate) random_sequences: Arc<random_sequences::RandomSequences>,
     /// Saves and dispatches commands to appropriate handlers.
     command_dispatcher: SyncRwLock<CommandDispatcher>,
     /// Vecta-owned permission keys exposed for command autocomplete.
@@ -808,6 +815,9 @@ impl Server {
         let command_storage = DomainCommandStorage::load(&worlds)
             .await
             .map_err(|error| format!("failed to load domain command storage: {error}"))?;
+        let random_sequences = random_sequences::RandomSequences::load_and_bind(&worlds)
+            .await
+            .map_err(|error| format!("failed to load server random sequences: {error}"))?;
         let registered_commands = create_registered_dispatcher(command_registry)
             .map_err(|error| format!("failed to register commands: {error}"))?;
         let command_permission_keys = registered_commands
@@ -838,6 +848,7 @@ impl Server {
             player_idle_timeout: AtomicI32::new(0),
             scoreboards,
             command_storage,
+            random_sequences,
             command_dispatcher: SyncRwLock::new(registered_commands.dispatcher),
             command_permission_keys,
             command_requests: CommandRequestQueue::new(),
@@ -874,6 +885,13 @@ impl Server {
     /// Saves all dirty domain command storage through domain default worlds.
     pub async fn save_command_storage(&self) -> io::Result<usize> {
         self.command_storage.save(&self.worlds).await
+    }
+
+    /// Saves advanced server-wide random streams through the server default world.
+    pub async fn save_random_sequences(&self) -> io::Result<bool> {
+        self.random_sequences
+            .save(&self.overworld().saved_data)
+            .await
     }
 
     /// Saves all command-owned persistent data while allowing each data set to fail independently.

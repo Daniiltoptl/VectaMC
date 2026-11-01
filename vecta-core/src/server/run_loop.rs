@@ -131,6 +131,9 @@ impl Server {
             Ok(saved) => log::info!("Saved {saved} domain command storages"),
             Err(error) => log::error!("Failed to save domain command storage: {error}"),
         }
+        if let Err(error) = self.save_random_sequences().await {
+            log::error!("Failed to save server random sequences: {error}");
+        }
         let mut total_saved = 0;
         for world in self.worlds.values() {
             world.cleanup(&mut total_saved).await;
@@ -333,6 +336,10 @@ impl Server {
         match results.storage {
             Ok(saved) => tracing::debug!(saved, "Domain command-storage autosave completed"),
             Err(error) => tracing::error!(%error, "Domain command-storage autosave failed"),
+        }
+        match self.save_random_sequences().await {
+            Ok(saved) => tracing::debug!(saved, "Server random-sequence autosave completed"),
+            Err(error) => tracing::error!(%error, "Server random-sequence autosave failed"),
         }
     }
 

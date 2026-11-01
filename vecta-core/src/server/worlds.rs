@@ -16,6 +16,7 @@ pub(crate) const END_WORLD_NAME: &str = "the_end";
 /// Loaded worlds plus domain defaults.
 pub struct WorldMap {
     worlds: FxSmallMap<8, Identifier, Arc<World>>,
+    insertion_order: Vec<Identifier>,
     default_domain: String,
     default_worlds: FxHashMap<String, Identifier>,
     nether_portal_targets: FxHashMap<Identifier, Identifier>,
@@ -47,6 +48,7 @@ impl WorldMap {
         }
         Self {
             worlds: FxSmallMap::default(),
+            insertion_order: Vec::new(),
             default_domain,
             default_worlds,
             nether_portal_targets,
@@ -98,6 +100,9 @@ impl WorldMap {
 
     /// Inserts a loaded world.
     pub fn insert(&mut self, key: Identifier, world: Arc<World>) {
+        if !self.worlds.contains_key(&key) {
+            self.insertion_order.push(key.clone());
+        }
         if let Some(replaced) = self.worlds.insert(key, Arc::clone(&world))
             && let Some(directory) = self.entity_directories.get(replaced.domain())
         {
@@ -117,19 +122,21 @@ impl WorldMap {
         self.worlds.get(key)
     }
 
-    /// Iterates loaded world values.
+    /// Iterates loaded worlds in insertion order, as used for sequential game ticks.
     pub fn values(&self) -> impl Iterator<Item = &Arc<World>> {
-        self.worlds.values()
+        self.insertion_order.iter().map(|key| &self.worlds[key])
     }
 
-    /// Iterates loaded world keys.
+    /// Iterates loaded world keys in insertion order.
     pub fn keys(&self) -> impl Iterator<Item = &Identifier> {
-        self.worlds.keys()
+        self.insertion_order.iter()
     }
 
-    /// Iterates loaded world key/value pairs.
+    /// Iterates loaded world key/value pairs in insertion order.
     pub fn iter(&self) -> impl Iterator<Item = (&Identifier, &Arc<World>)> {
-        self.worlds.iter()
+        self.insertion_order
+            .iter()
+            .map(|key| (key, &self.worlds[key]))
     }
 
     /// Returns number of loaded worlds.
@@ -178,8 +185,7 @@ impl WorldMap {
     /// Returns loaded worlds in the given domain.
     #[must_use]
     pub fn worlds_in_domain(&self, domain: &str) -> Vec<Arc<World>> {
-        self.worlds
-            .values()
+        self.values()
             .filter(|world| world.domain() == domain)
             .cloned()
             .collect()
@@ -245,7 +251,59 @@ fn end_entry_portal_target_world_name(source_world_name: &str) -> Option<&'stati
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::{end_entry_portal_target_world_name, nether_portal_target_world_name};
+
+    #[test]
+    fn world_iteration_keeps_load_order_after_heap_spill_and_replacement() {
+        use crate::test_support::fresh_test_world_in_domain;
+
+        let names = [
+            "overworld",
+            "the_nether",
+            "the_end",
+            "third",
+            "fourth",
+            "fifth",
+            "sixth",
+            "seventh",
+            "eighth",
+            "ninth",
+        ];
+        let fixtures: Vec<_> = names
+            .into_iter()
+            .map(|name| fresh_test_world_in_domain("world_order", name))
+            .collect();
+        let mut worlds = super::WorldMap::new("world_order".to_owned(), &[], &[]);
+        for fixture in &fixtures {
+            worlds.insert(fixture.world.key.clone(), Arc::clone(&fixture.world));
+        }
+        let expected: Vec<_> = fixtures.iter().map(|fixture| &fixture.world.key).collect();
+        assert_eq!(worlds.keys().collect::<Vec<_>>(), expected);
+        assert_eq!(
+            worlds.values().map(|world| &world.key).collect::<Vec<_>>(),
+            expected
+        );
+
+        let replacement = fresh_test_world_in_domain("world_order", "the_nether");
+        worlds.insert(
+            replacement.world.key.clone(),
+            Arc::clone(&replacement.world),
+        );
+        let entries: Vec<_> = worlds.iter().collect();
+        assert_eq!(
+            entries.iter().map(|(key, _)| *key).collect::<Vec<_>>(),
+            expected
+        );
+        assert!(Arc::ptr_eq(entries[1].1, &replacement.world));
+        assert!(Arc::ptr_eq(
+            worlds
+                .get(&replacement.world.key)
+                .expect("replacement lookup"),
+            &replacement.world
+        ));
+    }
 
     #[test]
     fn domain_uuid_lookup_excludes_replaced_worlds_without_retaining_worlds() {
@@ -254,7 +312,6 @@ mod tests {
             fresh_test_derived_world, fresh_test_world_in_domain, insert_ready_full_chunk,
         };
         use glam::DVec3;
-        use std::sync::Arc;
         use vecta_registry::vanilla_entities;
         use vecta_utils::ChunkPos;
 
