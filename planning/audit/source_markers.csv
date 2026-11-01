@@ -24,6 +24,7 @@ vecta-core/src/behavior/blocks/portal/respawn_anchor_block.rs,232,// TODO: Once 
 vecta-core/src/behavior/blocks/redstone/bell_block.rs,66,// TODO: Notify villagers when the villager AI is fully implemented.
 vecta-core/src/behavior/blocks/redstone/piston/base.rs,263,// TODO: Pass the block entity to loot evaluation once block-entity components and
 vecta-core/src/behavior/blocks/redstone/target_block.rs,102,// TODO: The advancement criterion awaits Vecta's shared advancement foundations.
+vecta-core/src/behavior/blocks/redstone/tnt_block.rs,240,// TODO: Check an arrow's pickup stack once arrows exist. Other projectiles use an empty
 vecta-core/src/behavior/blocks/redstone/weathering_lightning_rod_block.rs,79,//TODO: override onLightningStrike() once it gets implemented
 vecta-core/src/behavior/blocks/vegetation/bonemealable.rs,66,// TODO: Rooted dirt is a GROWER in vanilla but overrides getParticlePos to pos.below().
 vecta-core/src/behavior/blocks/vegetation/carved_pumpkin_block.rs,32,"// TODO: Add golem spawning behavior (iron, copper, snow) including dropper checks"
@@ -86,44 +87,44 @@ vecta-core/src/entity/damage/source.rs,131,/// TODO: use damage type tag query o
 vecta-core/src/entity/dismount_helper.rs,205,// TODO: mirror vanilla entitytype.immuneto when the entity types carry entity specific immune block tag
 vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,190,// TODO: Route server-side LightningBolt hits here once that shared entity and dispatch exist.
 vecta-core/src/entity/entities/mobs/passive/mooshroom/mod.rs,219,// TODO: Replace these local transfers with the shared conversion state transfer API.
-vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,252,// TODO: add this function to DyeColor
-vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,263,// TODO: add this function to DyeColor
+vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,240,// TODO: add this function to DyeColor
+vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,251,// TODO: add this function to DyeColor
 vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,99,"// TODO: Implement portal handling, fire refresh, dragon fight callbacks, and explosion behavior."
-vecta-core/src/entity/entities/objects/items/item_entity.rs,702,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
+vecta-core/src/entity/entities/objects/items/item_entity.rs,713,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,186,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,521,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,559,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,664,// TODO: check if passing a lock is better here
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,907,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,519,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1348,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2525,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,3891,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
-vecta-core/src/entity/living_entity.rs,695,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
-vecta-core/src/entity/living_entity.rs,703,// TODO: apply helmet damage once those equipment hooks exist.
-vecta-core/src/entity/living_entity.rs,738,// TODO: Play secondary hurt sounds once equipment effects expose them.
-vecta-core/src/entity/living_entity.rs,997,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
-vecta-core/src/entity/living_entity.rs,1035,// TODO: Create wither rose for killer
-vecta-core/src/entity/living_entity.rs,1081,/// equal to the base reward (see TODO).
-vecta-core/src/entity/living_entity.rs,1083,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
-vecta-core/src/entity/living_entity.rs,1102,// TODO: Drop non-mob equipment overrides once those foundations exist.
-vecta-core/src/entity/living_entity.rs,1391,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
-vecta-core/src/entity/living_entity.rs,1834,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/entity/living_entity.rs,2552,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
-vecta-core/src/entity/living_entity.rs,3161,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
-vecta-core/src/entity/mob/mod.rs,689,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
-vecta-core/src/entity/mob/mod.rs,776,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
-vecta-core/src/entity/mob/mod.rs,1059,// TODO: Apply EquipmentDrops enchantment value effects once damage
-vecta-core/src/entity/mob/mod.rs,1479,// TODO: Use the held item's ATTACK_RANGE component once it has typed component data.
+vecta-core/src/entity/entity/mod.rs,1411,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2606,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,4018,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/living_entity.rs,714,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
+vecta-core/src/entity/living_entity.rs,722,// TODO: apply helmet damage once those equipment hooks exist.
+vecta-core/src/entity/living_entity.rs,760,// TODO: Play secondary hurt sounds once equipment effects expose them.
+vecta-core/src/entity/living_entity.rs,1019,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
+vecta-core/src/entity/living_entity.rs,1059,// TODO: Create wither rose for killer
+vecta-core/src/entity/living_entity.rs,1114,/// equal to the base reward (see TODO).
+vecta-core/src/entity/living_entity.rs,1116,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
+vecta-core/src/entity/living_entity.rs,1135,// TODO: Drop non-mob equipment overrides once those foundations exist.
+vecta-core/src/entity/living_entity.rs,1424,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
+vecta-core/src/entity/living_entity.rs,1867,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/entity/living_entity.rs,2589,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
+vecta-core/src/entity/living_entity.rs,3198,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
+vecta-core/src/entity/mob/mod.rs,698,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
+vecta-core/src/entity/mob/mod.rs,785,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
+vecta-core/src/entity/mob/mod.rs,1068,// TODO: Apply EquipmentDrops enchantment value effects once damage
+vecta-core/src/entity/mob/mod.rs,1480,// TODO: Use the held item's ATTACK_RANGE component once it has typed component data.
 vecta-core/src/entity/mob_effect/bad_omen.rs,8,// TODO: `applyEffectTick` checks the mob is a non-spectator `ServerPlayer`
 vecta-core/src/entity/mob_effect/infested.rs,5,"// TODO: Vanilla `InfestedMobEffect.onMobHurt` has a chance, whenever the"
 vecta-core/src/entity/mob_effect/oozing.rs,5,// TODO: Vanilla `OozingMobEffect.onMobRemoved` spawns 2-4 size-2 `Slime`
 vecta-core/src/entity/mob_effect/raid_omen.rs,8,// TODO: `applyEffectTick` checks the mob is a non-spectator `ServerPlayer`
 vecta-core/src/entity/mob_effect/weaving.rs,5,// TODO: Vanilla `WeavingMobEffect.onMobRemoved` scatters a handful of cobweb
 vecta-core/src/entity/mob_effect/wind_charged.rs,5,"// TODO: Vanilla `WindChargedMobEffect.onMobRemoved` triggers a small,"
-vecta-core/src/entity/mod.rs,961,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
-vecta-core/src/entity/mod.rs,1382,// TODO: Read live equipment once loot contexts can do so safely.
-vecta-core/src/entity/mod.rs,1407,// TODO: Include custom name once loot contexts can snapshot entity data.
+vecta-core/src/entity/mod.rs,963,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
+vecta-core/src/entity/mod.rs,1386,// TODO: Read live equipment once loot contexts can do so safely.
+vecta-core/src/entity/mod.rs,1411,// TODO: Include custom name once loot contexts can snapshot entity data.
 vecta-core/src/entity/projectile/thrown_potion.rs,105,// TODO: rehydrate nearby Axolotl entities for `REHYDRATES_AXOLOTLS` once
 vecta-core/src/fluid/collision.rs,19,// TODO: Add occlusion cache for performance (vanilla uses 200-entry ThreadLocal LRU)
 vecta-core/src/fluid/mod.rs,7,"//! - TODO: Remaining entity fluid side effects: drowning, splash particles/sounds."
@@ -144,9 +145,9 @@ vecta-core/src/player/game_mode/block_breaking.rs,354,"// TODO: Check for GameMa
 vecta-core/src/player/game_mode/block_breaking.rs,559,// TODO: Apply efficiency enchantment
 vecta-core/src/player/game_mode/block_breaking.rs,560,// TODO: Apply haste/mining fatigue effects
 vecta-core/src/player/game_mode/block_breaking.rs,561,// TODO: Apply underwater/in-air penalties
-vecta-core/src/player/game_mode/entity_interaction.rs,22,// TODO: Support direct sound holders when entity sound playback can send them.
-vecta-core/src/player/game_mode/entity_interaction.rs,445,"// TODO: Apply crits, sweep attacks, and sounds."
-vecta-core/src/player/game_mode/entity_interaction.rs,532,// TODO: Open entity menu providers in spectator once that foundation exists.
+vecta-core/src/player/game_mode/entity_interaction.rs,23,// TODO: Support direct sound holders when entity sound playback can send them.
+vecta-core/src/player/game_mode/entity_interaction.rs,446,"// TODO: Apply crits, sweep attacks, and sounds."
+vecta-core/src/player/game_mode/entity_interaction.rs,533,// TODO: Open entity menu providers in spectator once that foundation exists.
 vecta-core/src/player/game_mode/item_interaction.rs,30,// TODO: Implement menu providers for blocks like chests
 vecta-core/src/player/game_mode/player_methods.rs,60,// TODO: Remove shoulder entities once player shoulder storage is implemented.
 vecta-core/src/player/game_mode/player_methods.rs,61,// TODO: Stop item use once living item-use state is implemented.
@@ -161,21 +162,22 @@ vecta-core/src/player/mod.rs,920,"// TODO: use CombatTracker for multi-arg messa
 vecta-core/src/player/mod.rs,940,// TODO: team death message visibility (ALWAYS / HIDE_FOR_OTHER_TEAMS / HIDE_FOR_OWN_TEAM)
 vecta-core/src/player/mod.rs,960,// TODO: Increment DEATH_COUNT objective criterion
 vecta-core/src/player/mod.rs,964,// TODO: Create wither rose
-vecta-core/src/player/mod.rs,1510,// TODO: Reset current impulse context once vehicle/player impulse contexts exist.
-vecta-core/src/player/mod.rs,1707,// TODO: Trigger advancement criteria.
-vecta-core/src/player/mod.rs,1708,// TODO: Increment the score of some objectives of this player.
-vecta-core/src/player/mod.rs,1714,// TODO: Handle team kill
-vecta-core/src/player/mod.rs,1798,// TODO: Tick stats even when the player has been dead for more than 20 ticks.
-vecta-core/src/player/mod.rs,2036,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/player/movement/mod.rs,690,// TODO: Add auto-spin exemption when riptide/spin attack state exists.
-vecta-core/src/player/movement/mod.rs,995,// TODO: Implement once controlled vehicle jumping and vehicle inventory interfaces exist.
-vecta-core/src/player/player_inventory/player_handlers.rs,555,// TODO: Implement slot state change handling
-vecta-core/src/player/player_inventory/player_handlers.rs,1238,// TODO: Check if player is alive (health > 0)
+vecta-core/src/player/mod.rs,1524,// TODO: Reset current impulse context once vehicle/player impulse contexts exist.
+vecta-core/src/player/mod.rs,1721,// TODO: Trigger advancement criteria.
+vecta-core/src/player/mod.rs,1722,// TODO: Increment the score of some objectives of this player.
+vecta-core/src/player/mod.rs,1728,// TODO: Handle team kill
+vecta-core/src/player/mod.rs,1812,// TODO: Tick stats even when the player has been dead for more than 20 ticks.
+vecta-core/src/player/mod.rs,2050,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/player/movement/mod.rs,688,// TODO: Add auto-spin exemption when riptide/spin attack state exists.
+vecta-core/src/player/movement/mod.rs,993,// TODO: Implement once controlled vehicle jumping and vehicle inventory interfaces exist.
+vecta-core/src/player/player_inventory/player_handlers.rs,556,// TODO: Implement slot state change handling
+vecta-core/src/player/player_inventory/player_handlers.rs,1239,// TODO: Check if player is alive (health > 0)
 vecta-core/src/player/sleep.rs,234,// TODO: trigger CriteriaTriggers.SLEPT_IN_BED once the foundation for advancements exist.
 vecta-core/src/player/stats_counter.rs,175,// TODO: Add score to the objectives having the criterion of this stat for the player.
 vecta-core/src/player/stats_counter.rs,181,// TODO: Reset score of the objectives having the criterion of this stat for the player.
 vecta-core/src/portal/end_portal.rs,88,/// TODO(respawn): replace this with the vanilla personal bed/anchor respawn path once Vecta has
 vecta-core/src/server/registry_cache.rs,73,//TODO: For non vanilla entries we need to encode the data into nbt
+vecta-core/src/world/explosion/mod.rs,497,// TODO: Add trigger branch with windcharges
 vecta-core/src/world/level_effects.rs,341,"// TODO: This only covers the `drop_items` path. In vanilla, container"
 vecta-core/src/world/level_effects.rs,381,// TODO: block entity and entity drops
 vecta-core/src/worldgen/generator/registry.rs,256,// TODO: Implement vanilla FlatLevelGeneratorSettings::adjustGenerationSettings for these flags.

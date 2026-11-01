@@ -2770,7 +2770,7 @@ blocks,terracotta,Block,no,generic_or_separate_path
 blocks,test_block,TestBlock,no,check_specialization_or_shared_path
 blocks,test_instance_block,TestInstanceBlock,no,check_specialization_or_shared_path
 blocks,tinted_glass,TintedGlassBlock,no,check_specialization_or_shared_path
-blocks,tnt,TntBlock,no,check_specialization_or_shared_path
+blocks,tnt,TntBlock,yes,audit_existing_implementation
 blocks,torch,TorchBlock,yes,audit_existing_implementation
 blocks,torchflower,FlowerBlock,yes,audit_existing_implementation
 blocks,torchflower_crop,TorchflowerCropBlock,yes,audit_existing_implementation
@@ -3081,7 +3081,7 @@ entities,strider,Strider,no,check_specialization_or_shared_path
 entities,sulfur_cube,SulfurCube,no,check_specialization_or_shared_path
 entities,tadpole,Tadpole,no,check_specialization_or_shared_path
 entities,text_display,TextDisplay,no,check_specialization_or_shared_path
-entities,tnt,PrimedTnt,no,check_specialization_or_shared_path
+entities,tnt,PrimedTnt,yes,audit_existing_implementation
 entities,tnt_minecart,MinecartTNT,no,check_specialization_or_shared_path
 entities,trader_llama,TraderLlama,no,check_specialization_or_shared_path
 entities,trident,ThrownTrident,no,check_specialization_or_shared_path

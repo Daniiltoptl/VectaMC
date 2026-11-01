@@ -1,12 +1,12 @@
 {
   "minecraft_version": "26.3",
-  "source_revision": "54243b963968832378f9e4c783b5ec8faa155dad",
+  "source_revision": "3a1fd4815ebf3fe8dccfec526c5505c74f931864",
   "inputs_sha256": {
-    "Cargo.toml": "32568a46224da850ec7ce63a34ca6ba2fda35f3a7c6c95877f3ee64e02ecc4cc",
+    "Cargo.toml": "69297f39fc2f49bd001c2134a4d6380cfa980582cfbf4e284acd6c10f8c4314a",
     "vecta-core/build/classes.json": "3be3d172648e1412930e94b8542b950679800809ff26d5b0c840828127918c73",
     "vecta-core/src/behavior/generated/items.rs": "806517d25ceab8ed0ce6234c65ebb8acf4fe85485311e7d2976e496e695a79b1",
-    "vecta-core/src/behavior/generated/blocks.rs": "7083b215162f41d0330c0703e286257adc04184c4d25030dcf0b01249e20db33",
-    "vecta-core/src/entity/generated/entities.rs": "53a9c4f844bd9c4c7b6e35c9b9b9f0b32431fd0ee188a1bcadb8435eb4f04b92",
+    "vecta-core/src/behavior/generated/blocks.rs": "cfbac03bfb87f47dfe37e57ec2429b5752e24b48ed368642a24b4a39f681fc73",
+    "vecta-core/src/entity/generated/entities.rs": "03b9b7082728ebe5cecf4ed367a2eacc814b313b512e4372d6b721258f504a66",
     "vecta-registry/build_assets/block_entities.json": "45bbbc8ba710f64b8730403879cc3d74184b6dd30f3352e59bc5aa5162761bcf",
     "vecta-core/src/block_entity/registry.rs": "ca7f3454039b05ff8947d40f1ab5bd02073beb3e8e5d62c56e8f370f882036d1"
   }

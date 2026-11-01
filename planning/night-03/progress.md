@@ -1,5 +1,14 @@
 # Night 03 — progress
 
+## Current handoff — Night 05 after the 2026-11-01 upstream import
+
+Game commit `3a1fd4815`: SteelMC TNT/explosions, Mth, hurt/splash and join tab-list
+adapted while preserving Vecta RNG/menus/frames. Workspace **4185 passed / 0 failed /
+18 ignored**, final Clippy exit 0. [Import review](../reviews/upstream-2026-11-01.md).
+Next gameplay ID **W05-001**, with [checkpoint](../night-05/checkpoint.md),
+[100-card queue](../../NIGHT_TASK_05.md) and [starter](../../WORKBUDDY_START_05.md).
+Earlier entries below remain historical; do not restart completed crafting work.
+
 ## Current continuation — Codex review of `08f355f31` (2026-11-01)
 
 [Detailed review](../reviews/W04-019-034-codex.md): loot modifier/RNG order,

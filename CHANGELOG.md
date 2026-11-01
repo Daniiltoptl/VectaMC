@@ -1,5 +1,18 @@
 # Изменения VectaMC
 
+## 2026-11-01 · Игровые обновления SteelMC и пакет 05
+
+- Перенесены TNT block/entity и destructive explosions: rays/resistance/exposure,
+  damage/knockback, block drops/fire, chain fuse и CExplode по wire format 26.3.
+- Перенесены Mth callers, hurt/death bookkeeping, water-entry SPLASH и batch join tab-list.
+- Сохранены Vecta loot/RNG/menu/frame contracts; GlowItemFrame получает explosion veto,
+  rejected TNT insertion не отменяет success/sound/event ветку Java prime.
+- Tokio feature boundaries адаптированы без смены версий dependencies. Flint и CI
+  profiles не импортировались; все решения по upstream commits — в
+  [отчёте](planning/reviews/upstream-2026-11-01.md).
+- [Пакет 05](NIGHT_TASK_05.md): 100 карточек с зависимостями и приёмкой,
+  актуальный [запрос WorkBuddy](WORKBUDDY_START_05.md) и проверенные Java entry paths.
+
 ## 2026-11-01 · Общий RNG и порядок тиков миров
 
 - Named RandomSequences общие для всех worlds сервера, включая разные domains;

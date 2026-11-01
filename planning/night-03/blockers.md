@@ -1,5 +1,12 @@
 # Night 03 — blockers
 
+## Current handoff — 2026-11-01
+
+See [upstream import review](../reviews/upstream-2026-11-01.md) and
+[Night 05 checkpoint](../night-05/checkpoint.md). TNT/explosion foundations are now
+present in `3a1fd4815`; remaining consumers/trigger mode/team properties are named
+tasks, not proof that explosion code is absent. Current queue starts at W05-001.
+
 ## Current continuation after `08f355f31`
 
 See [Codex review](../reviews/W04-019-034-codex.md) for the current correction:

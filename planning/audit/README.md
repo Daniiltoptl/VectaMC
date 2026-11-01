@@ -1,6 +1,6 @@
 # Каталог для проверки ванильной совместимости
 
-Эталон: Minecraft Java **26.3**. Базовый коммит: `54243b963968832378f9e4c783b5ec8faa155dad`.
+Эталон: Minecraft Java **26.3**. Базовый коммит: `3a1fd4815ebf3fe8dccfec526c5505c74f931864`.
 
 Это инвентаризация регистрации, а не процент готовности и не доказательство отсутствия всей механики.
 `yes` означает наличие сгенерированной регистрации; полноту реализации нужно проверять отдельно.
@@ -11,15 +11,15 @@
 | Раздел | Записей в classes.json | Сгенерированных регистраций |
 | --- | ---: | ---: |
 | items | 1658 | 1278 |
-| blocks | 1286 | 1037 |
-| entities | 161 | 26 |
+| blocks | 1286 | 1038 |
+| entities | 161 | 27 |
 
 Полный поимённый каталог, включая уже зарегистрированные объекты: [objects.csv](objects.csv).
 
 Блок-сущности и наличие фабрик: [block_entities.csv](block_entities.csv).
 Незарегистрированные типы могут сохранять NBT через `UnimplementedBlockEntity`; это не игровая реализация.
 
-Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 232.
+Маркеры TODO/FIXME из исходников: [source_markers.csv](source_markers.csv), строк: 234.
 Это текстовые указатели для разбора, включая потенциально устаревшие комментарии; один маркер не равен одной задаче.
 
 ## Классы без сгенерированного назначения
@@ -89,7 +89,6 @@
 | `TestBlock` | `test_block` |
 | `TestInstanceBlock` | `test_instance_block` |
 | `TintedGlassBlock` | `tinted_glass` |
-| `TntBlock` | `tnt` |
 | `TransparentBlock` | `glass` |
 | `TrialSpawnerBlock` | `trial_spawner` |
 | `VaultBlock` | `vault` |
@@ -171,7 +170,6 @@
 | `Pillager` | `pillager` |
 | `Player` | `player` |
 | `PolarBear` | `polar_bear` |
-| `PrimedTnt` | `tnt` |
 | `Pufferfish` | `pufferfish` |
 | `Rabbit` | `rabbit` |
 | `Raft` | `bamboo_raft` |

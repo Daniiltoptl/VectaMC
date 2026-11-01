@@ -35,6 +35,28 @@ VectaMC основан на [SteelMC](https://github.com/Steel-Foundation/SteelM
 
 ## Локальный ванильный эталон
 
+### Дополнительный перенос 2026-11-01
+
+Проверен SteelMC master `20a62460e9a2bd18badf79a7ee783cb2af3fd745`.
+Из диапазона после `1770402c2` адаптированы игровые изменения и native/wasm
+feature boundaries; полный merge/Flint integration не выполнялись.
+
+| Upstream | Авторы по исходным commits | Объём |
+| --- | --- | --- |
+| `098c2c91b` | AnthonyDuong1 | Vanilla Mth/trig callers |
+| `0a8fb05af` | Kenny/kdcokenny, JunkyDeveloper, Joniii11, coco875 | Explosions, TNT, collision/raycast и Java fixtures |
+| `7adc1251f` | Richard Marshall/Purdze, JunkyDeveloper, Jonas | Hurt/death, sensing и effects sync |
+| `22254bb41` | AshuraVie/AshuraV1, JunkyDeveloper, CuzImClicks/Clicks | Water-entry SPLASH |
+| `576165f56` | carabistouille/carabistouflette, JunkyDeveloper, Clicks | Batch initial tab-list |
+| `763c21f29` | earomc, coco875, Jonas | Tokio feature boundaries и wasm cfg |
+
+Подробные source links, решения по всем 12 commits, дополнительные исправления
+Vecta и пределы проверок: [отчёт переноса](planning/reviews/upstream-2026-11-01.md).
+Два produced JSON fixtures скопированы из upstream byte-for-byte с Git blob provenance;
+декомпилированные Minecraft sources в Git по-прежнему не включаются.
+
+### Подготовка эталона
+
 `update-minecraft-src.sh` вызывает `scripts/prepare_vanilla.py`. На Windows
 можно запускать Python-скрипт напрямую. Версия берётся из `[workspace.package]`
 в `Cargo.toml`; использование неподходящей версии останавливает подготовку.
