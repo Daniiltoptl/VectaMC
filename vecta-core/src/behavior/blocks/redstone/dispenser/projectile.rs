@@ -67,8 +67,7 @@ impl DispenseConfig {
 /// `Projectile.spawnProjectileUsingShoot`; this trait is the seam so a factory
 /// can name a concrete entity type while the behavior stays type-erased.
 pub trait DispenseProjectileFactory: Send + Sync {
-    /// Launches the projectile and hands it to the world, or returns `None` when
-    /// the world rejected it.
+    /// Launches the projectile and returns it even if world insertion is rejected.
     fn spawn(
         &self,
         world: &Arc<World>,
@@ -77,7 +76,7 @@ pub trait DispenseProjectileFactory: Send + Sync {
         stack: &ItemStack,
         power: f32,
         uncertainty: f32,
-    ) -> Option<SharedEntity>;
+    ) -> SharedEntity;
 }
 
 /// A factory for vanilla throwable item projectiles, which all store the item
@@ -110,7 +109,7 @@ where
         stack: &ItemStack,
         power: f32,
         uncertainty: f32,
-    ) -> Option<SharedEntity> {
+    ) -> SharedEntity {
         let entity = (self.create)(world, position);
         // Vanilla passes the stack to the entity constructor, which keeps a
         // single-item copy of it.
@@ -120,9 +119,8 @@ where
         let entity: SharedEntity = Arc::new(entity);
         if let Err(error) = world.try_add_entity(Arc::clone(&entity)) {
             log::debug!("failed to spawn a dispensed projectile: {error}");
-            return None;
         }
-        Some(entity)
+        entity
     }
 }
 
@@ -151,19 +149,14 @@ impl DispenseItemBehavior for ProjectileDispenseBehavior {
         let position = self.config.position(source);
         let direction = DVec3::from(facing.offset_vec());
 
-        let Some(projectile) = self.factory.spawn(
+        let projectile = self.factory.spawn(
             source.world,
             position,
             direction,
             &stack,
             self.config.power,
             self.config.uncertainty,
-        ) else {
-            // Vanilla cannot fail to add an entity, so it always consumes the
-            // item. Keeping the stack when the world rejected the projectile
-            // avoids destroying it for nothing.
-            return stack;
-        };
+        );
 
         let mut remaining = stack;
         enchantment_helper::on_projectile_spawned(

@@ -30,6 +30,7 @@ use super::dispenser::dispense::{
     BlockSource, DEFAULT_BEHAVIOR, DispenseBehaviorLock, DispenseBehaviorRegistry,
     DispenseItemBehavior,
 };
+use super::dispenser::equipment::EQUIPMENT_BEHAVIOR;
 use crate::behavior::InventoryAccess;
 use crate::behavior::block::{BlockBehavior, BlockEntityCreation};
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
@@ -161,9 +162,13 @@ impl DispenserBlock {
     /// flags; Vecta has no feature-flag support yet, so that branch is absent
     /// rather than faked.
     fn get_dispense_method(stack: &ItemStack) -> &'static dyn DispenseItemBehavior {
-        DISPENSE_BEHAVIORS
-            .get(stack.item())
-            .unwrap_or(&DEFAULT_BEHAVIOR)
+        DISPENSE_BEHAVIORS.get(stack.item()).unwrap_or_else(|| {
+            if stack.get_equippable().is_some() {
+                &EQUIPMENT_BEHAVIOR
+            } else {
+                &DEFAULT_BEHAVIOR
+            }
+        })
     }
 
     /// Vanilla `DispenserBlock.getStateForPlacement`: the block faces away from
@@ -383,10 +388,9 @@ pub(crate) fn init_dispense_behaviors() {
 pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
     register_projectile_dispense_behaviors(registry);
 
-    // W04-033 (buckets), W04-034 (equipment) and W04-035 (bonemeal, ignition,
+    // W04-033 (buckets) and W04-035 (bonemeal, ignition,
     // bottles, shears) add their items here. Until they exist every other item
-    // falls through to `DefaultDispenseItemBehavior`, which is vanilla's answer
-    // for an unregistered item.
+    // falls through to the component-based default selection.
 }
 
 /// Vanilla `DispenseItemBehavior.bootStrap` projectile registrations that have a
@@ -424,6 +428,8 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 
 #[cfg(test)]
 mod tests {
+    mod equipment;
+    mod projectile;
     use std::ptr;
     use std::slice;
     use std::sync::Arc;

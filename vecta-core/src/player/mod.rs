@@ -1724,6 +1724,11 @@ const fn protocol_look_at_anchor(anchor: EntityAnchor) -> LookAtAnchor {
 }
 
 impl LivingEntity for Player {
+    fn does_emit_equip_event(&self, slot: EquipmentSlot) -> bool {
+        use vecta_registry::equipment::EquipmentSlotType;
+        slot.slot_type() == EquipmentSlotType::HumanoidArmor
+    }
+
     fn living_synced_data(&self) -> Option<&dyn LivingEntitySyncedData> {
         Some(&self.entity_data)
     }

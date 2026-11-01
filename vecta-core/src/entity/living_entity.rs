@@ -1,3 +1,5 @@
+use std::mem;
+
 use vecta_math::DEGREE_90;
 use vecta_registry::data_components::vanilla_components::{DEATH_PROTECTION, USE_EFFECTS};
 use vecta_registry::stat::vanilla_stat_types;
@@ -1672,6 +1674,23 @@ pub trait LivingEntity: Entity {
         visitor(equipment.get_mut(slot));
     }
 
+    /// Replaces equipment and runs the equip hook outside its inventory lock.
+    fn set_item_slot(&self, slot: EquipmentSlot, mut item_stack: ItemStack) {
+        let equipped = item_stack.copy_with_count(item_stack.count());
+        self.with_equipment_slot_mut(slot, &mut |current| {
+            mem::swap(current, &mut item_stack);
+        });
+        self.on_equip_item(slot, &item_stack, &equipped);
+    }
+
+    /// Chooses the usable equippable slot, or the main hand for ordinary items.
+    fn get_equipment_slot_for_item(&self, item_stack: &ItemStack) -> EquipmentSlot {
+        match item_stack.get_equippable() {
+            Some(equippable) if self.can_use_slot(equippable.slot) => equippable.slot,
+            _ => EquipmentSlot::MainHand,
+        }
+    }
+
     /// Returns whether this entity currently has an item in `slot`.
     fn has_item_in_slot(&self, slot: EquipmentSlot) -> bool {
         let mut has_item = false;
@@ -1733,7 +1752,12 @@ pub trait LivingEntity: Entity {
             .flatten()
     }
 
-    /// Applies the sound portion of vanilla's equipment-change hook.
+    /// Returns whether a change in this slot emits an equip or unequip event.
+    fn does_emit_equip_event(&self, _slot: EquipmentSlot) -> bool {
+        true
+    }
+
+    /// Emits equipment-change sound and game events outside inventory locks.
     fn on_equip_item(&self, slot: EquipmentSlot, previous: &ItemStack, stack: &ItemStack) {
         if self.is_spectator()
             || self.is_first_tick()
@@ -1742,14 +1766,21 @@ pub trait LivingEntity: Entity {
             return;
         }
 
-        let Some(sound) = self.equip_sound(slot, stack) else {
-            return;
-        };
-        if self.is_silent() {
-            return;
-        }
-        if let Some(world) = self.level() {
+        if !self.is_silent()
+            && stack
+                .get_equippable()
+                .is_some_and(|equippable| equippable.slot == slot)
+            && let Some(sound) = self.equip_sound(slot, stack)
+            && let Some(world) = self.level()
+        {
             world.play_sound_at(sound, self.sound_source(), self.position(), 1.0, 1.0, None);
+        }
+        if self.does_emit_equip_event(slot) {
+            self.game_event(if stack.get_equippable().is_some() {
+                &vanilla_game_events::EQUIP
+            } else {
+                &vanilla_game_events::UNEQUIP
+            });
         }
     }
 

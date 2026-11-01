@@ -832,16 +832,6 @@ pub trait Mob: LivingEntity + Leashable {
         equipped
     }
 
-    /// Vanilla `LivingEntity.getEquipmentSlotForItem`: the slot an item wants to
-    /// occupy, falling back to the main hand when it is not equippable or the mob
-    /// cannot use that slot.
-    fn get_equipment_slot_for_item(&self, item_stack: &ItemStack) -> EquipmentSlot {
-        match item_stack.get_equippable() {
-            Some(equippable) if self.can_use_slot(equippable.slot) => equippable.slot,
-            _ => EquipmentSlot::MainHand,
-        }
-    }
-
     /// Returns a copy of whatever this mob currently holds in `slot`.
     fn equipment_in_slot(&self, slot: EquipmentSlot) -> ItemStack {
         let equipment = self.living_base().equipment().lock();
