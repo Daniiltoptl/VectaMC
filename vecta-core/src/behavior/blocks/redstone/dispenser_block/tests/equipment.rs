@@ -189,7 +189,10 @@ fn a_registered_projectile_wins_over_the_equippable_component() {
     );
 
     assert!(equipment(&player).is_empty());
-    assert_eq!(snowballs(&fixture, pos).len(), 1);
+    assert_eq!(
+        projectiles_of_type(&fixture, pos, &vanilla_entities::SNOWBALL).len(),
+        1
+    );
 }
 
 #[test]

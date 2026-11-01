@@ -135,3 +135,63 @@ fn saved_bottle_preserves_shooter_and_rendered_item_components() {
     assert_eq!(loaded.get_item(), bottle.get_item());
     assert_eq!(loaded.get_item().count(), 1);
 }
+
+/// A bottle restored from NBT must still award its experience and be discarded,
+/// so a reload cannot leave a projectile that pays out on every later hit.
+#[test]
+fn a_loaded_bottle_awards_experience_and_is_discarded_on_hit() {
+    init_vanilla_registry();
+    init_behaviors();
+    let fixture = fresh_test_world("experience_bottle_loaded_hit");
+    let world = &fixture.world;
+    let position = DVec3::new(0.5, 80.5, 0.5);
+    insert_ready_full_chunk(world, ChunkPos::from_entity_pos(position));
+
+    let original = ThrownExperienceBottleEntity::new(
+        &vanilla_entities::EXPERIENCE_BOTTLE,
+        1,
+        position,
+        Arc::downgrade(world),
+    );
+    let mut nbt = NbtCompound::new();
+    original.save_additional(&mut nbt);
+    let mut bytes = Vec::new();
+    nbt.write(&mut bytes);
+    let borrowed = read_compound(&mut Cursor::new(&bytes)).expect("saved bottle NBT");
+
+    let loaded = Arc::new(ThrownExperienceBottleEntity::new(
+        &vanilla_entities::EXPERIENCE_BOTTLE,
+        2,
+        position,
+        Arc::downgrade(world),
+    ));
+    loaded.load_additional((&borrowed).into());
+
+    let hit = ProjectileHit::Block {
+        location: position,
+        hit: ClipHitResult {
+            location: position,
+            direction: Direction::Up,
+            block_pos: vecta_utils::BlockPos::new(0, 80, 0),
+            miss: false,
+            inside: false,
+            world_border_hit: false,
+        },
+    };
+    Arc::clone(&loaded).on_hit(&hit);
+
+    assert!(
+        loaded.is_removed(),
+        "the hit discards the bottle, so the world cannot pay out a second time"
+    );
+    let total: i32 = world
+        .get_entities_in_aabb(&WorldAabb::of_size(position, 4.0, 4.0, 4.0))
+        .iter()
+        .filter_map(|entity| entity.downcast_ref::<ExperienceOrbEntity>())
+        .map(|orb| orb.value() * orb.count())
+        .sum();
+    assert!(
+        (3..=11).contains(&total),
+        "vanilla awards `3 + nextInt(5) + nextInt(5)` experience, got {total}"
+    );
+}

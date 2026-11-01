@@ -397,17 +397,18 @@ pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 /// finished projectile entity behind them.
 ///
 /// Vanilla registers arrow, egg, snowball, the potions, fireworks and the
-/// charges here. Only the snowball has a complete entity in Vecta so far, so the
-/// rest stay named dependencies of W04-032 instead of being registered against
-/// a stub.
+/// charges here. The snowball and the experience bottle have complete entities in
+/// Vecta; the rest stay named dependencies of W04-032 instead of being
+/// registered against a stub.
 fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
     use vecta_registry::vanilla_entities;
     use vecta_registry::vanilla_items;
 
     use super::dispenser::projectile::{
-        DispenseConfig, ProjectileDispenseBehavior, ThrowableItemProjectileFactory,
+        DEFAULT_POWER, DEFAULT_UNCERTAINTY, DispenseConfig, ProjectileDispenseBehavior,
+        ThrowableItemProjectileFactory,
     };
-    use crate::entity::entities::SnowballEntity;
+    use crate::entity::entities::{SnowballEntity, ThrownExperienceBottleEntity};
     use crate::entity::next_entity_id;
 
     registry.register(
@@ -424,11 +425,33 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
             }),
         ),
     );
+
+    registry.register(
+        &vanilla_items::EXPERIENCE_BOTTLE,
+        ProjectileDispenseBehavior::new(
+            // `ExperienceBottleItem.createDispenseConfig` halves the default
+            // uncertainty and multiplies the default power by 1.25.
+            DispenseConfig {
+                uncertainty: DEFAULT_UNCERTAINTY * 0.5,
+                power: DEFAULT_POWER * 1.25,
+                ..DispenseConfig::DEFAULT
+            },
+            ThrowableItemProjectileFactory::new(|world, position| {
+                ThrownExperienceBottleEntity::new(
+                    &vanilla_entities::EXPERIENCE_BOTTLE,
+                    next_entity_id(),
+                    position,
+                    Arc::downgrade(world),
+                )
+            }),
+        ),
+    );
 }
 
 #[cfg(test)]
 mod tests {
     mod equipment;
+    mod experience_bottle;
     mod projectile;
     use std::ptr;
     use std::slice;
@@ -436,6 +459,7 @@ mod tests {
 
     use glam::DVec3;
     use vecta_registry::RegistryEntry as _;
+    use vecta_registry::entity_type::EntityTypeRef;
     use vecta_registry::item_stack::ItemStack;
     use vecta_registry::level_events::{
         PARTICLES_SHOOT_SMOKE, SOUND_DISPENSER_DISPENSE, SOUND_DISPENSER_FAIL,
@@ -584,9 +608,13 @@ mod tests {
         )
     }
 
-    /// Snowball projectiles near the centre of `pos`, which is where a dispenser
-    /// launches them.
-    fn snowballs(fixture: &TestWorld, pos: BlockPos) -> Vec<SharedEntity> {
+    /// Projectiles of `entity_type` near the centre of `pos`, which is where a
+    /// dispenser launches them.
+    fn projectiles_of_type(
+        fixture: &TestWorld,
+        pos: BlockPos,
+        entity_type: EntityTypeRef,
+    ) -> Vec<SharedEntity> {
         fixture.world.get_entities_in_aabb_matching(
             &WorldAabb::of_size(
                 DVec3::new(
@@ -598,7 +626,7 @@ mod tests {
                 3.0,
                 3.0,
             ),
-            |entity| entity.entity_type() == &vanilla_entities::SNOWBALL,
+            |entity| entity.entity_type() == entity_type,
         )
     }
 
@@ -946,7 +974,7 @@ mod tests {
             1,
             "a dispensed projectile consumes exactly one item"
         );
-        let projectiles = snowballs(&fixture, pos);
+        let projectiles = projectiles_of_type(&fixture, pos, &vanilla_entities::SNOWBALL);
         assert_eq!(
             projectiles.len(),
             1,

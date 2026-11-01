@@ -41,7 +41,7 @@ fn rejected_projectile_insertion_does_not_cancel_consumption_and_level_events() 
     );
 
     assert_eq!(item_at(&fixture, pos, 0).count(), 1);
-    assert!(snowballs(&fixture, pos).is_empty());
+    assert!(projectiles_of_type(&fixture, pos, &vanilla_entities::SNOWBALL).is_empty());
     assert_eq!(
         sent_level_events(&packets),
         [
