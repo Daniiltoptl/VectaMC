@@ -396,10 +396,8 @@ pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 /// Vanilla `DispenseItemBehavior.bootStrap` projectile registrations that have a
 /// finished projectile entity behind them.
 ///
-/// Vanilla registers arrow, egg, snowball, the potions, fireworks and the
-/// charges here. The snowball and the experience bottle have complete entities in
-/// Vecta; the rest stay named dependencies of W04-032 instead of being
-/// registered against a stub.
+/// Missing projectile consumers stay unregistered until their entity behavior
+/// is implemented; registering a stub would suppress the default item drop.
 fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
     use vecta_registry::vanilla_entities;
     use vecta_registry::vanilla_items;
@@ -498,6 +496,7 @@ mod tests {
     mod egg;
     mod equipment;
     mod experience_bottle;
+    mod persistence;
     mod potion;
     mod projectile;
     use std::ptr;

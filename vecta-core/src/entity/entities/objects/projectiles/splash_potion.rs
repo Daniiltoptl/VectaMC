@@ -263,12 +263,14 @@ mod tests {
 
     use glam::DVec3;
     use vecta_registry::data_components::PotionContents;
-    use vecta_registry::data_components::vanilla_components::POTION_CONTENTS;
+    use vecta_registry::data_components::vanilla_components::{
+        POTION_CONTENTS, POTION_DURATION_SCALE,
+    };
     use vecta_registry::item_stack::ItemStack;
     use vecta_registry::potion::PotionRef;
     use vecta_registry::{
-        init_vanilla_registry, vanilla_entities, vanilla_items, vanilla_mob_effects,
-        vanilla_potions,
+        init_vanilla_registry, vanilla_damage_types, vanilla_entities, vanilla_items,
+        vanilla_mob_effects, vanilla_potions,
     };
     use vecta_utils::{BlockPos, ChunkPos, Direction};
 
@@ -354,7 +356,13 @@ mod tests {
             hit + DVec3::new(3.0, 0.0, 0.0),
             Arc::downgrade(world),
         ));
-        for pig in [&near, &far] {
+        let outside = Arc::new(PigEntity::new(
+            &vanilla_entities::PIG,
+            4,
+            hit + DVec3::new(5.0, 0.0, 0.0),
+            Arc::downgrade(world),
+        ));
+        for pig in [&near, &far, &outside] {
             let entity: SharedEntity = Arc::clone(pig) as SharedEntity;
             world
                 .try_add_entity(entity)
@@ -367,7 +375,9 @@ mod tests {
             hit,
             Arc::downgrade(world),
         ));
-        potion.set_item(splash_stack(&vanilla_potions::SWIFTNESS));
+        let mut stack = splash_stack(&vanilla_potions::SWIFTNESS);
+        stack.set(POTION_DURATION_SCALE, 1.75);
+        potion.set_item(stack);
 
         Arc::clone(&potion).on_hit(&block_hit(hit));
 
@@ -378,16 +388,12 @@ mod tests {
         let far_effect = far
             .mob_effect(vanilla_mob_effects::SPEED)
             .expect("a target three blocks away is still inside the four-block radius");
-        assert!(
-            near_effect.duration() > far_effect.duration(),
-            "duration falls off with distance: near {} vs far {}",
-            near_effect.duration(),
-            far_effect.duration()
-        );
-        assert!(
-            far_effect.duration() > 0,
-            "a target inside the radius keeps a positive duration"
-        );
+        // Java's AABB falloff: width .25 potion, .9f pig, margin zero at tick 0.
+        // SWIFTNESS lasts 3600 ticks; duration scale 1.75 gives 6300 at impact
+        // and round((1 - (3 - (.25 + .9f) / 2) / 4) * 3600 * 1.75) = 2481.
+        assert_eq!(near_effect.duration(), 6300);
+        assert_eq!(far_effect.duration(), 2481);
+        assert!(outside.mob_effect(vanilla_mob_effects::SPEED).is_none());
     }
 
     /// Instant effects go through the instantaneous consumer instead of being
@@ -423,11 +429,19 @@ mod tests {
 
         Arc::clone(&potion).on_hit(&block_hit(hit));
 
+        assert_eq!(target.get_health(), health - 6.0);
+        let source = target.last_damage_source().expect("the damage is recorded");
+        assert_eq!(source.damage_type, &vanilla_damage_types::INDIRECT_MAGIC);
+        let potion_entity: SharedEntity = Arc::clone(&potion) as SharedEntity;
+        assert!(Arc::ptr_eq(
+            source
+                .direct_entity()
+                .expect("the potion delivers the damage"),
+            &potion_entity,
+        ));
         assert!(
-            target.get_health() < health,
-            "instant damage lowers the target's health, {} -> {}",
-            health,
-            target.get_health()
+            source.causing_entity().is_none(),
+            "a dispenser has no owner"
         );
         assert!(
             target
