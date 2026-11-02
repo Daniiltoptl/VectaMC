@@ -45,7 +45,7 @@ use crate::entity::living_entity::shearing_loot_items;
 use crate::entity::{
     AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
     EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
-    PathfinderMob, RemovalReason, SharedEntity, SpawnGroupData, next_entity_id,
+    PathfinderMob, RemovalReason, SharedEntity, Shearable, SpawnGroupData, next_entity_id,
 };
 use crate::physics::MoveResult;
 use crate::player::Player;
@@ -404,7 +404,7 @@ impl MushroomCowEntity {
     }
 }
 
-impl crate::entity::Shearable for MushroomCowEntity {
+impl Shearable for MushroomCowEntity {
     fn ready_for_shearing(&self) -> bool {
         // Vanilla `MushroomCow` keeps the `Entity.readyForShearing` default.
         true

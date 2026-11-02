@@ -33,7 +33,7 @@ use crate::entity::living_entity::shearing_loot_items;
 use crate::entity::{
     AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
     EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
-    PathfinderMob, SharedEntity, SpawnGroupData, sync_dirty_mob_effects,
+    PathfinderMob, SharedEntity, Shearable, SpawnGroupData, sync_dirty_mob_effects,
 };
 use crate::inventory::recipe_manager;
 use crate::physics::MoveResult;
@@ -292,7 +292,7 @@ impl SheepEntity {
     }
 }
 
-impl crate::entity::Shearable for SheepEntity {
+impl Shearable for SheepEntity {
     fn ready_for_shearing(&self) -> bool {
         SheepEntity::ready_for_shearing(self)
     }

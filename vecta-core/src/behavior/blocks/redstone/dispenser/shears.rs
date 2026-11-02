@@ -10,6 +10,7 @@ use vecta_registry::vanilla_game_events;
 use vecta_utils::WorldAabb;
 
 use super::dispense::{BlockSource, DefaultDispenseItemBehavior, DispenseItemBehavior};
+use crate::entity::Shearable;
 use crate::world::game_event::GameEventContext;
 
 /// Vanilla `ShearsDispenseItemBehavior`.
@@ -35,7 +36,7 @@ impl DispenseItemBehavior for ShearsDispenseItemBehavior {
                 entity.is_alive()
                     && entity
                         .as_shearable()
-                        .is_some_and(|shearable| shearable.ready_for_shearing())
+                        .is_some_and(Shearable::ready_for_shearing)
             });
 
         let success =
