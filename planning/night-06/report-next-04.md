@@ -124,6 +124,19 @@ Logs: `D:\CodexBuilds\logs\w06-g022-*`.
 
 ## Следующий шаг
 
-Следующий ID — **G023 / W06-111…115 (NBT рамок)**; независимо от него открыты
-`/data entity` (нужен общий entity NBT load), `compute` (loot providers) и
-контейнерный redstone-сигнал для comparator.
+Следующий ID — **G023 / W06-111…115 (NBT рамок)**. Перед началом проверено
+состояние (не переписывать готовое):
+
+- `ItemFrameEntity`/`GlowItemFrameEntity` уже пишут и читают `Item`, `ItemRotation`,
+  `Invisible`, `Fixed`, `ItemDropChance` (`entity/entities/objects/display_ui/item_frame.rs:635-680`).
+- `item_frame/review_tests.rs` уже покрывает payload `Fixed`+`Invisible`,
+  знаковый `ItemRotation` и legacy direction ids, сброс rotation/drop chance при
+  отсутствующих полях, числовые NBT-конверсии, placement, overlap и support loss.
+- Значит W06-111/112/114 — «подтвердить, не переписывать»; W06-113 (drop chance
+  с gamerules и creative) и W06-115 (map linkage, нужен G082) остаются.
+- «Command data» путь для рамок упирается в B-06-06: провайдера `/data entity`
+  нет, пока нет общего entity NBT load.
+
+Независимо открыты: `/data entity` (B-06-06), `compute` (B-06-07),
+контейнерный redstone-сигнал для comparator (B-06-08), item custom-data context
+кафедры (B-06-09).
