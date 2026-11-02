@@ -1,4 +1,4 @@
-# Block entity custom-data authorization metadata — pending extraction
+# Block entity custom-data authorization metadata — Minecraft 26.3
 
 Target: Minecraft Java 26.3. SteelExtractor checkout:
 `D:\CodexBuilds\SteelExtractor`, base `40e72f994d54edd619e3338fe431d7e938bf0db0`.
@@ -13,7 +13,15 @@ The patch was generated against this checkout with the existing adjacent
 `slot-displays.patch` already applied. It preserves that pre-existing work.
 For a fresh checkout, apply the slot-display patch before this patch.
 
-**Status: prepared, not validated. No new extractor output has been copied.**
+**Status: extraction succeeded in the owner's ordinary CMD on 2026-11-02.**
+The exact task below completed with `BUILD SUCCESSFUL in 29s`; no MinecraftServer
+or EULA acceptance was involved. Output contains version 26.3 and required boolean
+flags for all 49 block entity types. The produced file was copied byte-for-byte
+into `vecta-registry/build_assets/block_entities.json`.
+SHA-256: `bfe9f72f37d43fc9297ccf39e5f2bf0cecdf053679e48c130e74e5e01abfc88b`.
+The existing Kotlin non-null assertion warning and JOML Unsafe deprecation warning
+were not suppressed. This was the owner's extraction run, validated locally by
+reading/hash-comparing the produced file; the tool environment did not perform it.
 The first two attempts on 2026-11-02 failed before Kotlin compilation/extraction:
 
 ```text
@@ -31,7 +39,7 @@ No further JVM workaround flags, system settings or server run were attempted.
 Logs: `D:\CodexBuilds\logs\codex-be-types-extraction*.log`, including
 `codex-be-types-extraction-java25.log`.
 
-Requested action: run these exact commands from ordinary CMD:
+Successful reproducible command from ordinary CMD:
 
 ```bat
 cd /d D:\CodexBuilds\SteelExtractor
@@ -39,10 +47,9 @@ set "JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-25.0.4.7-hotspot"
 .\gradlew.bat extractBlockEntityTypes --no-daemon --max-workers=1
 ```
 
-Provide its result or the produced file:
+Produced file:
 `D:\CodexBuilds\SteelExtractor\run\steel_extractor_output\steel-registry\build_assets\block_entities.json`.
 Do not substitute an older output lacking the required flag or transcribe the
-protected type set by hand. After a successful run, verify version/flags and copy
-only the produced file to `vecta-registry/build_assets/block_entities.json`.
-Update the build generator and typed registry field with a real placement consumer
-and authorization tests in the same slice; do not default a missing flag to false.
+protected type set by hand. The Rust build generator validates the version and
+requires the flag, then compiles it into typed entries. Placement uses the flag
+with authorization tests; a missing flag is not defaulted to false.

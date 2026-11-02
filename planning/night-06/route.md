@@ -5,7 +5,10 @@
 G001–G003 выполнены и прошли ревью: [результат](../reviews/night-06-g001-g003-codex.md).
 Dispenser consumers G006/G007/G009…G013 прошли
 [ревью сеанса 2](../reviews/night-06-g006-g013-codex.md); открытые partial — в blockers.
-Следующий slice: **G021 / W06-101…105** (реальные disk/item boundaries).
+Основной G021 item-data путь и authorization gate прошли
+[ревью](../reviews/night-06-g021-codex.md); region I/O и attached lectern context
+остаются открытыми проверками/интеграцией. B-06-05 снят после успешной extraction.
+Следующий slice: **G022 / W06-106…110** (живое /data и контекст загрузки).
 B-06-04 снят: новый apply hook на обычном reload не нужен.
 Строки завершённых групп ниже сохраняют исторический порядок,
 а не команду повторно реализовать уже завершённые consumers.

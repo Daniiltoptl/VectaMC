@@ -101,7 +101,13 @@ G021 остаётся задачей проверки реальных disk/item
 Это зависимости дальнейшей реализации, не запросы владельцу без проверки
 конкретной отсутствующей архитектуры или produced data.
 
-## B-06-05 · G021/W06-103 — требуется produced authorization metadata
+## B-06-05 · снят — produced authorization metadata получена
+
+Владелец запустил точную команду с JAVA_HOME=25 в обычном CMD: BUILD SUCCESSFUL
+in 29s, output 26.3 / 49 типов. JSON скопирован побайтно; generator и настоящий
+placement gate реализованы без ручного списка. См. актуальный review G021 и
+`scripts/steel-extractor/block-entity-types.md`. Далее сохранена история диагностики;
+указания ниже о необходимости получить output больше не являются текущим blocker.
 
 Проверены Java `BlockItem.updateCustomBlockEntityTag`, `Player.canUseGameMasterBlocks`,
 `BlockEntityType.onlyOpCanSetNbt`, Vecta `Player::is_operator`/permission manager

@@ -313,3 +313,18 @@ CMD run с JAVA_HOME=25 и extractBlockEntityTypes. Не писать ручны
 Пока gate остановлен, G022 независима. Запрос — `WORKBUDDY_CONTINUE_06_04.md`.
 Код ревью — `8b581a658`. Workspace Clippy/fmt — exit 0, audit —
 3105 objects / 49 BE / 232 markers; provenance обновлён.
+
+### Продолжение после ответа владельца: B-06-05 снят
+
+Точный task на JDK 25 в обычном CMD владельца завершился BUILD SUCCESSFUL in 29s.
+Получен output 26.3 / 49 типов, SHA-256
+`bfe9f72f37d43fc9297ccf39e5f2bf0cecdf053679e48c130e74e5e01abfc88b`;
+asset скопирован побайтно. Generator требует flag и version; runtime type получил
+only_op_can_set_nbt. Player predicate использует creative/instabuild и существующий
+published OP contract, без новой модели permissions. Gate применён к item custom
+NBT и prefill HAS_BOOK кафедры. Узкие tests: 2 gate + 1 ordinary/type-mismatch,
+exit 0. Полные результаты — в актуальном review G021. Не повторять старые
+loopback attempts: extraction выполнена, B-06-05 больше не blocker.
+Gate commit — `673c7a558`; итоговый workspace **4254 passed / 0 failed / 18 ignored**,
+Clippy/fmt exit 0. Audit — 3105 objects / 49 BE / 232 markers, provenance обновлён
+на gate commit. Следующий ID — G022; реальные I/O/context acceptance ещё открыты.

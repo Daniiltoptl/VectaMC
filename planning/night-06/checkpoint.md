@@ -15,9 +15,11 @@
 | Ревью сеанса 2, узкие проверки | dispenser 83 passed; normal_nbt_reload 1 passed |
 | Ревью сеанса 2, workspace | **4245 passed / 0 failed / 18 ignored**, exit 0 |
 | Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
-| Статус G021 после ревью | partial: W06-103 gate не готов; W06-105 без region I/O/unload/restart |
-| Свежие проверки ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
-| Код ревью G021 | `8b581a658`; extractor gate B-06-05 остаётся открытым |
+| Статус G021 после ревью | gate реализован после produced output; W06-105 без region I/O/unload/restart, lectern item text context для G022 |
+| Первый срез ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
+| Authorization slice | workspace **4254/0/18**, gate tests 2 passed, ordinary/type-mismatch 1 passed; Clippy/fmt exit 0 |
+| Код authorization slice | `673c7a558`, produced metadata + generator + реальные gates/tests |
+| Код первого среза ревью G021 | `8b581a658`; B-06-05 затем снят, gate идёт отдельным срезом |
 | Clippy/fmt Codex | exit 0 |
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
@@ -33,8 +35,8 @@
 
 [Ревью G021](../reviews/night-06-g021-codex.md),
 [актуальный запрос](../../WORKBUDDY_CONTINUE_06_04.md).
-G021 gate зависит от нового produced block_entities output (B-06-05);
-до его получения не подменять данные. G022 независима от Java extraction.
+B-06-05 снят: produced block_entities output уже получен, 26.3 / 49 типов.
+Не повторять диагностические попытки и не подменять данные ручным списком.
 
 Не перезапускать прежний baseline без причины. Сначала actual branch/status и
 выбранный consumer. Группы 001–100 раскрывают старые W05-001…100; группы 101–120

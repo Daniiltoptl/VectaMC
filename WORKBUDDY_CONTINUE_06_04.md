@@ -10,43 +10,33 @@
 `planning/night-06/checkpoint.md`, `planning/reviews/night-06-g021-codex.md`,
 затем current group, нужные Vecta/Java/data callers и tests.
 
-Свежие проверки ревью: workspace 4252 passed / 0 failed / 18 ignored,
-block_item 1 passed (оба type cases), item_block_entity_data 2 passed,
-Clippy/fmt exit 0. Это выполненные проверки, не команда повторить baseline.
+Свежие проверки после authorization slice: workspace 4254 passed / 0 failed /
+18 ignored; gate tests 2 passed, ordinary/type-mismatch 1 passed; Clippy/fmt exit 0.
+Gate code — 673c7a558, но продолжать actual tip вместе с docs. Baseline до первого
+изменения не повторять.
 
-G021 НЕ полностью closed. Основной placement payload подключён, но protected-NBT
-authorization остаётся открытой, а сохранение проверялось только через decoder,
-без actual region I/O/unload/restart. B-06-04 по-прежнему снят: не удаляй корневые
-CustomName/lock и не применяй item components при обычном reload.
+G021 НЕ полностью closed: protected-NBT gate уже реализован после успешной
+extraction владельцем, но сохранение проверялось только через decoder без region
+I/O/unload/restart; attached lectern item text context остаётся для G022.
+B-06-04 снят: сохранять root CustomName/lock и отдельный обычный reload.
 
 Независимая основная очередь начинается с **G022/W06-106…110**.
 Parallel agents не запускать; очереди ниже — приоритеты одного исполнителя.
 
-1. G021/W06-103 gate: проверить состояние B-06-05 и ответ владельца о produced
-   extractor output. Права в проекте уже ЕСТЬ: permission manager, OP-группа,
-   Player::is_operator, существующий operator contract entity item spawn.
-   В Java protected BE custom data требует player.canUseGameMasterBlocks:
-   creative/instabuild + gamemaster authorization; non-player placement не проходит.
-   Не придумывай новую модель прав вместо существующей. Если сопоставление
-   с Vecta capabilities реально неясно после проверки callers, задай узкий вопрос.
-
-   Отсутствует extracted only_op_can_set_nbt у block entity types. Подготовлен
-   `scripts/steel-extractor/block-entity-types.patch` и описание рядом.
-   В `D:\CodexBuilds\SteelExtractor` добавлен task extractBlockEntityTypes,
-   но две попытки упали ДО extraction: UnixDomainSockets / Invalid argument: connect.
-   Это реальный environment/data blocker; не считать patch проверенным output.
-   Владелец уже запускал bare Gradle: обнаружился JAVA_HOME=17 при PATH java=25.
-   Явный JDK 25 в tool environment сохранил loopback failure. Владелец получил
-   точные команды для обычного CMD с process-local JAVA_HOME=25 и нужным task;
-   проверить его следующий ответ/output. Просто gradlew без task не извлекает файл.
-   Не повторяй по кругу те же попытки и не перебирай JVM flags без новых фактов.
-   Пока output/working invocation отсутствует, эту часть остановить и делать G022.
-
-   После успешной extraction: проверить version 26.3, реальные flags, copy только
-   produced block_entities.json; обновить generator + typed field + настоящий
-   placement consumer и gate tests вместе. Missing flag не default false;
-   ручной protected-type list не писать. Cases: ordinary BE, protected BE,
-   operator/non-operator, creative/survival, non-player source, mismatched type.
+1. Сохрани выполненный G021/W06-103 authorization slice. Produced metadata
+   26.3/49 типов уже получена, B-06-05 СНЯТ. Generator требует реальный
+   only_op_can_set_nbt и проверяет version; не писать ручной список/default false.
+   Player::can_use_game_master_blocks использует creative/instabuild плюс
+   существующий published OP-group contract Vecta, как privileged entity item data.
+   Gate проверяется при BlockItem payload load и prefill HAS_BOOK кафедры.
+   Cases operator/non-operator × creative/survival, playerless placement,
+   ordinary barrel и mismatched payload покрываются реальными placement tests.
+   Не вводить вместо этого новую модель permissions, OP levels или guessed nodes.
+   Extraction уже выполнена владельцем в обычном CMD на JDK 25, не повторять
+   прежние неудачные tool-environment loopback attempts. Provenance/command —
+   scripts/steel-extractor/block-entity-types.md; prepared patch теперь проверен
+   выполнением task владельцем. На машине JAVA_HOME может указывать на 17 при
+   PATH java=25: для будущих extractor tasks явно выбирать установленную Java 25.
 
 2. G021/W06-105: дополнить настоящим region/chunk storage write/read и unload/load
    при доступном текущем harness. Сохранять name/lock/contents и explicit components,

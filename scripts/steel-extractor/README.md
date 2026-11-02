@@ -35,3 +35,7 @@ entries/registration order. Network dispatch then uses assigned registry IDs.
 The payload enum no longer stores protocol IDs. Extension-owned codecs use
 the same keyed downcasting pattern as position sources; plugin loading itself
 is outside this change.
+
+Block entity custom-data authorization metadata (`onlyOpCanSetNbt`) has a separate
+[26.3 extraction task and provenance](block-entity-types.md). It uses the same
+bootstrap-only workflow without starting MinecraftServer.
