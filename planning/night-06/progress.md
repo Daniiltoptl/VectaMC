@@ -222,3 +222,26 @@ Python — 4 tests OK, audit — 3105 objects / 49 BE / 233 markers.
 поджигания; Java не требует guard от принудительного повторного onHit.
 G004/G005 — зависимости реализации, не внешний blocker только из-за отсутствия
 Rust consumer. Следующий ID: **G006 / W06-026…030**.
+
+## G006…G013 · сеанс 2
+
+Полные детали, проверки и границы — в [report-next-02.md](report-next-02.md).
+Кратко по группам:
+
+| Группа | Что сделано | Статус |
+| --- | --- | --- |
+| G006 | `DispensibleContainerItem` capability, общий `BucketItem.emptyContents`, `SolidBucketItem.emptyContents`, регистрация water/lava/powder_snow | реализовано |
+| G007 | `pickup_bucket_content` общий для руки и раздатчика, `consume_with_remainder`, регистрация пустого ведра | реализовано |
+| G009 | тесты занятого слота, тега `can_equip_saddle`, persistent round-trip свиньи с седлом | проверено; body-slot partial |
+| G010 | `FlintAndSteelDispenseItemBehavior` (костёр/свеча/огонь/TNT, прочность, 1000/1001) | реализовано; fire charge partial |
+| G011 | `BoneMealDispenseBehavior` на общих `grow_crop`/`grow_water_plant` | реализовано; sapling partial |
+| G012 | `GlassBottleDispenseBehavior` (мёд, вода source и flowing), `spawn_item`/`eject` | реализовано; bee release partial |
+| G013 | capability `Shearable`, `ShearsDispenseItemBehavior` (одна цель из AABB) | реализовано; соты partial |
+
+Свежие проверки: workspace **4240 passed / 0 failed / 18 ignored** (exit 0),
+`cargo fmt --all --check` exit 0, workspace Clippy exit 0 после коммита
+`1f277a4b7`. Узкие: dispenser 79, bucket 26, equipment 11, flint 8, bonemeal 4,
+bottle 7, shears 4, empty_bucket 8.
+
+Partial и их точные зависимости — `blockers.md` (B-06-01…03).
+Следующий ID: **G021 / W06-101…105**.
