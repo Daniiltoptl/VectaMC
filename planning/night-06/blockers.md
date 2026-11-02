@@ -61,3 +61,34 @@ shears) и `Bee` entity для `BeeReleaseStatus::BEE_RELEASED`.
 
 **Решение:** `ShearsDispenseItemBehavior` реализует только entity-ветку
 (настоящий `Shearable`), улей пока не стрижётся. Зависимые карточки: W06-062.
+
+## B-06-04 · G021/W06-101…105 — имя и lock контейнера пишутся дважды
+
+**Проверено:** `vecta-core/src/block_entity/container_identity.rs` пишет
+`CustomName` и `lock` обычными NBT-ключами (`save`/`load`), и в то же время
+`collect_implicit_components` кладёт те же значения в `components`. Контейнеры
+вызывают `self.identity.save(nbt)` из `save_additional`
+(`chest.rs:353`, `barrel.rs:252`, `dispenser.rs:189`, `beacon.rs:366`, …).
+
+В 26.3 `BaseContainerBlockEntity` не пишет эти ключи в `saveAdditional`: они
+живут только в `components` (`collectImplicitComponents`), а
+`removeComponentsFromTag` вычищает legacy-ключи у старых миров.
+
+**Чего не хватает:** шага `applyComponents` после загрузки карты компонентов.
+`BlockEntity::load_with_components` (`block_entity/mod.rs`) вызывает
+`load_additional_with_context`, затем `base().load_components(nbt)`, но не
+применяет загруженные компоненты к состоянию сущности. Поэтому
+`applyImplicitComponents` при reload не вызывается, и имя/lock восстанавливаются
+только по legacy-ключам.
+
+**Риск догадки:** это shared persistence foundation и формат сохранения сразу
+для всех контейнеров (chest, barrel, dispenser, dropper, hopper, furnace,
+shulker, beacon, …). Полу-сделанный переход оставил бы часть сущностей на
+legacy-ключах, часть на компонентах.
+
+**Решение:** отдельным срезом — hook `apply_components(&DataComponentMap)` в
+`BlockEntity`, вызов его из `load_with_components`, `identity` читает имя/lock
+из карты, `save_additional` перестаёт писать legacy-ключи, а `load` вызывает
+`remove_components_from_tag`. Затем W06-101…105 можно закрывать тестами
+(включая unload/load настоящего сохранённого BE). Зависимые карточки:
+W06-101…105 (G021 не начата).

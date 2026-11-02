@@ -16,7 +16,7 @@
 | Clippy/fmt | exit 0 (`1f277a4b7` устранил три находки в новом коде) |
 | Новый пакет | 120 направлений / 600 карточек |
 | Закрытые группы | G001–G003 (ревью), G006, G007, G009 (body-slot partial), G010, G011, G012, G013 |
-| Следующий consumer | **G021 / W06-101…105: implicit components round-trip** |
+| Следующий consumer | **G021 / W06-101…105: implicit components round-trip** (см. B-06-04: сначала hook `apply_components`) |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -38,6 +38,8 @@ comparison не проверялись.
 Открытые partial этого сеанса: W06-042 (body slot, нет волка/лошади),
 W06-046 (fire charge → G047), W06-052 (`TreeGrower`, B-06-01),
 W06-057 (bee release, B-06-03), W06-062 (соты, B-06-03).
+G021 не начата: B-06-04 фиксирует двойную запись имени/lock и отсутствие
+`applyComponents` при reload; это отдельный срез по всем контейнерам.
 
 Foreign dirty file: `planning/night-01/report.md`; не трогать.
 SHA256 `06680CBC971245B70C990D95C906F0F1E3685EFFDE61C13D562664B4B6B05222`.
