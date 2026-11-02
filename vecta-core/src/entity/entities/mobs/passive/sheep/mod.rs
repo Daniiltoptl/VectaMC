@@ -199,10 +199,10 @@ impl SheepEntity {
 
     /// Runs vanilla `Sheep.shear`: plays the shear sound, drops the shearing loot
     /// one item at a time with the vanilla jitter, and marks the sheep as sheared.
-    pub fn shear(&self, world: &World, tool: &ItemStack) {
+    pub fn shear(&self, world: &World, sound_source: SoundSource, tool: &ItemStack) {
         world.play_sound_at(
             &sound_events::ENTITY_SHEEP_SHEAR,
-            SoundSource::Players,
+            sound_source,
             self.position(),
             1.0,
             1.0,
@@ -297,8 +297,8 @@ impl Shearable for SheepEntity {
         SheepEntity::ready_for_shearing(self)
     }
 
-    fn shear(&self, world: &Arc<World>, tool: &ItemStack) {
-        SheepEntity::shear(self, world.as_ref(), tool);
+    fn shear(&self, world: &Arc<World>, sound_source: SoundSource, tool: &ItemStack) {
+        SheepEntity::shear(self, world.as_ref(), sound_source, tool);
     }
 }
 
@@ -517,7 +517,7 @@ impl Mob for SheepEntity {
             let Some(world) = self.level() else {
                 return InteractionResult::Consume;
             };
-            self.shear(world.as_ref(), &item_stack);
+            self.shear(world.as_ref(), SoundSource::Players, &item_stack);
             // Vanilla `Sheep.mobInteract` sources the shear game event to the player.
             self.game_event_with_source_entity(&vanilla_game_events::SHEAR, Some(player));
             player

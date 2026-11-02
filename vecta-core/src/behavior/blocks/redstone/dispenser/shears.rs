@@ -4,13 +4,13 @@
 //! it. The beehive branch needs a honeycomb loot drop that Vecta does not have
 //! yet, so only the entity branch is wired; the hive stays for G114.
 
+use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::level_events;
 use vecta_registry::vanilla_game_events;
 use vecta_utils::WorldAabb;
 
-use super::dispense::{BlockSource, DefaultDispenseItemBehavior, DispenseItemBehavior};
-use crate::entity::Shearable;
+use super::dispense::{BlockSource, DispenseItemBehavior};
 use crate::world::game_event::GameEventContext;
 
 /// Vanilla `ShearsDispenseItemBehavior`.
@@ -27,39 +27,31 @@ impl DispenseItemBehavior for ShearsDispenseItemBehavior {
             f64::from(target.y() + 1),
             f64::from(target.z() + 1),
         );
-        // Vanilla walks the whole AABB but shears only the first ready
-        // `Shearable`, so the selector has to filter instead of taking the first
-        // entity.
         let entities = source
             .world
-            .get_entities_in_aabb_matching(&bounds, |entity| {
-                entity.is_alive()
-                    && entity
-                        .as_shearable()
-                        .is_some_and(Shearable::ready_for_shearing)
-            });
+            .get_entities_in_aabb_matching(&bounds, |entity| !entity.is_spectator());
 
-        let success =
-            if let Some(shearable) = entities.first().and_then(|entity| entity.as_shearable()) {
-                shearable.shear(source.world, &stack);
-                source.world.game_event(
-                    &vanilla_game_events::SHEAR,
-                    target,
-                    &GameEventContext::new(None, None),
-                );
-                true
-            } else {
-                false
+        let success = entities.iter().any(|entity| {
+            if entity.shear_off_all_leash_connections(None) {
+                return true;
+            }
+            let Some(shearable) = entity.as_shearable() else {
+                return false;
             };
+            if !entity.is_alive() || !shearable.ready_for_shearing() {
+                return false;
+            }
+            shearable.shear(source.world, SoundSource::Blocks, &stack);
+            source.world.game_event(
+                &vanilla_game_events::SHEAR,
+                target,
+                &GameEventContext::new(None, None),
+            );
+            true
+        });
 
         if success {
             stack.hurt_and_break(1, false);
-        } else {
-            // Vanilla `super.execute` throws the shears out on failure.
-            let mut one = stack.clone();
-            one.set_count(1);
-            stack.shrink(1);
-            DefaultDispenseItemBehavior::spawn_item(source, one);
         }
 
         source.world.level_event(

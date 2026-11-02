@@ -202,10 +202,10 @@ impl MushroomCowEntity {
     }
 
     /// Shears the mooshroom, converting it into a normal cow and dropping vanilla loot.
-    pub fn shear(&self, world: &Arc<World>, tool: &ItemStack) {
+    pub fn shear(&self, world: &Arc<World>, sound_source: SoundSource, tool: &ItemStack) {
         world.play_sound_at(
             &sound_events::ENTITY_MOOSHROOM_SHEAR,
-            SoundSource::Players,
+            sound_source,
             self.position(),
             1.0,
             1.0,
@@ -337,7 +337,7 @@ impl MushroomCowEntity {
             let inventory = player.inventory.lock();
             inventory.get_item_in_hand(hand).copy_with_count(1)
         };
-        self.shear(&world, &tool);
+        self.shear(&world, SoundSource::Players, &tool);
         world.game_event_at(
             &vanilla_game_events::SHEAR,
             self.position(),
@@ -410,8 +410,8 @@ impl Shearable for MushroomCowEntity {
         true
     }
 
-    fn shear(&self, world: &Arc<World>, tool: &ItemStack) {
-        MushroomCowEntity::shear(self, world, tool);
+    fn shear(&self, world: &Arc<World>, sound_source: SoundSource, tool: &ItemStack) {
+        MushroomCowEntity::shear(self, world, sound_source, tool);
     }
 }
 

@@ -382,6 +382,8 @@ impl Container for BarrelContainer {
 mod tests {
     use std::io::Cursor;
 
+    use crate::block_entity::BlockEntityLoadContext;
+
     use simdnbt::borrow::read_compound as read_borrowed_compound;
     use text_components::TextComponent;
     use vecta_registry::{init_vanilla_registry, vanilla_blocks, vanilla_items};
@@ -473,6 +475,36 @@ mod tests {
                 .identity()
                 .display_name(|| TextComponent::plain("default")),
             TextComponent::plain("Storage"),
+        );
+    }
+
+    #[test]
+    fn normal_nbt_reload_preserves_identity_and_inventory_without_applying_item_components() {
+        let barrel = test_barrel();
+        load_identity(&barrel, Some("Storage"), Some("minecraft:diamond"));
+        barrel
+            .container
+            .lock()
+            .set_item(7, ItemStack::with_count(&vanilla_items::DIAMOND, 5));
+        let nbt = barrel.save_without_metadata();
+        assert!(nbt.get("CustomName").is_some());
+        assert!(nbt.get("lock").is_some());
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
+            .expect("saved barrel decodes");
+
+        let loaded = test_barrel();
+        loaded.load_with_components(&borrowed, &BlockEntityLoadContext::detached());
+
+        assert_eq!(
+            loaded.identity().custom_name(),
+            Some(TextComponent::plain("Storage"))
+        );
+        assert!(loaded.identity().is_locked());
+        assert_eq!(
+            loaded.container.lock().get_item(7),
+            &ItemStack::with_count(&vanilla_items::DIAMOND, 5)
         );
     }
 

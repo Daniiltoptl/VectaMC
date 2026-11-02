@@ -59,12 +59,7 @@ impl DispenseItemBehavior for GlassBottleDispenseBehavior {
         } else {
             // Vanilla `super.execute` throws the bottle out; the sound below
             // replaces the default one because the attempt failed.
-            let mut remaining = stack;
-            let mut one = remaining.clone();
-            one.set_count(1);
-            remaining.shrink(1);
-            DefaultDispenseItemBehavior::spawn_item(source, one);
-            (remaining, false)
+            (DefaultDispenseItemBehavior::execute(source, stack), false)
         };
 
         source.world.level_event(

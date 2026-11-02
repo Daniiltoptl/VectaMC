@@ -233,7 +233,7 @@ fn a_filled_bottle_goes_into_a_free_slot() {
 
 #[test]
 fn a_full_dispenser_ejects_the_filled_bottle() {
-    let (fixture, pos, _packets) = {
+    let (fixture, pos, packets) = {
         let (fixture, pos, _player, packets) =
             listening_dispenser_fixture("dispenser_bottle_full", Direction::South);
         water_at(&fixture, vanilla_blocks::WATER.default_state());
@@ -273,4 +273,13 @@ fn a_full_dispenser_ejects_the_filled_bottle() {
             .is_some_and(|item| item.get_item().is(&vanilla_items::POTION)),
         "vanilla `addToInventoryOrDispense` throws the filled bottle out"
     );
+    let pair = [
+        (SOUND_DISPENSER_DISPENSE, pos, 0),
+        (
+            PARTICLES_SHOOT_SMOKE,
+            pos,
+            Direction::South.get_3d_data_value(),
+        ),
+    ];
+    assert_eq!(sent_level_events(&packets), pair.repeat(2));
 }

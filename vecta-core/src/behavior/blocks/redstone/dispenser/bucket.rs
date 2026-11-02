@@ -24,6 +24,14 @@ pub struct FilledBucketDispenseBehavior;
 
 impl DispenseItemBehavior for FilledBucketDispenseBehavior {
     fn dispense(&self, source: &BlockSource<'_>, stack: ItemStack) -> ItemStack {
+        let result = Self::execute(source, stack);
+        DefaultDispenseItemBehavior::play_default_feedback(source);
+        result
+    }
+}
+
+impl FilledBucketDispenseBehavior {
+    fn execute(source: &BlockSource<'_>, stack: ItemStack) -> ItemStack {
         let target = source.pos.relative(source.facing());
         let Some(container) = ITEM_BEHAVIORS
             .get_behavior(stack.item())
@@ -54,14 +62,22 @@ pub struct EmptyBucketDispenseBehavior;
 
 impl DispenseItemBehavior for EmptyBucketDispenseBehavior {
     fn dispense(&self, source: &BlockSource<'_>, stack: ItemStack) -> ItemStack {
+        let result = Self::execute(source, stack);
+        DefaultDispenseItemBehavior::play_default_feedback(source);
+        result
+    }
+}
+
+impl EmptyBucketDispenseBehavior {
+    fn execute(source: &BlockSource<'_>, stack: ItemStack) -> ItemStack {
         let target = source.pos.relative(source.facing());
         let state = source.world.get_block_state(target);
         let Some(pickup) = pickup_bucket_content(source.world, target, state, None) else {
-            return DEFAULT_BEHAVIOR.dispense(source, stack);
+            return DefaultDispenseItemBehavior::execute(source, stack);
         };
 
         if pickup.filled_bucket.is_empty() {
-            return DEFAULT_BEHAVIOR.dispense(source, stack);
+            return DefaultDispenseItemBehavior::execute(source, stack);
         }
 
         // Vanilla fires only `FLUID_PICKUP` here: the fill sound belongs to the
@@ -71,6 +87,10 @@ impl DispenseItemBehavior for EmptyBucketDispenseBehavior {
             target,
             &GameEventContext::new(None, None),
         );
-        DefaultDispenseItemBehavior::consume_with_remainder(source, stack, pickup.filled_bucket)
+        DefaultDispenseItemBehavior::consume_with_remainder(
+            source,
+            stack,
+            ItemStack::new(pickup.filled_bucket.item()),
+        )
     }
 }

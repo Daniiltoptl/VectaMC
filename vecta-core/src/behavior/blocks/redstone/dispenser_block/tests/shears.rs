@@ -1,7 +1,9 @@
 //! Dispenser shears (W06-061…065).
 
 use super::*;
-use crate::entity::entities::{ItemEntity, SheepEntity};
+use crate::entity::entities::{ItemEntity, PigEntity, SheepEntity};
+use crate::test_support::played_sounds;
+use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::level_events::{
     PARTICLES_SHOOT_SMOKE, SOUND_DISPENSER_DISPENSE, SOUND_DISPENSER_FAIL,
 };
@@ -80,6 +82,7 @@ fn a_dispensed_shears_shears_the_sheep_in_front() {
         1,
         "a successful shear wears the shears once"
     );
+    assert_eq!(played_sounds(&packets)[0].1, SoundSource::Blocks as i32);
     assert_eq!(
         sent_level_events(&packets),
         [
@@ -118,12 +121,11 @@ fn a_dispensed_shears_leaves_an_already_sheared_sheep_alone() {
         0,
         "a failed attempt must not wear the shears"
     );
-    assert!(
-        ejected_items(&fixture, pos).iter().any(|entity| entity
-            .downcast_ref::<ItemEntity>()
-            .is_some_and(|item| item.get_item().is(&vanilla_items::SHEARS))),
-        "the unused shears are thrown out"
+    assert_eq!(
+        item_at(&fixture, pos, 0),
+        ItemStack::new(&vanilla_items::SHEARS)
     );
+    assert!(ejected_items(&fixture, pos).is_empty());
     assert_eq!(
         sent_level_events(&packets)[0],
         (SOUND_DISPENSER_FAIL, pos, 0)
@@ -160,11 +162,14 @@ fn a_dispensed_shears_shears_only_one_of_two_sheep() {
 }
 
 #[test]
-fn a_dispensed_shears_over_nothing_is_thrown_out() {
+fn a_dispensed_shears_over_nothing_stays_in_the_dispenser() {
     let (fixture, pos, packets) = dispense_shears("dispenser_shears_nothing");
 
-    assert!(item_at(&fixture, pos, 0).is_empty());
-    assert_eq!(ejected_items(&fixture, pos).len(), 1);
+    assert_eq!(
+        item_at(&fixture, pos, 0),
+        ItemStack::new(&vanilla_items::SHEARS)
+    );
+    assert!(ejected_items(&fixture, pos).is_empty());
     assert_eq!(
         sent_level_events(&packets)[0],
         (SOUND_DISPENSER_FAIL, pos, 0)
@@ -174,4 +179,65 @@ fn a_dispensed_shears_over_nothing_is_thrown_out() {
         vanilla_blocks::AIR.default_state(),
         "a failed shear leaves the block in front unchanged"
     );
+}
+
+#[test]
+fn dispenser_shears_cut_a_sheeps_leash_before_its_wool() {
+    let (fixture, pos, _player, _packets) =
+        listening_dispenser_fixture("dispenser_shears_leash_first", Direction::South);
+    let sheep = spawn_sheep(&fixture, DVec3::new(4.5, 64.0, 5.5));
+    let holder: SharedEntity = spawn_sheep(&fixture, DVec3::new(4.5, 64.0, 8.5));
+    let leash = sheep.as_leashable().expect("sheep is leashable");
+    assert!(leash.set_leashed_to(&holder));
+    set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::SHEARS));
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+
+    assert!(!leash.is_leashed());
+    assert!(
+        !sheep.is_sheared(),
+        "the leash consumes this attempt before wool"
+    );
+    assert_eq!(item_at(&fixture, pos, 0).get_damage_value(), 1);
+    let drops = wool_drops(&fixture, sheep.position());
+    assert!(drops.iter().any(|stack| stack.is(&vanilla_items::LEAD)));
+    assert!(
+        drops
+            .iter()
+            .all(|stack| !stack.is(&vanilla_items::WHITE_WOOL))
+    );
+}
+
+#[test]
+fn dispenser_shears_can_cut_a_non_shearable_mobs_leash() {
+    let (fixture, pos, _player, _packets) =
+        listening_dispenser_fixture("dispenser_shears_pig_leash", Direction::South);
+    let pig = Arc::new(PigEntity::new(
+        &vanilla_entities::PIG,
+        next_entity_id(),
+        DVec3::new(4.5, 64.0, 5.5),
+        Arc::downgrade(&fixture.world),
+    ));
+    fixture
+        .world
+        .try_add_entity(Arc::clone(&pig) as SharedEntity)
+        .expect("loaded pig");
+    let holder: SharedEntity = spawn_sheep(&fixture, DVec3::new(4.5, 64.0, 8.5));
+    let leash = pig.as_leashable().expect("pig is leashable");
+    assert!(leash.set_leashed_to(&holder));
+    set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::SHEARS));
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+
+    assert!(!leash.is_leashed());
+    assert!(pig.as_shearable().is_none());
+    assert_eq!(item_at(&fixture, pos, 0).get_damage_value(), 1);
 }

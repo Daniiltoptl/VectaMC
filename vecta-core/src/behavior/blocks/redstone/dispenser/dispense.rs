@@ -84,16 +84,20 @@ pub struct DefaultDispenseItemBehavior;
 
 impl DispenseItemBehavior for DefaultDispenseItemBehavior {
     fn dispense(&self, source: &BlockSource<'_>, stack: ItemStack) -> ItemStack {
-        let mut remaining = stack;
-        let mut one = remaining.clone();
-        one.set_count(1);
-        remaining.shrink(1);
-        Self::eject(source, one);
+        let remaining = Self::execute(source, stack);
+        Self::play_default_feedback(source);
         remaining
     }
 }
 
 impl DefaultDispenseItemBehavior {
+    /// Executes the default item drop without the final sound and animation,
+    /// allowing subclasses' `super.execute` paths to keep their own feedback.
+    pub fn execute(source: &BlockSource<'_>, mut stack: ItemStack) -> ItemStack {
+        Self::spawn_item(source, stack.split(1));
+        stack
+    }
+
     /// Vanilla `DefaultDispenseItemBehavior.consumeWithRemainder`: take one item
     /// from `dispensed` and either leave `remainder` in the slot it emptied or
     /// store it in the dispenser.
@@ -131,6 +135,11 @@ impl DefaultDispenseItemBehavior {
     /// `spawnItem` + `playAnimation`: one item entity in front of the block.
     pub fn eject(source: &BlockSource<'_>, item: ItemStack) {
         Self::spawn_item(source, item);
+        Self::play_default_feedback(source);
+    }
+
+    /// The common final `playSound`/`playAnimation` phase of default behaviors.
+    pub fn play_default_feedback(source: &BlockSource<'_>) {
         source
             .world
             .level_event(level_events::SOUND_DISPENSER_DISPENSE, source.pos, 0, None);

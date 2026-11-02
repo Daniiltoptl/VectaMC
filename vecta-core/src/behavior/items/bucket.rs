@@ -75,7 +75,7 @@ impl BucketItem {
             || (is_liquid_container
                 && behavior.can_place_liquid_with_player(
                     state,
-                    FluidState::source(&vanilla_fluids::WATER).fluid_id,
+                    fluid_block.default_state().get_fluid_state().fluid_id,
                     user,
                 ));
         let shift_key_down = user.is_some_and(Player::is_crouching);

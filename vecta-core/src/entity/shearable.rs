@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::item_stack::ItemStack;
 
 use crate::entity::Entity;
@@ -14,5 +15,5 @@ pub trait Shearable: Entity {
 
     /// Vanilla `Shearable.shear`: play the shear sound, drop the loot and enter
     /// the sheared state.
-    fn shear(&self, world: &Arc<World>, tool: &ItemStack);
+    fn shear(&self, world: &Arc<World>, sound_source: SoundSource, tool: &ItemStack);
 }

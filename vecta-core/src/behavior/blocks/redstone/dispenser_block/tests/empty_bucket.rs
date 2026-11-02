@@ -17,7 +17,7 @@ fn pulse_empty_bucket(name: &'static str) -> (TestWorld, BlockPos) {
 
 #[test]
 fn a_dispensed_empty_bucket_picks_up_a_water_source() {
-    let (fixture, pos, _player, _packets) =
+    let (fixture, pos, _player, packets) =
         listening_dispenser_fixture("dispenser_bucket_water", Direction::South);
     assert!(fixture.world.set_block(
         TARGET,
@@ -43,11 +43,22 @@ fn a_dispensed_empty_bucket_picks_up_a_water_source() {
         ejected_items(&fixture, pos).is_empty(),
         "a successful pickup never throws the bucket out"
     );
+    assert_eq!(
+        sent_level_events(&packets),
+        [
+            (SOUND_DISPENSER_DISPENSE, pos, 0),
+            (
+                PARTICLES_SHOOT_SMOKE,
+                pos,
+                Direction::South.get_3d_data_value()
+            ),
+        ]
+    );
 }
 
 #[test]
 fn flowing_water_does_not_fill_a_dispensed_bucket() {
-    let (fixture, pos, _player, _packets) =
+    let (fixture, pos, _player, packets) =
         listening_dispenser_fixture("dispenser_bucket_flowing", Direction::South);
     let flowing = vanilla_blocks::WATER
         .default_state()
@@ -77,6 +88,17 @@ fn flowing_water_does_not_fill_a_dispensed_bucket() {
         panic!("the unused bucket is thrown out as an item entity");
     };
     assert!(item_entity.get_item().is(&vanilla_items::BUCKET));
+    assert_eq!(
+        sent_level_events(&packets),
+        [
+            (SOUND_DISPENSER_DISPENSE, pos, 0),
+            (
+                PARTICLES_SHOOT_SMOKE,
+                pos,
+                Direction::South.get_3d_data_value()
+            ),
+        ]
+    );
 }
 
 #[test]

@@ -297,3 +297,89 @@ fn consume_with_remainder_stores_a_stackable_remainder_and_ejects_what_does_not_
     };
     assert!(item_entity.get_item().is(&vanilla_items::HONEY_BOTTLE));
 }
+
+#[test]
+fn filled_bucket_feedback_includes_the_outer_wrapper_and_nested_failure_drop() {
+    for (name, item, target, pairs) in [
+        (
+            "bucket_feedback_water",
+            &*vanilla_items::WATER_BUCKET,
+            vanilla_blocks::AIR.default_state(),
+            1,
+        ),
+        (
+            "bucket_feedback_lava",
+            &*vanilla_items::LAVA_BUCKET,
+            vanilla_blocks::AIR.default_state(),
+            1,
+        ),
+        (
+            "bucket_feedback_snow",
+            &*vanilla_items::POWDER_SNOW_BUCKET,
+            vanilla_blocks::AIR.default_state(),
+            1,
+        ),
+        (
+            "bucket_feedback_rejected",
+            &*vanilla_items::POWDER_SNOW_BUCKET,
+            vanilla_blocks::STONE.default_state(),
+            2,
+        ),
+    ] {
+        let (fixture, pos, _player, packets) = listening_dispenser_fixture(name, Direction::South);
+        fixture
+            .world
+            .set_block(TARGET, target, UpdateFlags::UPDATE_ALL);
+        set_item_at(&fixture, pos, 0, ItemStack::new(item));
+        pulse(
+            &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+            &fixture,
+            pos,
+        );
+        let pair = [
+            (SOUND_DISPENSER_DISPENSE, pos, 0),
+            (
+                PARTICLES_SHOOT_SMOKE,
+                pos,
+                Direction::South.get_3d_data_value(),
+            ),
+        ];
+        assert_eq!(sent_level_events(&packets), pair.repeat(pairs));
+    }
+}
+
+#[test]
+fn a_lava_bucket_cannot_replace_a_waterloggable_slab() {
+    let (fixture, pos, _player, _packets) =
+        listening_dispenser_fixture("dispenser_lava_slab", Direction::South);
+    let slab = vanilla_blocks::OAK_SLAB.default_state();
+    assert!(
+        fixture
+            .world
+            .set_block(TARGET, slab, UpdateFlags::UPDATE_ALL)
+    );
+    set_item_at(
+        &fixture,
+        pos,
+        0,
+        ItemStack::new(&vanilla_items::LAVA_BUCKET),
+    );
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+
+    assert_eq!(fixture.world.get_block_state(TARGET), slab);
+    assert!(item_at(&fixture, pos, 0).is_empty());
+    let dropped = ejected_items(&fixture, pos);
+    assert_eq!(dropped.len(), 1);
+    assert!(
+        dropped[0]
+            .downcast_ref::<ItemEntity>()
+            .expect("dropped bucket")
+            .get_item()
+            .is(&vanilla_items::LAVA_BUCKET)
+    );
+}
