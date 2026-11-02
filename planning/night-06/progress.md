@@ -266,3 +266,27 @@ workspace — **4245 passed / 0 failed / 18 ignored**, exit 0; Python — 4 test
 Запрос — `WORKBUDDY_CONTINUE_06_03.md`.
 Код ревью — `df47b146e`. Workspace Clippy/fmt — exit 0;
 audit — 3105 objects / 49 BE / 232 source markers, provenance обновлён.
+
+## G021 / W06-101…105 · сеанс 3
+
+Полные детали — в [report-next-03.md](report-next-03.md). B-06-04 снят:
+Java хранит `CustomName`/`lock` корневыми NBT-полями и не вызывает
+`applyComponents` при reload; формат не менялся.
+
+Реализовано: `BlockEntity::load_item_custom_data` (зеркало
+`TypedEntityData.loadInto(BlockEntity)`) и вызов из `BlockItem.place` перед
+`apply_components_from_item`. Раньше предмет с `minecraft:block_entity_data`
+терял payload при установке.
+
+Проверено: disk save без дублей (W06-101), borrowed/owned load с незнакомым
+компонентом (W06-102), placement в настоящую BE (W06-103), pick → item →
+block с удалением дублей и без воскрешения удалённого компонента (W06-104),
+декодер `ChunkStorage` восстанавливает бочку с именем, lock и содержимым
+(W06-105).
+
+Проверки: workspace **4252 passed / 0 failed / 18 ignored** (exit 0), fmt и
+workspace Clippy exit 0. Узкие: block_entity 119, chunk_saver 54,
+block_interaction 2.
+
+G022 не начата: builtin `/data` отсутствует, нужен отдельный срез командной
+поверхности. Следующий ID: **G022 / W06-106…110**.

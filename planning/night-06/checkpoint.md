@@ -14,11 +14,12 @@
 | Входящий workspace исполнителя | **4240 passed / 0 failed / 18 ignored**, по его отчёту |
 | Свежие узкие проверки Codex | dispenser 83 passed; normal_nbt_reload 1 passed |
 | Свежий workspace Codex | **4245 passed / 0 failed / 18 ignored**, exit 0 |
+| Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
 | Clippy/fmt Codex | exit 0 |
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **G021 / W06-101…105: реальные disk/item boundaries**; B-06-04 снят, hook на reload не добавлять |
+| Следующий consumer | **G022 / W06-106…110: live /data, menu sync, comparator/ticker, книги кафедры** |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -43,10 +44,13 @@ comparison не проверялись.
 Открытые partial этого сеанса: W06-042 (body slot, нет волка/лошади),
 W06-046 (fire charge → G047), W06-052 (`TreeGrower`, B-06-01),
 W06-057 (bee release, B-06-03), W06-062 (соты, B-06-03).
-G021 не завершена как матрица проверки. B-06-04 снят: Java тоже хранит корневые
-имя/lock и не применяет item components при обычном reload. Существующий формат
-контейнеров сохранять. Дополнительно открыты water evaporation, underwater coral
-selection и SulfurCube ignition; см. blockers.
+G021 закрыта матрицей тестов W06-101…105: disk save без дублей, borrowed/owned
+load, placement payload в настоящую BE, pick→item→block, декодер ChunkStorage.
+B-06-04 снят: Java тоже хранит корневые имя/lock и не применяет item components
+при обычном reload; формат контейнеров не менялся. Открыт гейт
+`onlyOpCanSetNbt` (нет системы прав) и реальный chunk save через `ChunkMap`.
+G022 не начата: builtin `/data` отсутствует. Дополнительно открыты water
+evaporation, underwater coral selection и SulfurCube ignition; см. blockers.
 
 Foreign dirty file: `planning/night-01/report.md`; не трогать.
 SHA256 `06680CBC971245B70C990D95C906F0F1E3685EFFDE61C13D562664B4B6B05222`.
