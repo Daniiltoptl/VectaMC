@@ -56,39 +56,47 @@
 `Bee` entity, поэтому `releaseBeesAndResetHoneyLevel` не может выпустить
 пчёл, и нет пути «лут блока с инструментом» для трёх сот.
 
-**Чего не хватает:** `BeehiveBlock.dropHoneycomb` (лут `blocks/beehive` с
-shears) и `Bee` entity для `BeeReleaseStatus::BEE_RELEASED`.
+**Чего не хватает:** `BeehiveBlock.dropHoneycomb` с interaction loot table
+`BuiltInLootTables.HARVEST_BEEHIVE` и `Bee` entity для `BeeReleaseStatus::BEE_RELEASED`.
+Codex сверил Java: это не block-break loot `blocks/beehive`.
+В Vecta уже есть typed `vanilla_loot_tables::HARVEST_BEEHIVE` и
+`drop_from_block_interact_loot_table`; проверить полноту его context с consumer.
+Отсутствие Rust метода само по себе не является внешним blocker.
 
 **Решение:** `ShearsDispenseItemBehavior` реализует только entity-ветку
 (настоящий `Shearable`), улей пока не стрижётся. Зависимые карточки: W06-062.
 
-## B-06-04 · G021/W06-101…105 — имя и lock контейнера пишутся дважды
+## B-06-04 · снят после ревью — неверная трактовка persistence
 
-**Проверено:** `vecta-core/src/block_entity/container_identity.rs` пишет
-`CustomName` и `lock` обычными NBT-ключами (`save`/`load`), и в то же время
-`collect_implicit_components` кладёт те же значения в `components`. Контейнеры
-вызывают `self.identity.save(nbt)` из `save_additional`
-(`chest.rs:353`, `barrel.rs:252`, `dispenser.rs:189`, `beacon.rs:366`, …).
+Прежняя запись на `4afc44fd7` фактически неверна и не является планом изменения кода.
+Codex повторно прочитал local Java 26.3:
 
-В 26.3 `BaseContainerBlockEntity` не пишет эти ключи в `saveAdditional`: они
-живут только в `components` (`collectImplicitComponents`), а
-`removeComponentsFromTag` вычищает legacy-ключи у старых миров.
+- `BaseContainerBlockEntity.loadAdditional` читает `lock` и `CustomName`;
+  `saveAdditional` пишет их обычными NBT-полями.
+- `BlockEntity.loadWithComponents` вызывает `loadAdditional`, затем читает
+  карту `components`; `applyComponents` при обычном reload не вызывается.
+- `saveWithoutMetadata` пишет `saveAdditional` и только stored explicit map.
+  `collectComponents` нужен для item/pick-пути, а не для обычного chunk save.
+- `applyComponentsFromItemStack` — отдельный путь placement. `removeComponentsFromTag`
+  удаляет дубли из item `BLOCK_ENTITY_DATA`, не из обычного сохранения мира.
 
-**Чего не хватает:** шага `applyComponents` после загрузки карты компонентов.
-`BlockEntity::load_with_components` (`block_entity/mod.rs`) вызывает
-`load_additional_with_context`, затем `base().load_components(nbt)`, но не
-применяет загруженные компоненты к состоянию сущности. Поэтому
-`applyImplicitComponents` при reload не вызывается, и имя/lock восстанавливаются
-только по legacy-ключам.
+Vecta следует этому разделению. Новый regression загружает нормальную NBT-бочку
+через `load_with_components` и сохраняет имя, lock и contents. Применение пустых
+item components на reload могло бы стереть эти значения и содержимое контейнера.
+Не добавлять предложенный прежним отчётом hook и не удалять корневые поля.
+G021 остаётся задачей проверки реальных disk/item boundaries, без подтверждённого
+этим пунктом архитектурного blocker. Подробности — в Codex review сеанса 2.
 
-**Риск догадки:** это shared persistence foundation и формат сохранения сразу
-для всех контейнеров (chest, barrel, dispenser, dropper, hopper, furnace,
-shulker, beacon, …). Полу-сделанный переход оставил бы часть сущностей на
-legacy-ключах, часть на компонентах.
+## Дополнительные известные partial после ревью
 
-**Решение:** отдельным срезом — hook `apply_components(&DataComponentMap)` в
-`BlockEntity`, вызов его из `load_with_components`, `identity` читает имя/lock
-из карты, `save_additional` перестаёт писать legacy-ключи, а `load` вызывает
-`remove_components_from_tag`. Затем W06-101…105 можно закрывать тестами
-(включая unload/load настоящего сохранённого BE). Зависимые карточки:
-W06-101…105 (G021 не начата).
+- G006/W06-026: общий bucket consumer ещё использует dimension-level
+  `water_evaporates` и упрощённый level event. Java читает позиционный
+  `WATER_EVAPORATES`, проигрывает `FIRE_EXTINGUISH` и отправляет large smoke.
+  Это существующий пробел; добавление dispenser consumer не закрывает его.
+- G011/W06-053: `grow_water_plant` пока игнорирует clicked face и biome/tag coral
+  selection. Seagrass test не доказывает полную underwater bonemeal parity.
+- G010: в Java перед блоком проверяются explosive SulfurCube entities.
+  Такой реализации в Vecta нет; обычные TNT/fire tests не закрывают эту ветку.
+
+Это зависимости дальнейшей реализации, не запросы владельцу без проверки
+конкретной отсутствующей архитектуры или produced data.

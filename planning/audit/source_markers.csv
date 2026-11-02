@@ -9,7 +9,7 @@ vecta-core/src/behavior/blocks/building/conduit_block.rs,16,// TODO: implement B
 vecta-core/src/behavior/blocks/building/honey_block.rs,201,// TODO: Award the honey-block slide advancement once advancements exist.
 vecta-core/src/behavior/blocks/building/weathering_block.rs,46,"// TODO: Add weathering support for lanterns, chests, golem statues, and lightning rods."
 vecta-core/src/behavior/blocks/container/barrel_block.rs,116,// TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
-vecta-core/src/behavior/blocks/container/beehive_block.rs,20,"// TODO: Implement full vanilla beehive interactions, bee release, smoke/fire handling, loot/data components, and ticking."
+vecta-core/src/behavior/blocks/container/beehive_block.rs,21,"// TODO: Implement full vanilla beehive interactions, bee release, smoke/fire handling, loot/data components, and ticking."
 vecta-core/src/behavior/blocks/container/chest_block.rs,386,// TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins) once piglin AI exists.
 vecta-core/src/behavior/blocks/container/ender_chest_block.rs,89,// TODO: Anger nearby piglins
 vecta-core/src/behavior/blocks/container/shulker_box_block.rs,154,// TODO: Anger nearby piglins (PiglinAi.angerNearbyPiglins)
@@ -36,15 +36,14 @@ vecta-core/src/behavior/blocks/vegetation/sculk_vein_block.rs,16,"// TODO: Imple
 vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,98,// TODO(environment-attributes): replace this inline curve with a single
 vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,274,// TODO(turtle-entity): spawn one baby Turtle per egg here once the
 vecta-core/src/behavior/blocks/vegetation/turtle_egg_block.rs,303,// TODO(zombie-family): widen this to the whole zombie set (a shared
-vecta-core/src/behavior/item.rs,113,// TODO: Mirror Item.use for BLOCKS_ATTACKS and KINETIC_WEAPON so
-vecta-core/src/behavior/item.rs,332,// TODO: spawn item-crumb particles when `has_consume_particles()` is set.
-vecta-core/src/behavior/item.rs,401,// TODO: Spawn item-crumb particles when `has_consume_particles()` is set.
-vecta-core/src/behavior/item.rs,402,// TODO: Trigger CriteriaTriggers.CONSUME_ITEM once the advancement-criteria
+vecta-core/src/behavior/item.rs,145,// TODO: Mirror Item.use for BLOCKS_ATTACKS and KINETIC_WEAPON so
+vecta-core/src/behavior/item.rs,369,// TODO: spawn item-crumb particles when `has_consume_particles()` is set.
+vecta-core/src/behavior/item.rs,438,// TODO: Spawn item-crumb particles when `has_consume_particles()` is set.
+vecta-core/src/behavior/item.rs,439,// TODO: Trigger CriteriaTriggers.CONSUME_ITEM once the advancement-criteria
 vecta-core/src/behavior/items/block_transformer.rs,67,// TODO: Trigger ITEM_USED_ON_BLOCK advancements here
-vecta-core/src/behavior/items/bonemeal.rs,91,// TODO: implement coral and underwater bonemeal tag selection.
-vecta-core/src/behavior/items/bucket.rs,134,// TODO: Remove fallback once all waterloggable blocks implement pickup_block.
-vecta-core/src/behavior/items/bucket.rs,167,// TODO: Refactor into smaller helpers once all bucket types are implemented
-vecta-core/src/behavior/items/bucket.rs,244,// TODO: Per-position environment attributes (vanilla uses EnvironmentAttributes.WATER_EVAPORATES per-pos)
+vecta-core/src/behavior/items/bonemeal.rs,97,// TODO: implement coral and underwater bonemeal tag selection.
+vecta-core/src/behavior/items/bucket.rs,103,// TODO: per-position environment attributes (vanilla uses
+vecta-core/src/behavior/items/bucket.rs,268,// TODO: Remove fallback once all waterloggable blocks implement pickup_block.
 vecta-core/src/behavior/items/compass.rs,104,// TODO: validate unloaded targets once POI persistence exists.
 vecta-core/src/behavior/items/ender_eye.rs,207,// TODO implement advancment
 vecta-core/src/behavior/items/honeycomb.rs,38,// TODO: trigger CriteriaTriggers.ITEM_USED_ON_BLOCK advancement
@@ -96,9 +95,9 @@ vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: 
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1411,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2606,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,4018,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/entity/mod.rs,1412,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2612,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,4024,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
 vecta-core/src/entity/living_entity.rs,714,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
 vecta-core/src/entity/living_entity.rs,722,// TODO: apply helmet damage once those equipment hooks exist.
 vecta-core/src/entity/living_entity.rs,760,// TODO: Play secondary hurt sounds once equipment effects expose them.
@@ -121,9 +120,9 @@ vecta-core/src/entity/mob_effect/oozing.rs,5,// TODO: Vanilla `OozingMobEffect.o
 vecta-core/src/entity/mob_effect/raid_omen.rs,8,// TODO: `applyEffectTick` checks the mob is a non-spectator `ServerPlayer`
 vecta-core/src/entity/mob_effect/weaving.rs,5,// TODO: Vanilla `WeavingMobEffect.onMobRemoved` scatters a handful of cobweb
 vecta-core/src/entity/mob_effect/wind_charged.rs,5,"// TODO: Vanilla `WindChargedMobEffect.onMobRemoved` triggers a small,"
-vecta-core/src/entity/mod.rs,963,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
-vecta-core/src/entity/mod.rs,1386,// TODO: Read live equipment once loot contexts can do so safely.
-vecta-core/src/entity/mod.rs,1411,// TODO: Include custom name once loot contexts can snapshot entity data.
+vecta-core/src/entity/mod.rs,965,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
+vecta-core/src/entity/mod.rs,1388,// TODO: Read live equipment once loot contexts can do so safely.
+vecta-core/src/entity/mod.rs,1413,// TODO: Include custom name once loot contexts can snapshot entity data.
 vecta-core/src/entity/projectile/thrown_potion.rs,105,// TODO: rehydrate nearby Axolotl entities for `REHYDRATES_AXOLOTLS` once
 vecta-core/src/fluid/collision.rs,19,// TODO: Add occlusion cache for performance (vanilla uses 200-entry ThreadLocal LRU)
 vecta-core/src/fluid/mod.rs,7,"//! - TODO: Remaining entity fluid side effects: drowning, splash particles/sounds."

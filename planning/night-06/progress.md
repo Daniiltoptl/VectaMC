@@ -245,3 +245,24 @@ bottle 7, shears 4, empty_bucket 8.
 
 Partial и их точные зависимости — `blockers.md` (B-06-01…03).
 Следующий ID: **G021 / W06-101…105**.
+
+## Codex review сеанса 2 · 2026-11-02
+
+Входящий диапазон `cfc95d0a3..4afc44fd7` сверён с local Java 26.3.
+Исправлены: lava-canPlaceLiquid с WATER вместо содержимого; потеря ножниц при
+неудаче; пропущенный leash-first path; категория Players вместо Blocks при
+dispenser shearing; отсутствие final 1000/2000 у bucket consumers.
+
+B-06-04 снят как неверный: Vanilla сохраняет корневые CustomName/lock и не
+вызывает applyComponents при обычном reload. Новый normal-NBT regression
+защищает имя, lock и inventory бочки. Общая persistence foundation не менялась.
+Исправлена ссылка B-06-03 на HARVEST_BEEHIVE и уточнены остальные partial.
+
+Свежие проверки: dispenser — 83 passed; normal_nbt_reload — 1 passed;
+workspace — **4245 passed / 0 failed / 18 ignored**, exit 0; Python — 4 tests OK.
+Окончательные проверки и commits —
+[review](../reviews/night-06-g006-g013-codex.md).
+Следующий ID: **G021/W06-101…105**, без предложенного прежним отчётом hook.
+Запрос — `WORKBUDDY_CONTINUE_06_03.md`.
+Код ревью — `df47b146e`. Workspace Clippy/fmt — exit 0;
+audit — 3105 objects / 49 BE / 232 source markers, provenance обновлён.
