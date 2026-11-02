@@ -357,7 +357,7 @@ Client/Linux/Java run/два сетевых игрока — отдельно п
 
 ### W06-010. NBT и повторное попадание
 
-**Сделать и доказать:** Reload не меняет вариант; удалённый projectile не порождает второго потомка при повторном callback.
+**Сделать и доказать:** Reload не меняет вариант; нормальный collision/tick lifecycle удаляет projectile после попадания и не выдаёт повторного потомства. Принудительный повторный вызов onHit не обязан быть идемпотентным: отдельного guard в Java нет, добавлять его ради теста нельзя.
 
 **Закрытие группы:** отчётить каждый из пяти результатов отдельно; partial/blocked не превращать в completed. Реально готовые ранее parts подтвердить, не переписывать.
 
@@ -395,7 +395,7 @@ duration/instant effects, отсутствие owner у раздатчика и 
 
 ### W06-015. Распад и синхронизация
 
-**Сделать и доказать:** При ударе отправляется правильный event, расход один; save/load и повторный hit не дублируют effects.
+**Сделать и доказать:** При ударе отправляется правильный event, расход один; save/load сохраняет состояние, а нормальный collision/tick lifecycle прекращает обработку удалённого снаряда. Не добавлять отсутствующий в Java guard от принудительного повторного onHit.
 
 **Закрытие группы:** отчётить каждый из пяти результатов отдельно; partial/blocked не превращать в completed. Реально готовые ранее parts подтвердить, не переписывать.
 
@@ -636,8 +636,11 @@ Player и mob получают нужное снаряжение, mob — guaran
 **Сквозной объём направления:**
 
 Эталон: DispenseItemBehavior, TntBlock. Связь: W04-035.
-Подключить TNT, campfire/candle/fire и success/failure. Проверить прочность/расход,
-TNT_EXPLODES, blocked target и events; второй explosion engine не создавать.
+Подключить ручное зажигание и dispenser-ветку огнива: TNT, campfire/candle/fire,
+success/failure, прочность/расход, TNT_EXPLODES и events. Fire charge из раздатчика
+запускает настоящий SmallFireball (G047), а не выполняет прямое зажигание цели.
+При недостающем projectile consumer эту часть оставить partial до реализации G047;
+второй explosion engine не создавать.
 
 **Проверенные Java-точки входа:** `core/dispenser/DispenseItemBehavior.java`; `world/level/block/TntBlock.java`
 
@@ -645,7 +648,7 @@ TNT_EXPLODES, blocked target и events; второй explosion engine не со�
 
 ### W06-046. TNT ignition
 
-**Сделать и доказать:** Огниво и заряд используют существующий TntBlock prime, правильную attribution и TNT_EXPLODES.
+**Сделать и доказать:** Ручное зажигание и огниво из dispenser используют существующий TntBlock prime, правильную attribution и TNT_EXPLODES; fire charge из dispenser идёт через SmallFireball, не через подмену прямым prime.
 
 ### W06-047. Campfire и candle
 

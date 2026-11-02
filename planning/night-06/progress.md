@@ -202,3 +202,23 @@ cargo fmt --all --check                            → exit 0
   событий, не глазами.
 - `W06-013` «attribution» проверена тем, что мгновенный эффект применяется через
   общий consumer; конкретный source/damage-type в живом клиенте не наблюдался.
+
+## Codex review · 2026-11-02 · G001–G003
+
+Входящий диапазон `3a79ec57f..78da455e5` сверён с local Java 26.3.
+Ошибок новых игровых registrations не подтверждено. Добавлен общий бинарный
+persistent-record/factory round-trip пяти новых projectile items: UUID,
+position/velocity/rotation, item/components и отсутствие owner. Усилены potion
+tests: durations 6300/2481 при scale 1.75, outside-range цель, ровно 6 damage,
+INDIRECT_MAGIC, direct projectile allocation и отсутствие causing owner.
+
+Свежие узкие проверки: dispenser_block — 27 passed, splash_potion — 5 passed;
+workspace — **4198 passed / 0 failed / 18 ignored**, exit 0. Clippy/fmt — exit 0;
+после test-only lint fix persistent round-trip повторно прошёл (1 test).
+Python — 4 tests OK, audit — 3105 objects / 49 BE / 233 markers.
+Полные проверки и commits — [отдельный review](../reviews/night-06-g001-g003-codex.md).
+
+ТЗ уточнено: fire charge из dispenser требует SmallFireball, а не прямого
+поджигания; Java не требует guard от принудительного повторного onHit.
+G004/G005 — зависимости реализации, не внешний blocker только из-за отсутствия
+Rust consumer. Следующий ID: **G006 / W06-026…030**.
