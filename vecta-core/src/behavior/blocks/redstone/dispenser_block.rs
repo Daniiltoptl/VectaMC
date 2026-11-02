@@ -388,6 +388,7 @@ pub(crate) fn init_dispense_behaviors() {
 pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
     register_projectile_dispense_behaviors(registry);
     register_bucket_dispense_behaviors(registry);
+    register_ignition_dispense_behaviors(registry);
 
     // W04-035 (bonemeal, ignition, bottles, shears) adds its items here. Until
     // they exist every other item falls through to the component-based default
@@ -412,6 +413,22 @@ fn register_bucket_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
         registry.register(filled, FilledBucketDispenseBehavior);
     }
     registry.register(&vanilla_items::BUCKET, EmptyBucketDispenseBehavior);
+}
+
+/// Vanilla `DispenseItemBehavior.bootStrap` ignition registrations.
+///
+/// `Items.FIRE_CHARGE` is a projectile registration in vanilla and stays
+/// unregistered until a `SmallFireball` entity exists, so a dispensed fire
+/// charge is still thrown out instead of lighting the block directly.
+fn register_ignition_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    use vecta_registry::vanilla_items;
+
+    use super::dispenser::flint_and_steel::FlintAndSteelDispenseBehavior;
+
+    registry.register(
+        &vanilla_items::FLINT_AND_STEEL,
+        FlintAndSteelDispenseBehavior,
+    );
 }
 
 /// Vanilla `DispenseItemBehavior.bootStrap` projectile registrations that have a
@@ -519,6 +536,7 @@ mod tests {
     mod empty_bucket;
     mod equipment;
     mod experience_bottle;
+    mod flint_and_steel;
     mod persistence;
     mod potion;
     mod projectile;

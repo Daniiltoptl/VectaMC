@@ -7,4 +7,5 @@
 pub(super) mod bucket;
 pub(super) mod dispense;
 pub(super) mod equipment;
+pub(super) mod flint_and_steel;
 pub(super) mod projectile;
