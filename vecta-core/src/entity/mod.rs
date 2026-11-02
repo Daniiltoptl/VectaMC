@@ -795,6 +795,7 @@ mod potion_contents;
 pub mod projectile;
 mod reference;
 mod registry;
+mod shearable;
 mod spawn;
 mod storage;
 mod synced_data;
@@ -863,6 +864,7 @@ pub use projectile::{
 };
 pub use reference::EntityReference;
 pub use registry::{ENTITIES, EntityLoadRequest, EntityRegistry, init_entities};
+pub use shearable::Shearable;
 pub(crate) use spawn::{
     AgeableMobGroupData, EntitySpawnPlacement, EntitySpawnReason, EntitySpawnRequest,
     SpawnGroupData, add_spawned_entity, apply_implicit_item_stack_components,

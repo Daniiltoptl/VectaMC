@@ -404,6 +404,17 @@ impl MushroomCowEntity {
     }
 }
 
+impl crate::entity::Shearable for MushroomCowEntity {
+    fn ready_for_shearing(&self) -> bool {
+        // Vanilla `MushroomCow` keeps the `Entity.readyForShearing` default.
+        true
+    }
+
+    fn shear(&self, world: &Arc<World>, tool: &ItemStack) {
+        MushroomCowEntity::shear(self, world, tool);
+    }
+}
+
 impl Entity for MushroomCowEntity {
     fn base(&self) -> &EntityBase {
         &self.base

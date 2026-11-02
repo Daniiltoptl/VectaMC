@@ -391,6 +391,7 @@ pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
     register_ignition_dispense_behaviors(registry);
     register_growth_dispense_behaviors(registry);
     register_bottle_dispense_behaviors(registry);
+    register_tool_dispense_behaviors(registry);
 
     // W04-035 (bonemeal, ignition, bottles, shears) adds its items here. Until
     // they exist every other item falls through to the component-based default
@@ -415,6 +416,15 @@ fn register_bucket_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
         registry.register(filled, FilledBucketDispenseBehavior);
     }
     registry.register(&vanilla_items::BUCKET, EmptyBucketDispenseBehavior);
+}
+
+/// Vanilla `DispenseItemBehavior.bootStrap` tool registrations.
+fn register_tool_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    use vecta_registry::vanilla_items;
+
+    use super::dispenser::shears::ShearsDispenseItemBehavior;
+
+    registry.register(&vanilla_items::SHEARS, ShearsDispenseItemBehavior);
 }
 
 /// Vanilla `DispenseItemBehavior.bootStrap` bottle registrations.
@@ -562,6 +572,7 @@ mod tests {
     mod persistence;
     mod potion;
     mod projectile;
+    mod shears;
     use std::ptr;
     use std::slice;
     use std::sync::Arc;

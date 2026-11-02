@@ -48,3 +48,16 @@
 **Решение:** оставить `FIRE_CHARGE` вне `DISPENSE_BEHAVIORS` (тест
 `a_fire_charge_stays_unregistered_until_the_small_fireball_exists` это
 фиксирует) и реализовать вместе с G047. Зависимые карточки: W06-046 (часть).
+
+## B-06-03 · G013/W06-062 — соты из улья
+
+**Проверено:** `BeehiveBlock` (`vecta-core/src/behavior/blocks/container/beehive_block.rs`)
+имеет свойство `LEVEL_HONEY`, но не имеет `dropHoneycomb`. В Vecta нет
+`Bee` entity, поэтому `releaseBeesAndResetHoneyLevel` не может выпустить
+пчёл, и нет пути «лут блока с инструментом» для трёх сот.
+
+**Чего не хватает:** `BeehiveBlock.dropHoneycomb` (лут `blocks/beehive` с
+shears) и `Bee` entity для `BeeReleaseStatus::BEE_RELEASED`.
+
+**Решение:** `ShearsDispenseItemBehavior` реализует только entity-ветку
+(настоящий `Shearable`), улей пока не стрижётся. Зависимые карточки: W06-062.

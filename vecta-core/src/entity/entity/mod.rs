@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use super::*;
 use crate::entity::block_attached_entity::BlockAttachedEntity;
 use crate::entity::leash::Leashable;
+use crate::entity::shearable::Shearable;
 use rand::{RngExt, rng};
 use vecta_math::DEGREE_90;
 
@@ -1544,6 +1545,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     /// Returns this entity as a living entity when it has living behavior.
     fn as_living_entity(&self) -> Option<&dyn LivingEntity> {
         try_as_dyn::<Self, dyn LivingEntity>(self)
+    }
+
+    /// Returns this entity as a shearable when shears may act on it.
+    fn as_shearable(&self) -> Option<&dyn Shearable> {
+        try_as_dyn::<Self, dyn Shearable>(self)
     }
 
     /// Returns this entity as an item frame when it has item-frame behavior.

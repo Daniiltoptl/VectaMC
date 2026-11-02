@@ -292,6 +292,16 @@ impl SheepEntity {
     }
 }
 
+impl crate::entity::Shearable for SheepEntity {
+    fn ready_for_shearing(&self) -> bool {
+        SheepEntity::ready_for_shearing(self)
+    }
+
+    fn shear(&self, world: &Arc<World>, tool: &ItemStack) {
+        SheepEntity::shear(self, world.as_ref(), tool);
+    }
+}
+
 impl Entity for SheepEntity {
     fn base(&self) -> &EntityBase {
         &self.base
