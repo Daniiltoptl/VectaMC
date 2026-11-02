@@ -566,6 +566,15 @@ mod tests {
     #[test]
     fn item_block_entity_data_merges_into_a_live_barrel() {
         let barrel = test_barrel();
+        load_identity(&barrel, Some("Retained"), Some("minecraft:diamond"));
+        let mut explicit = DataComponentMap::new();
+        let mut custom = NbtCompound::new();
+        custom.insert("marker", 42i32);
+        explicit.set(
+            CUSTOM_DATA,
+            Some(CustomData::try_from_compound(custom).expect("custom data")),
+        );
+        barrel.base().set_stored_components(explicit);
         let mut entry = NbtCompound::new();
         entry.insert("Slot", 3i8);
         entry.insert("id", "minecraft:diamond");
@@ -577,6 +586,25 @@ mod tests {
         assert_eq!(
             barrel.container.lock().get_item(3),
             &ItemStack::with_count(&vanilla_items::DIAMOND, 5)
+        );
+        assert_eq!(
+            barrel.identity().custom_name(),
+            Some(TextComponent::plain("Retained"))
+        );
+        assert!(barrel.identity().is_locked());
+        assert_eq!(
+            barrel
+                .base()
+                .stored_components()
+                .get(CUSTOM_DATA)
+                .expect("explicit component survives")
+                .as_compound()
+                .int("marker"),
+            Some(42)
+        );
+        assert!(
+            !barrel.load_item_custom_data(&payload),
+            "an unchanged payload is a no-op"
         );
     }
 

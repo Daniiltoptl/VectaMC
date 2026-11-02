@@ -567,12 +567,11 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// are saved, the payload is merged over them and the merged compound is
     /// loaded back, so fields the payload omits keep their placement defaults.
     ///
-    /// Vanilla also refuses this for `BlockEntityType.onlyOpCanSetNbt` types
-    /// unless the player may use game-master blocks. Vecta has no permission
-    /// system yet, so the caller applies the payload for every type.
+    /// Placement validates the type. Its `onlyOpCanSetNbt` authorization gate
+    /// remains incomplete pending extracted block-entity metadata.
     fn load_item_custom_data(&self, payload: &NbtCompound) -> bool {
         let before = self.save_custom_only();
-        let mut merged = self.save_custom_only();
+        let mut merged = before.clone();
         merge_nbt_compounds(&mut merged, payload);
         if nbt_compounds_equal(&before, &merged) {
             return false;
