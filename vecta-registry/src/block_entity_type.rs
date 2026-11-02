@@ -11,6 +11,8 @@ pub struct BlockEntityType {
     pub key: Identifier,
     /// Blocks for which vanilla accepts this block entity type.
     pub valid_blocks: &'static [BlockRef],
+    /// Whether item custom NBT requires a player allowed to use game-master blocks.
+    pub only_op_can_set_nbt: bool,
 }
 
 impl BlockEntityType {
@@ -115,6 +117,7 @@ mod tests {
         let alternate = Box::leak(Box::new(BlockEntityType {
             key: Identifier::new_static("test", "alternate_barrel"),
             valid_blocks,
+            only_op_can_set_nbt: false,
         }));
         let mut registry = BlockEntityTypeRegistry::new();
 

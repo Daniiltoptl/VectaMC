@@ -1,8 +1,10 @@
 {
+  "minecraft_version": "26.3",
   "block_entity_types": [
     {
       "id": 0,
       "name": "furnace",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "furnace"
       ]
@@ -10,6 +12,7 @@
     {
       "id": 1,
       "name": "chest",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "chest",
         "copper_chest",
@@ -25,6 +28,7 @@
     {
       "id": 2,
       "name": "trapped_chest",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "trapped_chest"
       ]
@@ -32,6 +36,7 @@
     {
       "id": 3,
       "name": "ender_chest",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "ender_chest"
       ]
@@ -39,6 +44,7 @@
     {
       "id": 4,
       "name": "jukebox",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "jukebox"
       ]
@@ -46,6 +52,7 @@
     {
       "id": 5,
       "name": "dispenser",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "dispenser"
       ]
@@ -53,6 +60,7 @@
     {
       "id": 6,
       "name": "dropper",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "dropper"
       ]
@@ -60,6 +68,7 @@
     {
       "id": 7,
       "name": "sign",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "acacia_sign",
         "acacia_wall_sign",
@@ -92,6 +101,7 @@
     {
       "id": 8,
       "name": "hanging_sign",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "acacia_hanging_sign",
         "acacia_wall_hanging_sign",
@@ -124,6 +134,7 @@
     {
       "id": 9,
       "name": "mob_spawner",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "spawner"
       ]
@@ -131,6 +142,7 @@
     {
       "id": 10,
       "name": "creaking_heart",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "creaking_heart"
       ]
@@ -138,6 +150,7 @@
     {
       "id": 11,
       "name": "piston",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "moving_piston"
       ]
@@ -145,6 +158,7 @@
     {
       "id": 12,
       "name": "brewing_stand",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "brewing_stand"
       ]
@@ -152,6 +166,7 @@
     {
       "id": 13,
       "name": "enchanting_table",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "enchanting_table"
       ]
@@ -159,6 +174,7 @@
     {
       "id": 14,
       "name": "end_portal",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "end_portal"
       ]
@@ -166,6 +182,7 @@
     {
       "id": 15,
       "name": "beacon",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "beacon"
       ]
@@ -173,6 +190,7 @@
     {
       "id": 16,
       "name": "skull",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "creeper_head",
         "creeper_wall_head",
@@ -193,6 +211,7 @@
     {
       "id": 17,
       "name": "daylight_detector",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "daylight_detector"
       ]
@@ -200,6 +219,7 @@
     {
       "id": 18,
       "name": "hopper",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "hopper"
       ]
@@ -207,6 +227,7 @@
     {
       "id": 19,
       "name": "comparator",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "comparator"
       ]
@@ -214,6 +235,7 @@
     {
       "id": 20,
       "name": "banner",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "black_banner",
         "black_wall_banner",
@@ -252,6 +274,7 @@
     {
       "id": 21,
       "name": "structure_block",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "structure_block"
       ]
@@ -259,6 +282,7 @@
     {
       "id": 22,
       "name": "end_gateway",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "end_gateway"
       ]
@@ -266,6 +290,7 @@
     {
       "id": 23,
       "name": "command_block",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "chain_command_block",
         "command_block",
@@ -275,6 +300,7 @@
     {
       "id": 24,
       "name": "shulker_box",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "black_shulker_box",
         "blue_shulker_box",
@@ -298,6 +324,7 @@
     {
       "id": 25,
       "name": "conduit",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "conduit"
       ]
@@ -305,6 +332,7 @@
     {
       "id": 26,
       "name": "barrel",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "barrel"
       ]
@@ -312,6 +340,7 @@
     {
       "id": 27,
       "name": "smoker",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "smoker"
       ]
@@ -319,6 +348,7 @@
     {
       "id": 28,
       "name": "blast_furnace",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "blast_furnace"
       ]
@@ -326,6 +356,7 @@
     {
       "id": 29,
       "name": "lectern",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "lectern"
       ]
@@ -333,6 +364,7 @@
     {
       "id": 30,
       "name": "bell",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "bell"
       ]
@@ -340,6 +372,7 @@
     {
       "id": 31,
       "name": "jigsaw",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "jigsaw"
       ]
@@ -347,6 +380,7 @@
     {
       "id": 32,
       "name": "campfire",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "campfire",
         "soul_campfire"
@@ -355,6 +389,7 @@
     {
       "id": 33,
       "name": "beehive",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "bee_nest",
         "beehive"
@@ -363,6 +398,7 @@
     {
       "id": 34,
       "name": "sculk_sensor",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "sculk_sensor"
       ]
@@ -370,6 +406,7 @@
     {
       "id": 35,
       "name": "calibrated_sculk_sensor",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "calibrated_sculk_sensor"
       ]
@@ -377,6 +414,7 @@
     {
       "id": 36,
       "name": "sculk_catalyst",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "sculk_catalyst"
       ]
@@ -384,6 +422,7 @@
     {
       "id": 37,
       "name": "sculk_shrieker",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "sculk_shrieker"
       ]
@@ -391,6 +430,7 @@
     {
       "id": 38,
       "name": "chiseled_bookshelf",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "chiseled_bookshelf"
       ]
@@ -398,6 +438,7 @@
     {
       "id": 39,
       "name": "shelf",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "acacia_shelf",
         "bamboo_shelf",
@@ -417,6 +458,7 @@
     {
       "id": 40,
       "name": "brushable_block",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "suspicious_gravel",
         "suspicious_sand"
@@ -425,6 +467,7 @@
     {
       "id": 41,
       "name": "decorated_pot",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "decorated_pot"
       ]
@@ -432,6 +475,7 @@
     {
       "id": 42,
       "name": "crafter",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "crafter"
       ]
@@ -439,6 +483,7 @@
     {
       "id": 43,
       "name": "trial_spawner",
+      "only_op_can_set_nbt": true,
       "valid_blocks": [
         "trial_spawner"
       ]
@@ -446,6 +491,7 @@
     {
       "id": 44,
       "name": "vault",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "vault"
       ]
@@ -453,6 +499,7 @@
     {
       "id": 45,
       "name": "test_block",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "test_block"
       ]
@@ -460,6 +507,7 @@
     {
       "id": 46,
       "name": "test_instance_block",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "test_instance_block"
       ]
@@ -467,6 +515,7 @@
     {
       "id": 47,
       "name": "copper_golem_statue",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "copper_golem_statue",
         "exposed_copper_golem_statue",
@@ -481,6 +530,7 @@
     {
       "id": 48,
       "name": "potent_sulfur",
+      "only_op_can_set_nbt": false,
       "valid_blocks": [
         "potent_sulfur"
       ]

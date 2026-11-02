@@ -567,8 +567,7 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// are saved, the payload is merged over them and the merged compound is
     /// loaded back, so fields the payload omits keep their placement defaults.
     ///
-    /// Placement validates the type. Its `onlyOpCanSetNbt` authorization gate
-    /// remains incomplete pending extracted block-entity metadata.
+    /// Placement validates the type and game-master authorization before calling.
     fn load_item_custom_data(&self, payload: &NbtCompound) -> bool {
         let before = self.save_custom_only();
         let mut merged = before.clone();

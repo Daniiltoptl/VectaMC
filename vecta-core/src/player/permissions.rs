@@ -74,6 +74,13 @@ impl Player {
             .is_some_and(|server| server.is_operator(self.gameprofile.id()))
     }
 
+    /// Uses Vecta's published OP-group contract, as privileged entity item data
+    /// does, together with vanilla's creative/instabuild requirement.
+    #[must_use]
+    pub(crate) fn can_use_game_master_blocks(&self) -> bool {
+        self.has_infinite_materials() && self.is_operator()
+    }
+
     /// Returns direct permission overrides.
     #[must_use]
     pub fn permission_overrides(&self) -> PermissionSet {

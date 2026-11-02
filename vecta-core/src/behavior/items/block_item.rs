@@ -139,6 +139,10 @@ impl BlockItem {
                 let item = context.with_item(|item| item.copy_with_count(item.count()));
                 if let Some(data) = item.get(BLOCK_ENTITY_DATA)
                     && data.block_entity_type().key == block_entity.get_type().key
+                    && (!block_entity.get_type().only_op_can_set_nbt
+                        || context
+                            .player()
+                            .is_some_and(Player::can_use_game_master_blocks))
                 {
                     block_entity.load_item_custom_data(data.data().as_compound());
                 }

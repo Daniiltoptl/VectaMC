@@ -154,11 +154,10 @@ impl LecternBlock {
 
 impl BlockBehavior for LecternBlock {
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        // Vanilla only pre-fills `has_book` for creative placements of a lectern
-        // item that carries stored block entity data with a book in it.
+        // Prefill the state only when the placing player can apply the book's NBT.
         let has_book = context
             .player()
-            .is_some_and(|player| player.abilities.lock().instabuild)
+            .is_some_and(Player::can_use_game_master_blocks)
             && context.with_item(|stack| {
                 stack
                     .get(BLOCK_ENTITY_DATA)
