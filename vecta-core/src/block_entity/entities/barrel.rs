@@ -384,8 +384,13 @@ mod tests {
 
     use crate::block_entity::BlockEntityLoadContext;
 
+    use simdnbt::FromNbtTag as _;
+    use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
     use simdnbt::borrow::read_compound as read_borrowed_compound;
+    use simdnbt::owned::NbtList;
     use text_components::TextComponent;
+    use vecta_registry::data_components::components::CustomData;
+    use vecta_registry::data_components::vanilla_components::{CUSTOM_DATA, CUSTOM_NAME, LOCK};
     use vecta_registry::{init_vanilla_registry, vanilla_blocks, vanilla_items};
 
     use super::*;
@@ -539,6 +544,145 @@ mod tests {
                 .any(|stack| !stack.is_empty()),
             "the dungeon table rolls at least one item"
         );
+    }
+
+    #[test]
+    fn applying_item_components_replaces_the_container_from_the_component() {
+        let barrel = test_barrel();
+        barrel
+            .container
+            .lock()
+            .set_item(3, ItemStack::with_count(&vanilla_items::DIAMOND, 5));
+        let item = ItemStack::new(&vanilla_items::BARREL);
+
+        barrel.apply_components_from_item(&item);
+
+        assert!(
+            barrel.container.lock().get_item(3).is_empty(),
+            "vanilla `applyImplicitComponents` runs `getOrDefault(CONTAINER, EMPTY).copyInto(items)`, so an item without contents clears the container"
+        );
+    }
+
+    #[test]
+    fn item_block_entity_data_merges_into_a_live_barrel() {
+        let barrel = test_barrel();
+        let mut entry = NbtCompound::new();
+        entry.insert("Slot", 3i8);
+        entry.insert("id", "minecraft:diamond");
+        entry.insert("count", 5i32);
+        let mut payload = NbtCompound::new();
+        payload.insert("Items", NbtList::Compound(vec![entry]));
+
+        assert!(barrel.load_item_custom_data(&payload));
+        assert_eq!(
+            barrel.container.lock().get_item(3),
+            &ItemStack::with_count(&vanilla_items::DIAMOND, 5)
+        );
+    }
+
+    #[test]
+    fn a_disk_save_keeps_implicit_fields_out_of_the_component_map() {
+        let barrel = test_barrel();
+        load_identity(&barrel, Some("Storage"), Some("minecraft:diamond"));
+        barrel
+            .container
+            .lock()
+            .set_item(7, ItemStack::with_count(&vanilla_items::DIAMOND, 5));
+        let mut stored = DataComponentMap::new();
+        let mut custom = NbtCompound::new();
+        custom.insert("marker", 1i32);
+        stored.set(
+            CUSTOM_DATA,
+            Some(CustomData::try_from_compound(custom).expect("custom data")),
+        );
+        barrel.base().set_stored_components(stored);
+
+        let saved = barrel.save_without_metadata();
+        assert!(
+            saved.get("CustomName").is_some(),
+            "the identity stays a root field, as `BaseContainerBlockEntity.saveAdditional` writes it"
+        );
+        assert!(saved.get("lock").is_some());
+        assert!(saved.get("Items").is_some());
+
+        let mut bytes = Vec::new();
+        saved.write(&mut bytes);
+        let borrowed =
+            read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).expect("saved barrel reads");
+        let view: BorrowedNbtCompoundView<'_, '_> = (&borrowed).into();
+        let tag = view.get("components").expect("the explicit map is stored");
+        let map = DataComponentMap::from_nbt_tag(tag).expect("the component map decodes");
+
+        assert!(
+            map.get(CUSTOM_DATA).is_some(),
+            "explicit components stay in the map"
+        );
+        assert!(
+            map.get(CUSTOM_NAME).is_none(),
+            "an implicit name must not be written twice"
+        );
+        assert!(
+            map.get(LOCK).is_none(),
+            "an implicit lock must not be written twice"
+        );
+
+        let custom_only = barrel.save_custom_only();
+        assert!(
+            custom_only.get("components").is_none(),
+            "`saveCustomOnly` writes the specialised fields without the component map"
+        );
+    }
+
+    #[test]
+    fn borrowed_and_owned_load_restore_the_same_state_with_unknown_components() {
+        init_vanilla_registry();
+        let mut nbt = NbtCompound::new();
+        nbt.insert("CustomName", TextComponent::plain("Storage").to_codec_nbt());
+        let mut lock = NbtCompound::new();
+        lock.insert("items", "minecraft:diamond");
+        nbt.insert("lock", lock);
+        let mut entry = NbtCompound::new();
+        entry.insert("Slot", 7i8);
+        entry.insert("id", "minecraft:diamond");
+        entry.insert("count", 5i32);
+        nbt.insert("Items", NbtList::Compound(vec![entry]));
+        let mut map = DataComponentMap::new();
+        let mut custom = NbtCompound::new();
+        custom.insert("marker", 1i32);
+        map.set(
+            CUSTOM_DATA,
+            Some(CustomData::try_from_compound(custom).expect("custom data")),
+        );
+        nbt.insert("components", map.to_nbt_tag_ref());
+
+        let borrowed_barrel = test_barrel();
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
+            .expect("the compound reads back");
+        borrowed_barrel.load_with_components(&borrowed, &BlockEntityLoadContext::detached());
+
+        let owned_barrel = test_barrel();
+        owned_barrel
+            .load_with_owned_components(&nbt, &BlockEntityLoadContext::detached())
+            .expect("the owned compound loads");
+
+        for barrel in [&borrowed_barrel, &owned_barrel] {
+            assert_eq!(
+                barrel.identity().custom_name(),
+                Some(TextComponent::plain("Storage"))
+            );
+            assert!(barrel.identity().is_locked());
+            assert_eq!(
+                barrel.container.lock().get_item(7),
+                &ItemStack::with_count(&vanilla_items::DIAMOND, 5),
+                "the specialised item list is restored on both paths"
+            );
+            assert!(
+                barrel.base().stored_components().get(CUSTOM_DATA).is_some(),
+                "a component the entity does not consume is kept verbatim"
+            );
+        }
     }
 
     #[test]

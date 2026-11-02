@@ -63,6 +63,7 @@ use vecta_registry::{
 use vecta_utils::{
     BlockPos, BlockStateId, ErasedType, Identifier,
     locks::{SyncMutex, SyncRwLock},
+    nbt::{merge_nbt_compounds, nbt_compounds_equal},
 };
 
 pub use registry::{BLOCK_ENTITIES, BlockEntityFactory, BlockEntityRegistry, init_block_entities};
@@ -558,6 +559,38 @@ pub trait BlockEntity: ErasedType + Send + Sync {
     /// Mirrors Vanilla `BlockEntity.removeComponentsFromTag`, which keeps a
     /// picked block item from duplicating data that a component already holds.
     fn remove_components_from_tag(&self, _nbt: &mut NbtCompound) {}
+
+    /// Merges an item's `minecraft:block_entity_data` payload into this entity.
+    ///
+    /// Mirrors Vanilla `BlockItem.updateCustomBlockEntityTag` /
+    /// `TypedEntityData.loadInto(BlockEntity)`: the entity's own custom fields
+    /// are saved, the payload is merged over them and the merged compound is
+    /// loaded back, so fields the payload omits keep their placement defaults.
+    ///
+    /// Vanilla also refuses this for `BlockEntityType.onlyOpCanSetNbt` types
+    /// unless the player may use game-master blocks. Vecta has no permission
+    /// system yet, so the caller applies the payload for every type.
+    fn load_item_custom_data(&self, payload: &NbtCompound) -> bool {
+        let before = self.save_custom_only();
+        let mut merged = self.save_custom_only();
+        merge_nbt_compounds(&mut merged, payload);
+        if nbt_compounds_equal(&before, &merged) {
+            return false;
+        }
+
+        let mut bytes = Vec::new();
+        merged.write(&mut bytes);
+        let Ok(borrowed) = read_borrowed_compound(&mut Cursor::new(bytes.as_slice())) else {
+            log::warn!(
+                "failed to reborrow item block-entity data for {:?}",
+                self.get_block_pos()
+            );
+            return false;
+        };
+        self.load_additional(&borrowed);
+        self.set_changed();
+        true
+    }
 
     /// Called in `BlockItem.place` before `placedState.getBlock().setPlacedBy`.
     ///

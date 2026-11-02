@@ -3,6 +3,7 @@
 use vecta_macros::item_behavior;
 use vecta_registry::{
     blocks::{BlockRef, block_state_ext::BlockStateExt, shapes::OffsetVoxelShape},
+    data_components::vanilla_components::BLOCK_ENTITY_DATA,
     sound_event::SoundEventRef,
     vanilla_blocks, vanilla_game_events,
 };
@@ -133,7 +134,18 @@ impl BlockItem {
         let placed_state = context.world.get_block_state(place_pos);
         if placed_state.get_block() == new_state.get_block() {
             if let Some(block_entity) = context.world.get_block_entity(place_pos) {
-                context.with_item(|item| block_entity.apply_components_from_item(item));
+                context.with_item(|item| {
+                    // Vanilla `BlockItem.place` runs `updateCustomBlockEntityTag`
+                    // before `updateBlockEntityComponents`, so the payload's
+                    // specialised fields land on the entity first and the item's
+                    // implicit components win afterwards.
+                    if let Some(data) = item.get(BLOCK_ENTITY_DATA)
+                        && data.block_entity_type().key == block_entity.get_type().key
+                    {
+                        block_entity.load_item_custom_data(data.data().as_compound());
+                    }
+                    block_entity.apply_components_from_item(item);
+                });
                 block_entity.set_changed();
             }
             let placed_behavior = BLOCK_BEHAVIORS.get_behavior(placed_state.get_block());
@@ -241,5 +253,102 @@ impl ItemBehavior for DoubleHighBlockItem {
     fn use_on(&self, context: &mut UseOnContext) -> InteractionResult {
         self.base
             .place_with(context.build_place_context(), Self::place_block)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use glam::DVec3;
+    use simdnbt::owned::NbtCompound;
+    use text_components::TextComponent;
+    use vecta_registry::data_components::components::{BlockEntityData, CustomData};
+    use vecta_registry::data_components::vanilla_components::{BLOCK_ENTITY_DATA, CUSTOM_NAME};
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{vanilla_block_entity_types, vanilla_blocks, vanilla_items};
+    use vecta_utils::types::{InteractionHand, UpdateFlags};
+    use vecta_utils::{BlockPos, ChunkPos, Direction, Downcast as _};
+
+    use super::*;
+    use crate::behavior::{BlockHitResult, UseOnContext};
+    use crate::block_entity::entities::BarrelBlockEntity;
+    use crate::bootstrap::init_globals;
+    use crate::test_support::{TestPlayerBuilder, fresh_test_world, insert_ready_full_chunk};
+
+    #[test]
+    fn placing_a_barrel_item_loads_its_block_entity_data_before_the_components() {
+        init_globals();
+        let fixture = fresh_test_world("block_item_place_custom_data");
+        let world = &fixture.world;
+        let ground = BlockPos::new(0, 63, 0);
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(ground));
+        assert!(world.set_block(
+            ground,
+            vanilla_blocks::STONE.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+
+        let player = TestPlayerBuilder::new(Arc::clone(world), "Builder", 1).build();
+        player
+            .try_set_position(DVec3::new(2.5, 64.0, 0.5))
+            .expect("position the builder");
+        player.set_rotation((90.0, 0.0));
+
+        // A loot table is a specialised field with no implicit item component,
+        // so only `updateCustomBlockEntityTag` can put it on the new entity.
+        let mut payload = NbtCompound::new();
+        payload.insert("LootTable", "minecraft:chests/simple_dungeon");
+        let mut item = ItemStack::new(&vanilla_items::BARREL);
+        item.set(
+            BLOCK_ENTITY_DATA,
+            BlockEntityData::new(
+                &vanilla_block_entity_types::BARREL,
+                CustomData::try_from_compound(payload).expect("payload is valid custom data"),
+            ),
+        );
+        item.set(CUSTOM_NAME, TextComponent::plain("Stored"));
+        player
+            .inventory
+            .lock()
+            .set_item_in_hand(InteractionHand::MainHand, item);
+
+        let hit = BlockHitResult {
+            location: DVec3::new(0.5, 64.0, 0.5),
+            direction: Direction::Up,
+            block_pos: ground,
+            miss: false,
+            inside: false,
+            world_border_hit: false,
+        };
+        let mut context = UseOnContext::new(
+            &player,
+            InteractionHand::MainHand,
+            hit,
+            world,
+            Arc::clone(&player.inventory),
+        );
+        assert_eq!(
+            BlockItem::new(&vanilla_blocks::BARREL).use_on(&mut context),
+            InteractionResult::Success
+        );
+
+        let placed_pos = ground.above();
+        let block_entity = world
+            .get_block_entity(placed_pos)
+            .expect("the placed barrel owns a block entity");
+        let saved = block_entity.save_custom_only();
+        assert!(
+            saved.get("LootTable").is_some(),
+            "vanilla `updateCustomBlockEntityTag` loads the payload into the real block entity"
+        );
+        let barrel = block_entity
+            .downcast_ref::<BarrelBlockEntity>()
+            .expect("the placed block entity is a barrel");
+        assert_eq!(
+            barrel.identity().custom_name(),
+            Some(TextComponent::plain("Stored")),
+            "`applyComponentsFromItemStack` then applies the implicit name component"
+        );
     }
 }

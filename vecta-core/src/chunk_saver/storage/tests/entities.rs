@@ -564,3 +564,72 @@ fn unimplemented_block_entities_preserve_nbt_through_proto_save_load() {
     );
     assert_eq!(saved.long("LootTableSeed"), Some(42));
 }
+
+#[test]
+fn a_saved_barrel_restores_identity_and_contents_through_the_storage_decoder() {
+    use std::slice;
+    use std::sync::Weak;
+
+    use simdnbt::owned::NbtCompound;
+    use text_components::TextComponent;
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{vanilla_block_entity_types, vanilla_blocks, vanilla_items};
+
+    use vecta_utils::Downcast as _;
+
+    use crate::block_entity::BlockEntity as _;
+    use crate::block_entity::entities::BarrelBlockEntity;
+    use crate::inventory::lock::ContainerLockGuard;
+
+    init_globals();
+    let pos = BlockPos::new(3, 64, 5);
+    let state = vanilla_blocks::BARREL.default_state();
+    let barrel = BarrelBlockEntity::new(Weak::new(), pos, state);
+    let mut identity = NbtCompound::new();
+    identity.insert("CustomName", TextComponent::plain("Storage").to_codec_nbt());
+    let mut lock = NbtCompound::new();
+    lock.insert("items", "minecraft:diamond");
+    identity.insert("lock", lock);
+    assert!(barrel.load_item_custom_data(&identity));
+    let container = barrel.container_ref().expect("barrel container");
+    let id = container.container_id();
+    {
+        let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
+        assert!(guard.set_item(id, 7, ItemStack::with_count(&vanilla_items::DIAMOND, 5)));
+    }
+
+    let mut nbt_bytes = Vec::new();
+    barrel.save_without_metadata().write(&mut nbt_bytes);
+    let persistent = PersistentBlockEntity {
+        x: 3,
+        y: 64,
+        z: 5,
+        entity_type: Some(vanilla_block_entity_types::BARREL.key.clone()),
+        nbt_data: nbt_bytes,
+    };
+
+    let restored =
+        ChunkStorage::persistent_to_block_entity_at(&persistent, pos, Weak::new(), state)
+            .expect("the storage decoder rebuilds the barrel");
+    let restored = restored
+        .downcast_ref::<BarrelBlockEntity>()
+        .expect("the decoder uses the registered barrel factory");
+    assert_eq!(
+        restored.identity().custom_name(),
+        Some(TextComponent::plain("Storage"))
+    );
+    assert!(restored.identity().is_locked());
+
+    let restored_container = restored.container_ref().expect("restored container");
+    let restored_id = restored_container.container_id();
+    let guard = ContainerLockGuard::lock_all(slice::from_ref(&restored_container));
+    assert_eq!(
+        guard
+            .get(restored_id)
+            .expect("the restored container is locked")
+            .get_item(7),
+        &ItemStack::with_count(&vanilla_items::DIAMOND, 5),
+        "the restored container is usable and still holds its contents"
+    );
+    drop(guard);
+}

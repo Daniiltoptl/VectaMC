@@ -389,6 +389,111 @@ mod tests {
     use vecta_utils::ChunkPos;
 
     #[test]
+    fn picking_a_barrel_moves_implicit_components_onto_the_item() {
+        use simdnbt::owned::NbtCompound;
+        use std::slice;
+        use std::sync::Weak;
+        use text_components::TextComponent;
+        use vecta_registry::data_components::DataComponentMap;
+        use vecta_registry::data_components::components::CustomData;
+        use vecta_registry::data_components::vanilla_components::{
+            BLOCK_ENTITY_DATA, CONTAINER, CUSTOM_DATA, CUSTOM_NAME, LOCK,
+        };
+        use vecta_registry::{vanilla_blocks, vanilla_items};
+        use vecta_utils::types::UpdateFlags;
+
+        use crate::block_entity::entities::BarrelBlockEntity;
+        use crate::bootstrap::init_globals;
+        use crate::inventory::lock::ContainerLockGuard;
+
+        init_globals();
+        let fixture = fresh_test_world("pick_barrel_components");
+        let world = &fixture.world;
+        let pos = BlockPos::new(3, 64, 3);
+        insert_ready_full_chunk(world, ChunkPos::from_block_pos(pos));
+        assert!(world.set_block(
+            pos,
+            vanilla_blocks::BARREL.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let block_entity = world.get_block_entity(pos).expect("barrel entity");
+
+        let mut identity = NbtCompound::new();
+        identity.insert("CustomName", TextComponent::plain("Storage").to_codec_nbt());
+        let mut lock = NbtCompound::new();
+        lock.insert("items", "minecraft:diamond");
+        identity.insert("lock", lock);
+        assert!(block_entity.load_item_custom_data(&identity));
+
+        let container = block_entity.container_ref().expect("barrel container");
+        let id = container.container_id();
+        {
+            let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
+            assert!(guard.set_item(id, 7, ItemStack::with_count(&vanilla_items::DIAMOND, 5)));
+        }
+        let mut stored = DataComponentMap::new();
+        let mut custom = NbtCompound::new();
+        custom.insert("marker", 1i32);
+        stored.set(
+            CUSTOM_DATA,
+            Some(CustomData::try_from_compound(custom).expect("custom data")),
+        );
+        block_entity.base().set_stored_components(stored);
+
+        let mut picked = ItemStack::new(&vanilla_items::BARREL);
+        add_block_data_to_item(&mut picked, block_entity.as_ref());
+
+        assert_eq!(
+            picked.get(CUSTOM_NAME),
+            Some(&TextComponent::plain("Storage")),
+            "vanilla `collectComponents` publishes the implicit name"
+        );
+        assert!(picked.get(LOCK).is_some(), "and the implicit lock");
+        assert!(
+            picked.get(CONTAINER).is_some(),
+            "the container component carries the contents"
+        );
+        assert!(
+            picked.get(CUSTOM_DATA).is_some(),
+            "an explicit stored component is copied verbatim"
+        );
+        assert!(
+            picked.get(BLOCK_ENTITY_DATA).is_none(),
+            "`removeComponentsFromTag` strips the identity and the item list, and `setBlockEntityData` drops the empty payload instead of duplicating them"
+        );
+
+        let restored =
+            BarrelBlockEntity::new(Weak::new(), pos, vanilla_blocks::BARREL.default_state());
+        restored.apply_components_from_item(&picked);
+        assert_eq!(
+            restored.identity().custom_name(),
+            Some(TextComponent::plain("Storage"))
+        );
+        assert!(restored.identity().is_locked());
+        let restored_container = restored.container_ref().expect("restored container");
+        let restored_id = restored_container.container_id();
+        let guard = ContainerLockGuard::lock_all(slice::from_ref(&restored_container));
+        assert_eq!(
+            guard
+                .get(restored_id)
+                .expect("the restored container is locked")
+                .get_item(7),
+            &ItemStack::with_count(&vanilla_items::DIAMOND, 5)
+        );
+        drop(guard);
+
+        block_entity
+            .base()
+            .set_stored_components(DataComponentMap::new());
+        let mut second = ItemStack::new(&vanilla_items::BARREL);
+        add_block_data_to_item(&mut second, block_entity.as_ref());
+        assert!(
+            second.get(CUSTOM_DATA).is_none(),
+            "a removed component must not come back from an older snapshot"
+        );
+    }
+
+    #[test]
     fn use_item_on_rejects_non_finite_hit_locations() {
         let world_fixture = fresh_test_world("use_item_on_non_finite_hit_location");
         let world = &world_fixture.world;
