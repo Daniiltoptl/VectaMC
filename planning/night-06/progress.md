@@ -290,3 +290,26 @@ block_interaction 2.
 
 G022 не начата: builtin `/data` отсутствует, нужен отдельный срез командной
 поверхности. Следующий ID: **G022 / W06-106…110**.
+## Codex review G021 · 2026-11-02
+
+Входящий диапазон `cea3e5115..0c6cefaf9` проверен по local Java 26.3.
+G021 уточнена как partial: W06-103 без onlyOpCanSetNbt gate, W06-105 подтверждает
+decoder/factory, а не region I/O/unload/restart. Права в Vecta уже существуют;
+отсутствие permission system из входящего отчёта — неверное объяснение.
+
+Исправлено: один saveCustomOnly + snapshot для merge вместо двух сохранений;
+item snapshot до вызова load/component/world callbacks без player inventory lock.
+Усилены type-mismatch placement, no-op merge и сохранность omitted identity/
+stored explicit components. Формат контейнеров/B-06-04 не менялись.
+
+Свежие проверки: block_item — 1 passed, item_block_entity_data — 2 passed,
+workspace — **4252 passed / 0 failed / 18 ignored**, exit 0; Python — 4 tests OK.
+Полный результат и commits — [review](../reviews/night-06-g021-codex.md).
+
+Новый real blocker B-06-05: extractor task подготовлен, но Java/Gradle loopback
+failure не дал produced metadata. Владелец прислал Java-17 mismatch из обычного
+CMD; явный JDK 25 из tool environment сохранил IPC failure. Запрошен точный
+CMD run с JAVA_HOME=25 и extractBlockEntityTypes. Не писать ручные flags/false.
+Пока gate остановлен, G022 независима. Запрос — `WORKBUDDY_CONTINUE_06_04.md`.
+Код ревью — `8b581a658`. Workspace Clippy/fmt — exit 0, audit —
+3105 objects / 49 BE / 232 markers; provenance обновлён.

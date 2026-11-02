@@ -1,5 +1,11 @@
 # Night 06 — отчёт сеанса 3 (G021, disk/item boundaries)
 
+Исторический отчёт исполнителя на `0c6cefaf9`. Последующее
+[ревью Codex](../reviews/night-06-g021-codex.md) уточняет статус:
+G021 не закрыта полностью — onlyOpCanSetNbt отсутствует, а W06-105 проверяет
+декодер без region I/O. Утверждение об отсутствии системы прав ошибочно.
+Актуальные проверки и блокер extraction — в review/checkpoint.
+
 Дата: 2026-11-02. Ветка `codex/night-vanilla-03`.
 Вход: HEAD `cea3e5115`, workspace **4245 passed / 0 failed / 18 ignored**.
 Выход: см. «Проверки».

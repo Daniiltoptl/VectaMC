@@ -100,3 +100,34 @@ G021 остаётся задачей проверки реальных disk/item
 
 Это зависимости дальнейшей реализации, не запросы владельцу без проверки
 конкретной отсутствующей архитектуры или produced data.
+
+## B-06-05 · G021/W06-103 — требуется produced authorization metadata
+
+Проверены Java `BlockItem.updateCustomBlockEntityTag`, `Player.canUseGameMasterBlocks`,
+`BlockEntityType.onlyOpCanSetNbt`, Vecta `Player::is_operator`/permission manager
+и generator `vecta-registry/build/block_entity_types.rs`. Права в Vecta есть;
+отсутствует extracted flag у типов block entity, а текущий placement не проверяет gate.
+
+Подготовлен dedicated SteelExtractor task `extractBlockEntityTypes` для 26.3.
+Но обычный запуск и диагностический запуск с `--stacktrace` упали до Kotlin
+compilation/extraction: `Unable to establish loopback connection`, причина
+`java.net.SocketException: Invalid argument: connect` в `UnixDomainSockets.connect0`.
+После повторного сбоя варианты flags не перебирались; EULA/server не запускались.
+
+Запрошено: из обычного CMD в `D:\CodexBuilds\SteelExtractor` выбрать process-local
+JAVA_HOME=`C:\Program Files\Eclipse Adoptium\jdk-25.0.4.7-hotspot`, затем выполнить
+`.\gradlew.bat extractBlockEntityTypes --no-daemon --max-workers=1` и сообщить
+результат либо путь к produced
+`run\steel_extractor_output\steel-registry\build_assets\block_entities.json`.
+Нужны `minecraft_version: 26.3` и реальные `only_op_can_set_nbt` для всех типов.
+Ручной список/serde default false запрещены. Подробнее —
+`scripts/steel-extractor/block-entity-types.md`; patch подготовлен, но extraction
+пока не проверена. Независимую G022 продолжать, G021 целиком completed не ставить.
+
+Уточнение по ответу владельца: запуск без task дошёл до Gradle configuration,
+но использовал Java 17. JAVA_HOME действительно указывает на 17 при PATH java=25.
+Попытка из tool environment с явно выбранным установленным JDK 25 сохранила
+loopback failure. Владелец получил точные CMD-команды: process-local JAVA_HOME
+на `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.7-hotspot`, затем task
+`extractBlockEntityTypes --no-daemon --max-workers=1`. Ожидается новый результат;
+не запускать просто gradlew без имени задачи и не считать старый output подходящим.

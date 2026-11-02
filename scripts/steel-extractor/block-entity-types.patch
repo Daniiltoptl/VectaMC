@@ -1,0 +1,82 @@
+diff --git a/build.gradle b/build.gradle
+--- a/build.gradle
++++ b/build.gradle
+@@ -131,3 +131,14 @@
+         java.nio.file.Files.createDirectories(workingDir.toPath())
+     }
+ }
++
++tasks.register('extractBlockEntityTypes', JavaExec) {
++    group = 'extraction'
++    description = 'Extract block entity types and custom-data permissions without a server'
++    classpath = sourceSets.main.runtimeClasspath
++    mainClass = 'com.steelextractor.extractors.BlockEntityTypeRegistry'
++    workingDir = layout.projectDirectory.dir('run').asFile
++    doFirst {
++        java.nio.file.Files.createDirectories(workingDir.toPath())
++    }
++}
+diff --git a/src/main/kotlin/com/steelextractor/extractors/BlockEntities.kt b/src/main/kotlin/com/steelextractor/extractors/BlockEntities.kt
+--- a/src/main/kotlin/com/steelextractor/extractors/BlockEntities.kt
++++ b/src/main/kotlin/com/steelextractor/extractors/BlockEntities.kt
+@@ -5,6 +5,7 @@
+ import com.google.gson.JsonObject
+ import com.steelextractor.SteelExtractor
+ import net.minecraft.core.registries.BuiltInRegistries
++import net.minecraft.SharedConstants
+ import net.minecraft.server.MinecraftServer
+ import net.minecraft.world.level.block.Block
+ import net.minecraft.world.level.block.entity.BlockEntityType
+@@ -15,7 +16,12 @@
+     }
+
+     override fun extract(server: MinecraftServer): JsonElement {
++        return extractRegistry()
++    }
++
++    fun extractRegistry(): JsonElement {
+         val topLevelJson = JsonObject()
++        topLevelJson.addProperty("minecraft_version", SharedConstants.getCurrentVersion().id())
+         val validBlocksField = BlockEntityType::class.java.getDeclaredField("validBlocks")
+         validBlocksField.isAccessible = true
+
+@@ -26,6 +32,7 @@
+                 ?: error("Block entity type has no key: $blockEntity")
+             blockEntityJson.addProperty("id", BuiltInRegistries.BLOCK_ENTITY_TYPE.getId(blockEntity))
+             blockEntityJson.addProperty("name", key.path)
++            blockEntityJson.addProperty("only_op_can_set_nbt", blockEntity.onlyOpCanSetNbt())
+
+             @Suppress("UNCHECKED_CAST")
+             val validBlocks = validBlocksField.get(blockEntity) as Set<Block>
+diff --git a/src/main/kotlin/com/steelextractor/extractors/BlockEntityTypeRegistry.kt b/src/main/kotlin/com/steelextractor/extractors/BlockEntityTypeRegistry.kt
+new file mode 100644
+--- /dev/null
++++ b/src/main/kotlin/com/steelextractor/extractors/BlockEntityTypeRegistry.kt
+@@ -0,0 +1,27 @@
++package com.steelextractor.extractors
++
++import com.google.gson.GsonBuilder
++import net.minecraft.SharedConstants
++import net.minecraft.server.Bootstrap
++import java.nio.charset.StandardCharsets
++import java.nio.file.Files
++import java.nio.file.Path
++
++/** Extracts block entity metadata without starting a server or accepting an EULA. */
++object BlockEntityTypeRegistry {
++    @JvmStatic
++    fun main(args: Array<String>) {
++        require(args.isEmpty()) { "Use STEEL_EXTRACTOR_OUTPUT_DIRECTORY to select the output directory" }
++        SharedConstants.tryDetectVersion()
++        Bootstrap.bootStrap()
++        val extractor = BlockEntities()
++        val directory = Path.of(System.getenv("STEEL_EXTRACTOR_OUTPUT_DIRECTORY") ?: "steel_extractor_output")
++        val output = directory.resolve(extractor.fileName())
++        Files.createDirectories(output.parent)
++        Files.newBufferedWriter(output, StandardCharsets.UTF_8).use { writer ->
++            GsonBuilder().disableHtmlEscaping().setPrettyPrinting().create().toJson(extractor.extractRegistry(), writer)
++            writer.appendLine()
++        }
++        println("Wrote ${output.toAbsolutePath()}")
++    }
++}

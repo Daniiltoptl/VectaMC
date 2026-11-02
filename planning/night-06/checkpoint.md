@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление после сеанса 2 (G006…G013), 2026-11-02.
+Обновление после ревью сеанса 3 (G021), 2026-11-02.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -12,9 +12,12 @@
 | Вход сеанса 2 | `cfc95d0a3`, workspace 4198 passed / 0 failed / 18 ignored |
 | Код сеанса 2 | `58bfb86db`, `b28f141c0`, `d14a4b01b`, `65d3817d1`, `fb9ec81ed`, `e485e254a`, `1f277a4b7` |
 | Входящий workspace исполнителя | **4240 passed / 0 failed / 18 ignored**, по его отчёту |
-| Свежие узкие проверки Codex | dispenser 83 passed; normal_nbt_reload 1 passed |
-| Свежий workspace Codex | **4245 passed / 0 failed / 18 ignored**, exit 0 |
+| Ревью сеанса 2, узкие проверки | dispenser 83 passed; normal_nbt_reload 1 passed |
+| Ревью сеанса 2, workspace | **4245 passed / 0 failed / 18 ignored**, exit 0 |
 | Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
+| Статус G021 после ревью | partial: W06-103 gate не готов; W06-105 без region I/O/unload/restart |
+| Свежие проверки ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
+| Код ревью G021 | `8b581a658`; extractor gate B-06-05 остаётся открытым |
 | Clippy/fmt Codex | exit 0 |
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
@@ -27,6 +30,11 @@
 
 [Codex review сеанса 2](../reviews/night-06-g006-g013-codex.md),
 [новый запрос](../../WORKBUDDY_CONTINUE_06_03.md).
+
+[Ревью G021](../reviews/night-06-g021-codex.md),
+[актуальный запрос](../../WORKBUDDY_CONTINUE_06_04.md).
+G021 gate зависит от нового produced block_entities output (B-06-05);
+до его получения не подменять данные. G022 независима от Java extraction.
 
 Не перезапускать прежний baseline без причины. Сначала actual branch/status и
 выбранный consumer. Группы 001–100 раскрывают старые W05-001…100; группы 101–120
