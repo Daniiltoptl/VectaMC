@@ -387,10 +387,31 @@ pub(crate) fn init_dispense_behaviors() {
 /// items here instead, so adding a behavior never touches the dispense tick.
 pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
     register_projectile_dispense_behaviors(registry);
+    register_bucket_dispense_behaviors(registry);
 
-    // W04-033 (buckets) and W04-035 (bonemeal, ignition,
-    // bottles, shears) add their items here. Until they exist every other item
-    // falls through to the component-based default selection.
+    // W04-035 (bonemeal, ignition, bottles, shears) adds its items here. Until
+    // they exist every other item falls through to the component-based default
+    // selection.
+}
+
+/// Vanilla `DispenseItemBehavior.bootStrap` bucket registrations.
+///
+/// The three filled buckets share one behavior: it asks the item for its
+/// `DispensibleContainerItem` capability, so water, lava and powder snow keep
+/// their own placement rules instead of being special-cased here.
+fn register_bucket_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    use vecta_registry::vanilla_items;
+
+    use super::dispenser::bucket::{EmptyBucketDispenseBehavior, FilledBucketDispenseBehavior};
+
+    for filled in [
+        &*vanilla_items::WATER_BUCKET,
+        &*vanilla_items::LAVA_BUCKET,
+        &*vanilla_items::POWDER_SNOW_BUCKET,
+    ] {
+        registry.register(filled, FilledBucketDispenseBehavior);
+    }
+    registry.register(&vanilla_items::BUCKET, EmptyBucketDispenseBehavior);
 }
 
 /// Vanilla `DispenseItemBehavior.bootStrap` projectile registrations that have a
@@ -493,7 +514,9 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 
 #[cfg(test)]
 mod tests {
+    mod bucket;
     mod egg;
+    mod empty_bucket;
     mod equipment;
     mod experience_bottle;
     mod persistence;

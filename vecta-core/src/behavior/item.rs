@@ -12,11 +12,13 @@ use vecta_registry::data_components::vanilla_components::{
 };
 
 use text_components::TextComponent;
+use vecta_registry::blocks::properties::Direction;
 use vecta_registry::data_components::vanilla_components::ITEM_NAME;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::items::ItemRef;
 use vecta_registry::stat::vanilla_stat_types;
 use vecta_registry::{REGISTRY, RegistryEntry, RegistryExt, sound_events, vanilla_game_events};
+use vecta_utils::BlockPos;
 use vecta_utils::types::{InteractionHand, SignTextSlot};
 
 use crate::behavior::items::{DefaultItemBehavior, SpawnEggItem, block_transformer};
@@ -71,6 +73,36 @@ pub trait SignApplicator: Send + Sync {
         slot: SignTextSlot,
         item: &ItemStack,
         player: &Player,
+    ) -> bool;
+}
+
+/// The two `BlockHitResult` fields vanilla's `DispensibleContainerItem.emptyContents`
+/// reads: the hit block and the face the player clicked.
+///
+/// Vanilla passes a whole `BlockHitResult` but only calls `getBlockPos()` and
+/// `getDirection()`; a dispenser passes `null`, which is [`None`] here.
+#[derive(Debug, Clone, Copy)]
+pub struct FluidPlacementHit {
+    /// Vanilla `BlockHitResult.getBlockPos()`.
+    pub block_pos: BlockPos,
+    /// Vanilla `BlockHitResult.getDirection()`.
+    pub direction: Direction,
+}
+
+/// Vanilla `DispensibleContainerItem`: an item that empties its container into
+/// the world, either from a player's hand or from a dispenser.
+pub trait DispensibleContainerItem: Send + Sync {
+    /// Vanilla `DispensibleContainerItem.emptyContents`.
+    ///
+    /// Returns whether the content was placed. `user` and `hit` are both
+    /// [`None`] for a dispenser, which is what makes vanilla skip the sneaking
+    /// check and the neighbour retry.
+    fn empty_contents(
+        &self,
+        user: Option<&Player>,
+        world: &Arc<World>,
+        pos: BlockPos,
+        hit: Option<FluidPlacementHit>,
     ) -> bool;
 }
 
@@ -317,6 +349,11 @@ pub trait ItemBehavior: Send + Sync {
 
     /// Returns the capability used by sign block interactions.
     fn as_sign_applicator(&self) -> Option<&dyn SignApplicator> {
+        None
+    }
+
+    /// Returns the capability for items that empty a container into the world.
+    fn as_dispensible_container(&self) -> Option<&dyn DispensibleContainerItem> {
         None
     }
 }

@@ -56,6 +56,7 @@ pub use books::{WritableBookItem, WrittenBookItem};
 pub use bottle::BottleItem;
 pub use brush::BrushItem;
 pub use bucket::BucketItem;
+pub(crate) use bucket::pickup_bucket_content;
 pub use bundle::BundleItem;
 pub use compass::CompassItem;
 pub use default::DefaultItemBehavior;

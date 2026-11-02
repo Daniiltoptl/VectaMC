@@ -7,6 +7,7 @@
 //! replaces the whole lookup with one `DefaultDispenseItemBehavior`.
 
 use std::ops::Deref;
+use std::slice;
 use std::sync::{Arc, OnceLock};
 
 use glam::DVec3;
@@ -20,6 +21,7 @@ use vecta_utils::axis::Axis;
 use vecta_utils::random::Random as _;
 use vecta_utils::{BlockPos, BlockStateId, Identifier};
 
+use crate::inventory::lock::{ContainerLockGuard, ContainerRef};
 use crate::world::World;
 
 use super::super::dispenser_block::FACING;
@@ -33,10 +35,8 @@ pub const SPAWN_OFFSET: f64 = 0.7;
 /// Vanilla `BlockSource`: everything a dispense behavior may read about the
 /// block that is dispensing.
 ///
-/// Vanilla also exposes the `DispenserBlockEntity`, but only
-/// `consumeWithRemainder` reads it (to insert the empty bucket back), and no
-/// behavior here needs it yet, so the field arrives with W04-033 instead of
-/// being carried unused.
+/// Vanilla also exposes the `DispenserBlockEntity`; behaviors that need it reach
+/// it through [`BlockSource::container`] rather than carrying it here.
 pub struct BlockSource<'a> {
     /// The level the dispense happens in.
     pub world: &'a Arc<World>,
@@ -61,6 +61,13 @@ impl BlockSource<'_> {
     #[must_use]
     pub fn facing(&self) -> Direction {
         self.state.get_value(FACING)
+    }
+
+    /// Vanilla `BlockSource.blockEntity()`, narrowed to the container capability
+    /// `consumeWithRemainder` needs to store an empty bucket.
+    #[must_use]
+    pub fn container(&self) -> Option<ContainerRef> {
+        ContainerRef::from_block_entity(self.world.get_block_entity(self.pos)?)
     }
 }
 
@@ -87,6 +94,39 @@ impl DispenseItemBehavior for DefaultDispenseItemBehavior {
 }
 
 impl DefaultDispenseItemBehavior {
+    /// Vanilla `DefaultDispenseItemBehavior.consumeWithRemainder`: take one item
+    /// from `dispensed` and either leave `remainder` in the slot it emptied or
+    /// store it in the dispenser.
+    pub fn consume_with_remainder(
+        source: &BlockSource<'_>,
+        mut dispensed: ItemStack,
+        remainder: ItemStack,
+    ) -> ItemStack {
+        dispensed.shrink(1);
+        if dispensed.is_empty() {
+            return remainder;
+        }
+
+        Self::add_to_inventory_or_dispense(source, remainder);
+        dispensed
+    }
+
+    /// Vanilla `DefaultDispenseItemBehavior.addToInventoryOrDispense`: store the
+    /// stack in the dispenser, ejecting whatever does not fit.
+    fn add_to_inventory_or_dispense(source: &BlockSource<'_>, mut stack: ItemStack) {
+        if let Some(container) = source.container() {
+            let id = container.container_id();
+            let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
+            if let Some(locked) = guard.get_mut(id) {
+                locked.add(&mut stack);
+            }
+        }
+
+        if !stack.is_empty() {
+            Self::eject(source, stack);
+        }
+    }
+
     /// Vanilla `DefaultDispenseItemBehavior.playSound` +
     /// `spawnItem` + `playAnimation`: one item entity in front of the block.
     pub fn eject(source: &BlockSource<'_>, item: ItemStack) {
