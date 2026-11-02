@@ -9,6 +9,7 @@ use crate::entity::shearable::Shearable;
 use crate::scoreboard::{ScoreHolder, Scoreboard};
 use rand::{RngExt, rng};
 use vecta_math::DEGREE_90;
+use vecta_utils::nbt::{NbtNumeric, nbt_collection_values};
 
 /// Vanilla `Entity.refreshDimensions` small-entity limit: only entities at most
 /// this wide and tall (in blocks) get their position fudged after growing.
@@ -45,20 +46,35 @@ fn landing_particle_position(entity_position: DVec3, landing_pos: BlockPos) -> D
     )
 }
 
-pub(super) fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
-    let values = read_nbt_collection(nbt, key)?;
-    let [x, y, z, ..] = values.as_slice() else {
+pub(crate) fn nbt_dvec3(tag: &NbtTag) -> Option<DVec3> {
+    let values = nbt_collection_values(tag)?;
+    let values = values
+        .iter()
+        .filter_map(NbtNumeric::codec_f64)
+        .collect::<Vec<_>>();
+    let &[x, y, z, ..] = values.as_slice() else {
         return None;
     };
-    Some(DVec3::new(x.codec_f64()?, y.codec_f64()?, z.codec_f64()?))
+    Some(DVec3::new(x, y, z))
 }
 
-fn read_nbt_rotation(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<(f32, f32)> {
-    let values = read_nbt_collection(nbt, key)?;
-    let [yaw, pitch, ..] = values.as_slice() else {
+pub(crate) fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
+    nbt_dvec3(&nbt.get(key)?.to_owned())
+}
+
+pub(crate) fn read_nbt_rotation(
+    nbt: &BorrowedNbtCompoundView<'_, '_>,
+    key: &str,
+) -> Option<(f32, f32)> {
+    let values = nbt_collection_values(&nbt.get(key)?.to_owned())?;
+    let values = values
+        .iter()
+        .filter_map(NbtNumeric::codec_f32)
+        .collect::<Vec<_>>();
+    let &[yaw, pitch, ..] = values.as_slice() else {
         return None;
     };
-    Some((yaw.codec_f32()?, pitch.codec_f32()?))
+    Some((yaw, pitch))
 }
 
 fn read_nbt_collection(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Vec<NbtTag>> {
@@ -150,7 +166,7 @@ pub(super) fn load_value_or<T>(reset: bool, value: Option<T>, default: T) -> Opt
     }
 }
 
-fn sanitize_nbt_motion(motion: DVec3) -> DVec3 {
+pub(crate) fn sanitize_nbt_motion(motion: DVec3) -> DVec3 {
     let sanitize = |value: f64| {
         if value.abs() > MAX_ENTITY_MOTION_COMPONENT {
             0.0
