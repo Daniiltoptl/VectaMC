@@ -104,7 +104,7 @@ fn data_match_count(
         }
         DataSource::Storage => {
             let key = context.identifier("source")?;
-            NbtTag::Compound(source_command_storage(context)?.get(key))
+            NbtTag::Compound(source_command_storage(context.source())?.get(key))
         }
     };
     let path = context.nbt_path("path")?;

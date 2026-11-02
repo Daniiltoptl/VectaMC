@@ -5,6 +5,7 @@ use text_components::TextComponent;
 
 use super::{
     SnbtErrorKind, compare_nbt, nbt_list_values as list_as_tags, parse_snbt_compound_argument,
+    to_canonical_snbt,
 };
 use crate::translations;
 
@@ -129,6 +130,13 @@ pub enum NbtPathMutationError {
     NothingFound(String),
     /// The inserted value would exceed vanilla's maximum NBT depth.
     TooDeep,
+    /// A path target that must be a collection held a different tag, rendered
+    /// as canonical SNBT for the command message.
+    ExpectedList(String),
+    /// A path target that must be a compound held a different tag.
+    ExpectedObject(String),
+    /// A collection target does not accept the requested insertion index.
+    InvalidIndex(i32),
 }
 
 impl fmt::Display for NbtPathMutationError {
@@ -136,6 +144,9 @@ impl fmt::Display for NbtPathMutationError {
         match self {
             Self::NothingFound(path) => write!(f, "nothing found at NBT path '{path}'"),
             Self::TooDeep => write!(f, "NBT path mutation would exceed maximum depth"),
+            Self::ExpectedList(tag) => write!(f, "expected list at {tag}"),
+            Self::ExpectedObject(tag) => write!(f, "expected compound at {tag}"),
+            Self::InvalidIndex(index) => write!(f, "invalid list index {index}"),
         }
     }
 }
@@ -211,6 +222,174 @@ impl NbtPath {
         }
 
         self.set_at(tag, 0, &value).map(|outcome| outcome.modified)
+    }
+
+    /// Inserts `values` into every collection selected by this path.
+    ///
+    /// Missing targets are created as empty lists, mirroring vanilla's
+    /// `getOrCreate(target, ListTag::new)`. A negative `index` counts from the
+    /// end of the target list, and `-1` appends.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an intermediate node cannot resolve, a target is
+    /// not a collection, the index is out of range, or a value is too deep.
+    pub fn insert(
+        &self,
+        index: i32,
+        tag: &mut NbtTag,
+        values: &[NbtTag],
+    ) -> Result<usize, NbtPathMutationError> {
+        if values
+            .iter()
+            .any(|value| is_too_deep(value, self.nodes.len()))
+        {
+            return Err(NbtPathMutationError::TooDeep);
+        }
+
+        let empty_list = NbtTag::List(NbtList::default());
+        self.modify_targets(tag, &empty_list, &mut |target| {
+            let Some(len) = collection_len(target) else {
+                return Err(NbtPathMutationError::ExpectedList(render_tag(target)));
+            };
+            let actual_index = if index < 0 {
+                len.checked_add_signed(index as isize + 1)
+                    .ok_or(NbtPathMutationError::InvalidIndex(index))?
+            } else {
+                usize::try_from(index).map_err(|_| NbtPathMutationError::InvalidIndex(index))?
+            };
+            if actual_index > len {
+                return Err(NbtPathMutationError::InvalidIndex(
+                    i32::try_from(actual_index).unwrap_or(i32::MAX),
+                ));
+            }
+
+            let mut modified = false;
+            for (offset, value) in values.iter().enumerate() {
+                let insert_index = actual_index + offset;
+                if !insert_collection_element(target, insert_index, value.clone()) {
+                    return Err(NbtPathMutationError::InvalidIndex(
+                        i32::try_from(insert_index).unwrap_or(i32::MAX),
+                    ));
+                }
+                modified = true;
+            }
+            Ok(usize::from(modified))
+        })
+    }
+
+    /// Merges `source` into every compound selected by this path.
+    ///
+    /// Missing targets are created as empty compounds, mirroring vanilla's
+    /// `getOrCreate(target, CompoundTag::new)` in `/data modify … merge`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when an intermediate node cannot resolve, a target is
+    /// not a compound, or the merged value would be too deep.
+    pub fn merge(
+        &self,
+        tag: &mut NbtTag,
+        source: &NbtCompound,
+    ) -> Result<usize, NbtPathMutationError> {
+        if is_too_deep(&NbtTag::Compound(source.clone()), self.nodes.len()) {
+            return Err(NbtPathMutationError::TooDeep);
+        }
+
+        let empty_compound = NbtTag::Compound(NbtCompound::new());
+        self.modify_targets(tag, &empty_compound, &mut |target| {
+            let NbtTag::Compound(compound) = target else {
+                return Err(NbtPathMutationError::ExpectedObject(render_tag(target)));
+            };
+            let before = compound.clone();
+            super::merge_nbt_compounds(compound, source);
+            Ok(usize::from(*compound != before))
+        })
+    }
+
+    /// Removes every tag selected by this path.
+    ///
+    /// Returns the number of removed tags. A path whose parents do not resolve
+    /// removes nothing rather than failing, as in vanilla `NbtPath#remove`.
+    pub fn remove(&self, tag: &mut NbtTag) -> usize {
+        if self.nodes.is_empty() {
+            return 0;
+        }
+        self.remove_at(tag, 0)
+    }
+
+    fn remove_at(&self, tag: &mut NbtTag, node_index: usize) -> usize {
+        let entry = &self.nodes[node_index];
+        if node_index + 1 == self.nodes.len() {
+            return entry.node.remove_tag(tag);
+        }
+
+        let mut removed = 0;
+        entry.node.visit_selected_mut(tag, &mut |child| {
+            removed += self.remove_at(child, node_index + 1);
+        });
+        removed
+    }
+
+    /// Applies `leaf` to every target created or selected by this path.
+    fn modify_targets(
+        &self,
+        tag: &mut NbtTag,
+        child_default: &NbtTag,
+        leaf: &mut impl FnMut(&mut NbtTag) -> Result<usize, NbtPathMutationError>,
+    ) -> Result<usize, NbtPathMutationError> {
+        if self.nodes.is_empty() {
+            return Ok(0);
+        }
+
+        let mut modified = 0;
+        self.modify_at(tag, 0, child_default, leaf, &mut modified)?;
+        Ok(modified)
+    }
+
+    fn modify_at(
+        &self,
+        tag: &mut NbtTag,
+        node_index: usize,
+        child_default: &NbtTag,
+        leaf: &mut impl FnMut(&mut NbtTag) -> Result<usize, NbtPathMutationError>,
+        modified: &mut usize,
+    ) -> Result<bool, NbtPathMutationError> {
+        let entry = &self.nodes[node_index];
+        if node_index + 1 == self.nodes.len() {
+            let mut changed = 0;
+            let found = entry.node.get_or_create_tag(tag, child_default, |child| {
+                changed = leaf(child)?;
+                Ok(true)
+            })?;
+            *modified += changed;
+            return Ok(found);
+        }
+
+        let preferred_child = self.nodes[node_index + 1]
+            .node
+            .create_preferred_parent_tag();
+        let mut deeper_found = false;
+        let found = entry
+            .node
+            .get_or_create_tag(tag, &preferred_child, |child| {
+                let found = self.modify_at(
+                    child,
+                    node_index + 1,
+                    child_default,
+                    &mut *leaf,
+                    &mut *modified,
+                )?;
+                deeper_found |= found;
+                Ok(found)
+            })?;
+        if !found {
+            return Err(NbtPathMutationError::NothingFound(
+                self.original[..entry.original_end].to_owned(),
+            ));
+        }
+
+        Ok(deeper_found)
     }
 
     fn set_at(
@@ -409,6 +588,94 @@ impl NbtPathNode {
             Self::MatchElement(pattern) => set_matching_list_elements(parent, pattern, value),
         }
     }
+
+    /// Visits every tag this node selects, in place, without creating any.
+    fn visit_selected_mut(&self, parent: &mut NbtTag, visitor: &mut dyn FnMut(&mut NbtTag)) {
+        match self {
+            Self::CompoundChild(name) => {
+                if let NbtTag::Compound(compound) = parent
+                    && let Some(child) = compound.get_mut(name)
+                {
+                    visitor(child);
+                }
+            }
+            Self::MatchObject { name, pattern } => {
+                if let NbtTag::Compound(compound) = parent
+                    && let Some(child) = compound.get_mut(name)
+                    && compound_pattern_matches(pattern, child)
+                {
+                    visitor(child);
+                }
+            }
+            Self::MatchRootObject(pattern) => {
+                if compound_pattern_matches(pattern, parent) {
+                    visitor(parent);
+                }
+            }
+            Self::AllElements => visit_collection_elements(parent, None, None, visitor),
+            Self::IndexedElement(index) => {
+                visit_collection_elements(parent, Some(*index), None, visitor);
+            }
+            Self::MatchElement(pattern) => {
+                visit_collection_elements(parent, None, Some(pattern), visitor);
+            }
+        }
+    }
+
+    fn remove_tag(&self, parent: &mut NbtTag) -> usize {
+        match self {
+            Self::CompoundChild(name) => {
+                let NbtTag::Compound(compound) = parent else {
+                    return 0;
+                };
+                usize::from(compound.remove(name).is_some())
+            }
+            Self::MatchObject { name, pattern } => {
+                let NbtTag::Compound(compound) = parent else {
+                    return 0;
+                };
+                if compound
+                    .get(name)
+                    .is_some_and(|child| compound_pattern_matches(pattern, child))
+                {
+                    compound.remove(name);
+                    return 1;
+                }
+                0
+            }
+            Self::MatchRootObject(_) => 0,
+            Self::AllElements => collection_len(parent).map_or(0, |len| {
+                clear_collection(parent);
+                len
+            }),
+            Self::IndexedElement(index) => {
+                let Some(len) = collection_len(parent) else {
+                    return 0;
+                };
+                let Some(actual_index) = actual_collection_index(len, *index) else {
+                    return 0;
+                };
+                usize::from(remove_collection_element(parent, actual_index))
+            }
+            Self::MatchElement(pattern) => {
+                let NbtTag::List(list) = parent else {
+                    return 0;
+                };
+                let mut elements = list_as_tags(list);
+                let before = elements.len();
+                elements.retain(|element| !compound_pattern_matches(pattern, element));
+                let removed = before - elements.len();
+                if removed > 0 {
+                    *list = NbtList::from(elements);
+                }
+                removed
+            }
+        }
+    }
+}
+
+fn render_tag(tag: &NbtTag) -> String {
+    to_canonical_snbt(tag).unwrap_or_else(|| format!("{tag:?}"))
 }
 
 fn compound_pattern_matches(pattern: &NbtCompound, tag: &NbtTag) -> bool {
@@ -759,6 +1026,130 @@ fn clear_list(list: &mut NbtList) {
     }
 }
 
+fn visit_collection_elements(
+    parent: &mut NbtTag,
+    index: Option<i32>,
+    pattern: Option<&NbtCompound>,
+    visitor: &mut dyn FnMut(&mut NbtTag),
+) {
+    let Some(mut elements) = collection_elements_for_mutation(parent) else {
+        return;
+    };
+
+    let mut changed = false;
+    match (index, pattern) {
+        (Some(index), _) => {
+            if let Some(actual_index) = actual_collection_index(elements.len(), index) {
+                let before = elements[actual_index].clone();
+                visitor(&mut elements[actual_index]);
+                changed |= elements[actual_index] != before;
+            }
+        }
+        (None, Some(pattern)) => {
+            for element in &mut elements {
+                if !compound_pattern_matches(pattern, element) {
+                    continue;
+                }
+                let before = element.clone();
+                visitor(element);
+                changed |= *element != before;
+            }
+        }
+        (None, None) => {
+            for element in &mut elements {
+                let before = element.clone();
+                visitor(element);
+                changed |= *element != before;
+            }
+        }
+    }
+
+    if changed {
+        replace_collection(parent, elements);
+    }
+}
+
+fn insert_collection_element(parent: &mut NbtTag, index: usize, value: NbtTag) -> bool {
+    match parent {
+        NbtTag::List(list) => {
+            let mut elements = list_as_tags(list);
+            if index > elements.len() {
+                return false;
+            }
+            elements.insert(index, value);
+            *list = NbtList::from(elements);
+            true
+        }
+        NbtTag::ByteArray(values) => {
+            let Some(value) = nbt_byte_value(&value) else {
+                return false;
+            };
+            if index > values.len() {
+                return false;
+            }
+            values.insert(index, value as u8);
+            true
+        }
+        NbtTag::IntArray(values) => {
+            let Some(value) = nbt_int_value(&value) else {
+                return false;
+            };
+            if index > values.len() {
+                return false;
+            }
+            values.insert(index, value);
+            true
+        }
+        NbtTag::LongArray(values) => {
+            let Some(value) = nbt_long_value(&value) else {
+                return false;
+            };
+            if index > values.len() {
+                return false;
+            }
+            values.insert(index, value);
+            true
+        }
+        _ => false,
+    }
+}
+
+fn remove_collection_element(parent: &mut NbtTag, index: usize) -> bool {
+    match parent {
+        NbtTag::List(list) => {
+            let mut elements = list_as_tags(list);
+            if index >= elements.len() {
+                return false;
+            }
+            elements.remove(index);
+            *list = NbtList::from(elements);
+            true
+        }
+        NbtTag::ByteArray(values) => {
+            if index >= values.len() {
+                return false;
+            }
+            values.remove(index);
+            true
+        }
+        NbtTag::IntArray(values) => {
+            if index >= values.len() {
+                return false;
+            }
+            values.remove(index);
+            true
+        }
+        NbtTag::LongArray(values) => {
+            if index >= values.len() {
+                return false;
+            }
+            values.remove(index);
+            true
+        }
+        _ => false,
+    }
+}
+
 fn add_collection_element(parent: &mut NbtTag, value: NbtTag) -> bool {
     match parent {
         NbtTag::List(list) => add_list_element(list, value),
@@ -894,7 +1285,9 @@ fn nbt_long_value(tag: &NbtTag) -> Option<i64> {
     })
 }
 
-fn is_too_deep(tag: &NbtTag, depth: usize) -> bool {
+/// Returns whether `tag` exceeds vanilla's maximum NBT depth below `depth`.
+#[must_use]
+pub fn is_too_deep(tag: &NbtTag, depth: usize) -> bool {
     if depth >= 512 {
         return true;
     }
@@ -1454,6 +1847,197 @@ mod tests {
         assert_eq!(
             path.set(&mut tag, NbtTag::Byte(1)),
             Err(NbtPathMutationError::NothingFound("items[0]".to_owned()))
+        );
+    }
+
+    #[test]
+    fn insert_creates_a_missing_list_and_appends() {
+        let path = parse_nbt_path("Items").expect("path parses");
+        let mut tag = compound([]);
+
+        assert_eq!(
+            path.insert(-1, &mut tag, &[NbtTag::Int(1), NbtTag::Int(2)])
+                .expect("insert should succeed"),
+            1
+        );
+        assert_eq!(
+            parse_nbt_path("Items[]").expect("path parses").get(&tag),
+            vec![NbtTag::Int(1), NbtTag::Int(2)]
+        );
+    }
+
+    #[test]
+    fn insert_places_values_at_vanilla_indices() {
+        let path = parse_nbt_path("values").expect("path parses");
+        let mut tag = compound([("values", list([NbtTag::Int(1), NbtTag::Int(2)]))]);
+
+        assert_eq!(
+            path.insert(0, &mut tag, &[NbtTag::String("first".into())])
+                .expect("insert should succeed"),
+            1
+        );
+        assert_eq!(
+            path.insert(-2, &mut tag, &[NbtTag::String("middle".into())])
+                .expect("insert should succeed"),
+            1
+        );
+        assert_eq!(
+            parse_nbt_path("values[]").expect("path parses").get(&tag),
+            vec![
+                NbtTag::String("first".into()),
+                NbtTag::Int(1),
+                NbtTag::String("middle".into()),
+                NbtTag::Int(2),
+            ]
+        );
+    }
+
+    #[test]
+    fn insert_rejects_non_collection_targets_and_out_of_range_indices() {
+        let path = parse_nbt_path("value").expect("path parses");
+        let mut tag = compound([("value", NbtTag::Int(4))]);
+        assert_eq!(
+            path.insert(-1, &mut tag, &[NbtTag::Int(1)]),
+            Err(NbtPathMutationError::ExpectedList("4".to_owned()))
+        );
+
+        let list_path = parse_nbt_path("values").expect("path parses");
+        let mut tag = compound([("values", list([NbtTag::Int(1)]))]);
+        assert_eq!(
+            list_path.insert(5, &mut tag, &[NbtTag::Int(9)]),
+            Err(NbtPathMutationError::InvalidIndex(5))
+        );
+    }
+
+    #[test]
+    fn insert_into_an_array_coerces_numeric_values() {
+        let path = parse_nbt_path("bytes").expect("path parses");
+        let mut tag = compound([("bytes", NbtTag::ByteArray(vec![1, 2]))]);
+
+        assert_eq!(
+            path.insert(1, &mut tag, &[NbtTag::Short(258)])
+                .expect("insert should succeed"),
+            1
+        );
+        assert_eq!(
+            parse_nbt_path("bytes[]").expect("path parses").get(&tag),
+            vec![NbtTag::Byte(1), NbtTag::Byte(2), NbtTag::Byte(2)]
+        );
+    }
+
+    #[test]
+    fn remove_deletes_compound_children_and_collection_entries() {
+        let child = parse_nbt_path("keep.drop").expect("path parses");
+        let mut tag = compound([(
+            "keep",
+            compound([("drop", NbtTag::Int(1)), ("stay", NbtTag::Int(2))]),
+        )]);
+        assert_eq!(child.remove(&mut tag), 1);
+        assert_eq!(
+            parse_nbt_path("keep").expect("path parses").get(&tag),
+            vec![compound([("stay", NbtTag::Int(2))])]
+        );
+
+        let element = parse_nbt_path("items[1]").expect("path parses");
+        let mut tag = compound([(
+            "items",
+            list([NbtTag::Int(1), NbtTag::Int(2), NbtTag::Int(3)]),
+        )]);
+        assert_eq!(element.remove(&mut tag), 1);
+        assert_eq!(
+            parse_nbt_path("items[]").expect("path parses").get(&tag),
+            vec![NbtTag::Int(1), NbtTag::Int(3)]
+        );
+    }
+
+    #[test]
+    fn remove_clears_wildcards_and_reports_unresolved_parents() {
+        let wildcard = parse_nbt_path("items[]").expect("path parses");
+        let mut tag = compound([(
+            "items",
+            list([NbtTag::Int(1), NbtTag::Int(2), NbtTag::Int(3)]),
+        )]);
+        assert_eq!(wildcard.remove(&mut tag), 3);
+        assert_eq!(
+            parse_nbt_path("items[]").expect("path parses").get(&tag),
+            Vec::<NbtTag>::new()
+        );
+
+        let missing = parse_nbt_path("absent.child").expect("path parses");
+        assert_eq!(missing.remove(&mut tag), 0);
+    }
+
+    #[test]
+    fn remove_uses_predicate_selection() {
+        let path = parse_nbt_path("items[{id:\"minecraft:stone\"}]").expect("path parses");
+        let mut tag = compound([(
+            "items",
+            list([
+                compound([("id", NbtTag::String("minecraft:dirt".into()))]),
+                compound([("id", NbtTag::String("minecraft:stone".into()))]),
+            ]),
+        )]);
+
+        assert_eq!(path.remove(&mut tag), 1);
+        assert_eq!(
+            parse_nbt_path("items[].id").expect("path parses").get(&tag),
+            vec![NbtTag::String("minecraft:dirt".into())]
+        );
+    }
+
+    #[test]
+    fn merge_applies_vanilla_compound_merge_to_each_target() {
+        let path = parse_nbt_path("entries[{id:\"a\"}]").expect("path parses");
+        let mut tag = compound([(
+            "entries",
+            list([compound([
+                ("id", NbtTag::String("a".into())),
+                ("count", NbtTag::Int(1)),
+            ])]),
+        )]);
+        let mut source = NbtCompound::new();
+        source.insert("count", NbtTag::Int(2));
+        source.insert("extra", NbtTag::String("x".into()));
+
+        assert_eq!(
+            path.merge(&mut tag, &source).expect("merge should succeed"),
+            1
+        );
+        assert_eq!(
+            parse_nbt_path("entries[0].count")
+                .expect("path parses")
+                .get(&tag),
+            vec![NbtTag::Int(2)]
+        );
+        assert_eq!(
+            parse_nbt_path("entries[0].extra")
+                .expect("path parses")
+                .get(&tag),
+            vec![NbtTag::String("x".into())]
+        );
+        assert_eq!(
+            path.merge(&mut tag, &source).expect("merge should succeed"),
+            0,
+            "an unchanged merge reports no modification"
+        );
+    }
+
+    #[test]
+    fn merge_creates_a_missing_compound_target() {
+        let path = parse_nbt_path("absent").expect("path parses");
+        let mut tag = compound([]);
+        let mut source = NbtCompound::new();
+        source.insert("value", NbtTag::Int(7));
+
+        assert_eq!(
+            path.merge(&mut tag, &source).expect("merge should succeed"),
+            1
+        );
+        assert_eq!(
+            parse_nbt_path("absent.value")
+                .expect("path parses")
+                .get(&tag),
+            vec![NbtTag::Int(7)]
         );
     }
 }

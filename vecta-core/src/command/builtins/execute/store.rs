@@ -178,7 +178,7 @@ fn store_storage_data(
     data_type: StoreDataType,
     store_result: bool,
 ) -> Result<CommandSource, CommandSyntaxError> {
-    source_command_storage(context)?;
+    source_command_storage(context.source())?;
     let target = context.identifier("target")?.clone();
     let path = parsed_path(context)?;
     let scale = parsed_scale(context)?;

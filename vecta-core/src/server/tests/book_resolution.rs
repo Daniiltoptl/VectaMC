@@ -11,7 +11,7 @@ use crate::player::game_mode::use_item;
 
 mod lectern_load;
 
-fn nbt_page(source: NbtSource, path: &'static str) -> Filterable<TextComponent> {
+pub(super) fn nbt_page(source: NbtSource, path: &'static str) -> Filterable<TextComponent> {
     Filterable::pass_through(TextComponent {
         content: Content::Resolvable(Resolvable::NBT {
             path: path.into(),
@@ -24,7 +24,7 @@ fn nbt_page(source: NbtSource, path: &'static str) -> Filterable<TextComponent> 
     })
 }
 
-fn unresolved_book(pages: Vec<Filterable<TextComponent>>) -> ItemStack {
+pub(super) fn unresolved_book(pages: Vec<Filterable<TextComponent>>) -> ItemStack {
     let mut book = ItemStack::new(&vanilla_items::WRITTEN_BOOK);
     book.set(
         WRITTEN_BOOK_CONTENT,

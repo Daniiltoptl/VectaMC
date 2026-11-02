@@ -8,15 +8,17 @@
 
 use std::sync::Arc;
 
+use simdnbt::owned::{NbtCompound, NbtTag};
+
 use super::{
     BiomeOrTag, BlockInput, BlockPredicate, ChainModifiers, CommandResultSuspension, CommandSource,
     Coordinates, ExecutionCommandSource, ExecutionControl, GameProfileArgument, IntRange,
     ItemPredicate, PermissionGroupName, ScoreHolderArgument, ScoreHolderWildcard,
     StructureOrTagKey, VectaArgumentType, WorldArgument,
     argument::{
-        ComponentValue, CoordinateAxes, DomainValue, EnchantmentValue, EntityTypeValue,
-        GameModeValue, IdentifierValue, ItemStackValue, NbtPathValue, ObjectiveValue, TimeValue,
-        TimelineValue, VectaArgumentValue, WorldClockValue,
+        ComponentValue, CompoundTagValue, CoordinateAxes, DomainValue, EnchantmentValue,
+        EntityTypeValue, GameModeValue, IdentifierValue, ItemStackValue, NbtPathValue, NbtTagValue,
+        ObjectiveValue, TimeValue, TimelineValue, VectaArgumentValue, WorldClockValue,
     },
     selector::EntitySelector,
 };
@@ -352,6 +354,16 @@ where
 
     pub(crate) fn nbt_path(&self, name: &str) -> Result<&NbtPath, CommandSyntaxError> {
         self.typed_argument::<NbtPathValue>(name)
+            .map(|value| &value.0)
+    }
+
+    pub(crate) fn compound_tag(&self, name: &str) -> Result<&NbtCompound, CommandSyntaxError> {
+        self.typed_argument::<CompoundTagValue>(name)
+            .map(|value| &value.0)
+    }
+
+    pub(crate) fn nbt_tag(&self, name: &str) -> Result<&NbtTag, CommandSyntaxError> {
+        self.typed_argument::<NbtTagValue>(name)
             .map(|value| &value.0)
     }
 

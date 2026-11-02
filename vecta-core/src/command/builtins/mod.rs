@@ -3,6 +3,7 @@
 pub mod advancement;
 mod clear;
 mod damage;
+mod data;
 mod defaultgamemode;
 mod difficulty;
 mod domain;
@@ -75,6 +76,7 @@ pub(crate) fn create_registered_dispatcher(
     builder.register(clear::registration())?;
     builder.register(operator::deop_registration())?;
     builder.register(damage::registration())?;
+    builder.register(data::registration())?;
     builder.register(defaultgamemode::registration())?;
     builder.register(difficulty::registration())?;
     builder.register(domain::registration())?;
@@ -160,6 +162,7 @@ mod tests {
                 "clear",
                 "deop",
                 "damage",
+                "data",
                 "defaultgamemode",
                 "difficulty",
                 "domain",

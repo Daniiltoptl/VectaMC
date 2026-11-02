@@ -59,10 +59,9 @@ fn source_scoreboard(
         })
 }
 
-fn source_command_storage(
-    context: &VectaCommandContext<CommandSource>,
+pub(crate) fn source_command_storage(
+    source: &CommandSource,
 ) -> Result<&CommandStorage, CommandSyntaxError> {
-    let source = context.source();
     source
         .server()
         .command_storage

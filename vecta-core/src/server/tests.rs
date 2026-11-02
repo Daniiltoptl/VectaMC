@@ -234,6 +234,7 @@ async fn test_server_with_worlds(
 mod block_entity_item_data;
 mod book_resolution;
 mod connection_lifecycle;
+mod data_command;
 mod player_limit;
 
 #[test]
