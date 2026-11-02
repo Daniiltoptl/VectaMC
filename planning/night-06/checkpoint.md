@@ -15,6 +15,7 @@
 | Ревью сеанса 2, узкие проверки | dispenser 83 passed; normal_nbt_reload 1 passed |
 | Ревью сеанса 2, workspace | **4245 passed / 0 failed / 18 ignored**, exit 0 |
 | Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
+| Сеанс 4 (G022) | `/data` для block/storage, foundation путей NBT; workspace **4273/0/18**, fmt/Clippy exit 0 |
 | Статус G021 после ревью | gate реализован после produced output; W06-105 без region I/O/unload/restart, lectern item text context для G022 |
 | Первый срез ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
 | Authorization slice | workspace **4254/0/18**, gate tests 2 passed, ordinary/type-mismatch 1 passed; Clippy/fmt exit 0 |
@@ -24,7 +25,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **G022 / W06-106…110: live /data, menu sync, comparator/ticker, книги кафедры** |
+| Следующий consumer | **G023 / W06-111…115: NBT рамок** |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -59,7 +60,10 @@ load, placement payload в настоящую BE, pick→item→block, деко�
 B-06-04 снят: Java тоже хранит корневые имя/lock и не применяет item components
 при обычном reload; формат контейнеров не менялся. Открыт гейт
 `onlyOpCanSetNbt` (нет системы прав) и реальный chunk save через `ChunkMap`.
-G022 не начата: builtin `/data` отсутствует. Дополнительно открыты water
+G022 реализована как builtin `/data` для block/storage (`get`/`merge`/`remove`/
+`modify` × `from`/`string`/`value`). Partial: провайдер `entity` (B-06-06),
+`modify … compute` (B-06-07), comparator-половина W06-108 (B-06-08),
+item custom-data context кафедры (B-06-09). Дополнительно открыты water
 evaporation, underwater coral selection и SulfurCube ignition; см. blockers.
 
 Foreign dirty file: `planning/night-01/report.md`; не трогать.

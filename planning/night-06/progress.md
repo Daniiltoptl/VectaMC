@@ -328,3 +328,31 @@ loopback attempts: extraction выполнена, B-06-05 больше не bloc
 Gate commit — `673c7a558`; итоговый workspace **4254 passed / 0 failed / 18 ignored**,
 Clippy/fmt exit 0. Audit — 3105 objects / 49 BE / 232 markers, provenance обновлён
 на gate commit. Следующий ID — G022; реальные I/O/context acceptance ещё открыты.
+
+## G022 / W06-106…110 · сеанс 4
+
+Полные детали — в [report-next-04.md](report-next-04.md).
+
+Реализовано: foundation путей (`NbtPath::remove/insert/merge`, публичный
+`is_too_deep`, `ExpectedList`/`ExpectedObject`/`InvalidIndex`), SNBT-аргументы
+`compound_tag`/`nbt_tag` (протокол 21/22), builtin `/data` для `block` и
+`storage` с `get`/`merge`/`remove`/`modify` (`insert`/`prepend`/`append`/`set`/
+`merge` × `from`/`string`/`value`).
+
+Живой путь: `BlockDataAccessor.setData`-эквивалент грузит через
+`BlockEntityLoadContext::for_source`, затем `set_changed()` + `send_block_updated`;
+ошибка восстанавливает снимок. `source_command_storage` теперь принимает
+`&CommandSource` (общий с `/execute store`).
+
+Проверено: lectern-книга резолвится через `/data` и не резолвится повторно
+(W06-106/110), открытое меню бочки владеет живым контейнером и получает
+обновление (W06-107), `set_changed` помечает чанк unsaved (W06-108 partial),
+ошибочные payload не меняют состояние (W06-109).
+
+Проверки: workspace **4273 passed / 0 failed / 18 ignored** (exit 0),
+fmt exit 0, узкие: nbt::path 27, data graph/helpers 4, data_command 6.
+
+Partial: `/data entity` (нет общего entity NBT load), `modify … compute`
+(нет loot Context*Provider), comparator-половина W06-108 (нет контейнерного
+redstone-сигнала), item custom-data context для кафедры (нет World→Server).
+Следующий ID: **G023 / W06-111…115**.

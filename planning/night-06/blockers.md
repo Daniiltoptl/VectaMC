@@ -137,3 +137,73 @@ loopback failure. Владелец получил точные CMD-команд�
 на `C:\Program Files\Eclipse Adoptium\jdk-25.0.4.7-hotspot`, затем task
 `extractBlockEntityTypes --no-daemon --max-workers=1`. Ожидается новый результат;
 не запускать просто gradlew без имени задачи и не считать старый output подходящим.
+
+## B-06-06 · G022 — `/data entity` требует общего entity NBT load
+
+**Проверено:** `vecta-core/src/entity/` не имеет общего NBT-сериализатора.
+`Entity::save_additional` заполняет только типо-специфичные поля,
+`Entity::nbt_for_data_compare` собирает `saveWithoutId`-подобный compound для
+предикатов, но обратной загрузки Pos/Motion/Rotation/UUID/Air/Fire/Passengers/
+data нет: `ChunkStorage` восстанавливает сущности из типизированного
+`PersistentEntity`, а не из NBT. Тот же гейт уже записан как TODO в
+`/execute store entity` (`command/builtins/execute/store.rs`).
+
+**Чего не хватает:** `Entity::load`-эквивалент (общая загрузка base-полей) плюс
+`EntityDataAccessor.setData` с живым контекстом. Без него `/data entity`
+был бы get-only, поэтому провайдер не зарегистрирован вовсе.
+
+**Риск догадки:** порядок/набор base-полей и правила «player data restricted»
+(`commands.data.entity.invalid`) — это shared foundation для всех сущностей,
+включая сохранение. Полу-реализация затронула бы существующее поведение.
+
+**Решение:** отдельный срез «общий entity NBT load/save» → затем провайдер
+`entity` в `/data` и снятие TODO в `/execute store`. Зависимые карточки:
+G022 (провайдер entity), G024 (living persistence).
+
+## B-06-07 · G022 — `modify … compute` требует loot number providers
+
+**Проверено:** `vecta-registry/src/loot_table/` содержит conditions/entries/
+functions/context, но не `ContextFloatProvider`/`ContextIntProvider`, а
+`LootContextSources` (источники контекста для `/execute`-подобного провайдера)
+отсутствует целиком. `vecta_utils::value_providers::IntProvider` — worldgen,
+не loot.
+
+**Чего не хватает:** loot `ContextFloatProvider`/`ContextIntProvider` с
+`getFloat`/`getInt(LootContext)` и `LootContextSources.addContextSources`.
+
+**Решение:** `compute float|integer` не реализован; остальные четыре источника
+(`from`, `string`, `value`) и все манипуляторы работают. Зависимые карточки:
+G022 (compute), G027/G028 (loot-driven автоматизация).
+
+## B-06-08 · G022/W06-108 — компаратор не видит содержимое контейнера
+
+**Проверено:** `vecta-core/src/world/redstone.rs` не обращается к block entity
+или `Container` ни в одной ветке `get_signal`; `ComparatorBlock::calculate_output`
+через `DiodeBlock::get_input_signal` получает 0 для бочки с предметами.
+`BlockEntity::set_changed` при этом корректно вызывает
+`update_neighbor_for_output_signal`, и компаратор получает neighbor update.
+
+**Следствие:** проверена только половина W06-108 (dirty flag + neighbor
+notification); фактическое изменение output signal компаратора после `/data`
+не воспроизводится, пока нет контейнерного redstone-сигнала
+(`Container.getRedstoneSignal` / `AbstractContainerMenu`-независимый расчёт).
+
+**Решение:** W06-108 остаётся partial. Отдельный срез редстоуна: сигнал из
+контейнера в `get_signal`, затем тест comparator поверх `/data`.
+
+## B-06-09 · G022 — item custom-data load без resolution context
+
+**Проверено:** `BlockEntity::load_item_custom_data` вызывает `load_additional`
+(detached), поэтому `LecternBlockEntity::load_book` не резолвит книгу при
+установке предмета с `minecraft:block_entity_data`. Ревью G021 отметило, что
+Java разрешает книгу для уже прикреплённой кафедры при `loadCustomOnly`.
+
+**Чего не хватает:** resolution context в `BlockItem::place`. `for_source`
+требует `CommandSource` (а значит `Arc<Server>`), а вводить ссылку
+`World → Server` запрещено запросом. У `UseOnContext` есть только игрок и мир.
+
+**Решение:** не угадывать. Нужно решение: либо контекст разрешения строится из
+игрока размещения без `Server` (например, разрешать только `@s`/`~ ~ ~`), либо
+`load_item_custom_data` получает `Option<&BlockEntityLoadContext>` и placement
+передаёт `None` с явным отказом от резолва. Зависимые карточки: G022 (item
+context), G024.
