@@ -304,3 +304,135 @@ fn an_empty_dispenser_fires_block_activate_to_a_real_listener() {
     );
     assert_eq!(*events.lock(), [&vanilla_game_events::BLOCK_ACTIVATE]);
 }
+
+#[test]
+fn an_occupied_slot_is_never_overwritten_by_a_dispenser() {
+    let (fixture, pos, player, _packets) =
+        listening_dispenser_fixture("dispenser_equip_occupied", Direction::South);
+    target_player(&player);
+    let worn = ItemStack::new(&vanilla_items::LEATHER_HELMET);
+    player.set_item_slot(EquipmentSlot::Head, worn.copy_with_count(1));
+    set_item_at(
+        &fixture,
+        pos,
+        0,
+        ItemStack::new(&vanilla_items::DIAMOND_HELMET),
+    );
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+
+    assert!(
+        equipment(&player).is(&vanilla_items::LEATHER_HELMET),
+        "vanilla `canEquipWithDispenser` requires `getItemBySlot(slot).isEmpty()`"
+    );
+    assert!(
+        item_at(&fixture, pos, 0).is_empty(),
+        "the rejected helmet falls back to `DefaultDispenseItemBehavior`"
+    );
+    let ejected = ejected_items(&fixture, pos);
+    assert_eq!(ejected.len(), 1);
+    assert!(
+        ejected[0]
+            .downcast_ref::<ItemEntity>()
+            .is_some_and(|item| item.get_item().is(&vanilla_items::DIAMOND_HELMET)),
+        "the dispenser throws the helmet out instead of replacing worn armour"
+    );
+}
+
+#[test]
+fn a_saddle_is_refused_on_a_mob_outside_its_allowed_entities_tag() {
+    use crate::entity::entities::SheepEntity;
+
+    let (fixture, pos) = dispenser_fixture("dispenser_equip_sheep_saddle", Direction::South);
+    let sheep = Arc::new(SheepEntity::new(
+        &vanilla_entities::SHEEP,
+        next_entity_id(),
+        DVec3::new(4.5, 64.0, 5.5),
+        Arc::downgrade(&fixture.world),
+    ));
+    fixture
+        .world
+        .try_add_entity(Arc::clone(&sheep) as SharedEntity)
+        .expect("sheep in a loaded chunk");
+    set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::SADDLE));
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+
+    sheep.with_equipment_slot(EquipmentSlot::Saddle, &mut |item| {
+        assert!(
+            item.is_empty(),
+            "vanilla `Equippable.canBeEquippedBy` reads the `#minecraft:can_equip_saddle` tag"
+        );
+    });
+    assert!(!sheep.is_persistence_required());
+    assert_eq!(
+        ejected_items(&fixture, pos).len(),
+        1,
+        "a mob outside the tag gets the vanilla fallback, not the saddle"
+    );
+}
+
+#[test]
+fn an_equipped_pig_keeps_its_saddle_and_drop_rule_through_a_persistent_record() {
+    use crate::chunk_saver::{ChunkStorage, PersistentEntity};
+    use crate::entity::Entity as _;
+    use crate::entity::entities::PigEntity;
+
+    let (fixture, pos) = dispenser_fixture("dispenser_equip_pig_persistent", Direction::South);
+    let pig = Arc::new(PigEntity::new(
+        &vanilla_entities::PIG,
+        next_entity_id(),
+        DVec3::new(4.5, 64.0, 5.5),
+        Arc::downgrade(&fixture.world),
+    ));
+    fixture
+        .world
+        .try_add_entity(Arc::clone(&pig) as SharedEntity)
+        .expect("pig in a loaded chunk");
+    set_item_at(&fixture, pos, 0, ItemStack::new(&vanilla_items::SADDLE));
+
+    pulse(
+        &DispenserBlock::new(&vanilla_blocks::DISPENSER),
+        &fixture,
+        pos,
+    );
+    let drop_chance = pig.equipment_drop_chance(EquipmentSlot::Saddle);
+    assert!(drop_chance > 1.0);
+
+    let shared = Arc::clone(&pig) as SharedEntity;
+    let persistent =
+        ChunkStorage::entity_tree_to_persistent(&shared).expect("an equipped mob is persistent");
+    let bytes = wincode::serialize(&persistent).expect("the entity record encodes");
+    let decoded: PersistentEntity =
+        wincode::deserialize_exact(&bytes).expect("the entity record decodes");
+    let restored = ChunkStorage::persistent_to_entity_tree_at_level(
+        &decoded,
+        ChunkPos::from_entity_pos(pig.position()),
+        &Arc::downgrade(&fixture.world),
+    );
+    assert_eq!(restored.len(), 1, "the registered entity factory loads it");
+    let loaded = restored[0]
+        .downcast_ref::<PigEntity>()
+        .expect("the factory restores the concrete pig");
+
+    loaded.with_equipment_slot(EquipmentSlot::Saddle, &mut |item| {
+        assert!(
+            item.is(&vanilla_items::SADDLE),
+            "the saddle survives the storage codec and entity factory"
+        );
+    });
+    assert!(loaded.is_persistence_required());
+    assert_eq!(
+        loaded.equipment_drop_chance(EquipmentSlot::Saddle),
+        drop_chance,
+        "vanilla `Mob.setGuaranteedDrop` survives the record"
+    );
+}
