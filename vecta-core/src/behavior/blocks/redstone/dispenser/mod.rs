@@ -5,6 +5,7 @@
 //! behaviors land here as later tasks add them.
 
 pub(super) mod bonemeal;
+pub(super) mod bottle;
 pub(super) mod bucket;
 pub(super) mod dispense;
 pub(super) mod equipment;

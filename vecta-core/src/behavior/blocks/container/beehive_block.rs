@@ -1,6 +1,6 @@
 //! Beehive block behavior implementation.
 
-use std::sync::Weak;
+use std::sync::{Arc, Weak};
 
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
@@ -9,6 +9,7 @@ use vecta_registry::blocks::properties::{
     BlockStateProperties, Direction, EnumProperty, IntProperty,
 };
 use vecta_registry::vanilla_block_entity_types;
+use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId};
 
 use crate::behavior::block::{BlockBehavior, BlockEntityCreation};
@@ -31,6 +32,19 @@ impl BeehiveBlock {
     #[must_use]
     pub const fn new(block: BlockRef) -> Self {
         Self { block }
+    }
+
+    /// Vanilla `BeehiveBlock.resetHoneyLevel`.
+    ///
+    /// Vanilla reaches this through `releaseBeesAndResetHoneyLevel`, which also
+    /// empties the hive into `Bee` entities. Vecta has no bee entity yet, so the
+    /// stored occupants stay where they are.
+    pub(crate) fn reset_honey_level(world: &Arc<World>, state: BlockStateId, pos: BlockPos) {
+        world.set_block(
+            pos,
+            state.set_value(LEVEL_HONEY, 0),
+            UpdateFlags::UPDATE_ALL,
+        );
     }
 }
 

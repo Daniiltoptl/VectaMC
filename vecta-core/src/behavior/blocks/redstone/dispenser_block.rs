@@ -390,6 +390,7 @@ pub(crate) fn register_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
     register_bucket_dispense_behaviors(registry);
     register_ignition_dispense_behaviors(registry);
     register_growth_dispense_behaviors(registry);
+    register_bottle_dispense_behaviors(registry);
 
     // W04-035 (bonemeal, ignition, bottles, shears) adds its items here. Until
     // they exist every other item falls through to the component-based default
@@ -414,6 +415,15 @@ fn register_bucket_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
         registry.register(filled, FilledBucketDispenseBehavior);
     }
     registry.register(&vanilla_items::BUCKET, EmptyBucketDispenseBehavior);
+}
+
+/// Vanilla `DispenseItemBehavior.bootStrap` bottle registrations.
+fn register_bottle_dispense_behaviors(registry: &mut DispenseBehaviorRegistry) {
+    use vecta_registry::vanilla_items;
+
+    use super::dispenser::bottle::GlassBottleDispenseBehavior;
+
+    registry.register(&vanilla_items::GLASS_BOTTLE, GlassBottleDispenseBehavior);
 }
 
 /// Vanilla `DispenseItemBehavior.bootStrap` growth registrations.
@@ -542,6 +552,7 @@ fn register_projectile_dispense_behaviors(registry: &mut DispenseBehaviorRegistr
 #[cfg(test)]
 mod tests {
     mod bonemeal;
+    mod bottle;
     mod bucket;
     mod egg;
     mod empty_bucket;

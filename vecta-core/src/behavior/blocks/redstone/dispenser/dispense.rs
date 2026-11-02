@@ -130,6 +130,21 @@ impl DefaultDispenseItemBehavior {
     /// Vanilla `DefaultDispenseItemBehavior.playSound` +
     /// `spawnItem` + `playAnimation`: one item entity in front of the block.
     pub fn eject(source: &BlockSource<'_>, item: ItemStack) {
+        Self::spawn_item(source, item);
+        source
+            .world
+            .level_event(level_events::SOUND_DISPENSER_DISPENSE, source.pos, 0, None);
+        source.world.level_event(
+            level_events::PARTICLES_SHOOT_SMOKE,
+            source.pos,
+            source.facing().get_3d_data_value(),
+            None,
+        );
+    }
+
+    /// Vanilla `DefaultDispenseItemBehavior.spawnItem`: one item entity in
+    /// front of the block, without the sound and animation.
+    pub fn spawn_item(source: &BlockSource<'_>, item: ItemStack) {
         // Vanilla `DispenserBlock.getDispensePosition` reads the facing back out
         // of the block state instead of trusting the caller.
         let facing = source.facing();
@@ -159,15 +174,6 @@ impl DefaultDispenseItemBehavior {
         source
             .world
             .spawn_item_with_velocity(DVec3::new(spawn.x, y, spawn.z), item, velocity);
-        source
-            .world
-            .level_event(level_events::SOUND_DISPENSER_DISPENSE, source.pos, 0, None);
-        source.world.level_event(
-            level_events::PARTICLES_SHOOT_SMOKE,
-            source.pos,
-            facing.get_3d_data_value(),
-            None,
-        );
     }
 }
 
