@@ -14,7 +14,7 @@ use super::super::super::{
 };
 use super::super::execute::{loaded_block_position, source_command_storage};
 use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
-use crate::entity::SharedEntity;
+use crate::entity::{EntityNbtLoadError, SharedEntity};
 
 /// A vanilla `/data` target provider.
 #[derive(Clone, Copy, Debug)]
@@ -136,13 +136,6 @@ impl DataAccessor {
                 Ok(())
             }
             Target::Entity(entity) => {
-                // Vanilla `EntityDataAccessor.setData` refuses player data outright.
-                if entity.as_player().is_some() {
-                    return Err(CommandSyntaxError::dynamic(TextComponent::from(
-                        &translations::COMMANDS_DATA_ENTITY_INVALID,
-                    )));
-                }
-
                 let mut bytes = Vec::new();
                 data.write(&mut bytes);
                 let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).map_err(
@@ -156,8 +149,13 @@ impl DataAccessor {
                 // entity identity; vanilla loads then restores the original id.
                 entity
                     .load_command_data((&borrowed).into())
-                    .map_err(|error| {
-                        CommandSyntaxError::dynamic(format!("Failed to apply entity data: {error}"))
+                    .map_err(|error| match error {
+                        EntityNbtLoadError::PlayerData => CommandSyntaxError::dynamic(
+                            TextComponent::from(&translations::COMMANDS_DATA_ENTITY_INVALID),
+                        ),
+                        error @ EntityNbtLoadError::Movement(_) => CommandSyntaxError::dynamic(
+                            format!("Failed to apply entity data: {error}"),
+                        ),
                     })?;
                 Ok(())
             }

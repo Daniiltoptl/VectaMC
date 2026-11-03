@@ -824,6 +824,7 @@ pub(crate) use entity::apply_entity_look_at;
 pub(crate) use entity::position_rider_default;
 pub use entity::{
     AcceptedClientMovement, AcceptedClientMovementOutcome, Entity, EntityEventSource,
+    EntityNbtLoadError,
 };
 pub use fluid_contact::EntityFluidContact;
 pub use identity::EntityGeneration;

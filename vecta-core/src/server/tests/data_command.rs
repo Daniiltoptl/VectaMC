@@ -42,7 +42,7 @@ fn items_payload(entries: Vec<NbtCompound>) -> String {
     to_canonical_snbt(&NbtTag::Compound(payload)).expect("payload renders as SNBT")
 }
 
-fn with_world(
+pub(super) fn with_world(
     key: &'static str,
     test: impl FnOnce(&Arc<Server>, &Arc<World>, &Arc<Player>, &Arc<SyncMutex<Vec<EncodedPacket>>>),
 ) {
@@ -98,7 +98,7 @@ fn with_world(
     });
 }
 
-fn source(server: &Arc<Server>, player: &Arc<Player>) -> CommandSource {
+pub(super) fn source(server: &Arc<Server>, player: &Arc<Player>) -> CommandSource {
     CommandSource::new(
         CommandSender::Player(Arc::clone(player)),
         Arc::clone(server),
@@ -106,7 +106,7 @@ fn source(server: &Arc<Server>, player: &Arc<Player>) -> CommandSource {
 }
 
 /// Runs one command and returns the reported `(success, result)`.
-fn run(server: &Server, source: &CommandSource, command: &str) -> (bool, i32) {
+pub(super) fn run(server: &Server, source: &CommandSource, command: &str) -> (bool, i32) {
     let result = Arc::new(SyncMutex::new(None));
     let slot = Arc::clone(&result);
     let callback = CommandResultCallback::new(move |success, value| {
@@ -580,189 +580,4 @@ fn data_rejects_invalid_targets_and_unchanged_merges() {
             );
         },
     );
-}
-
-fn spawn_sheep(world: &Arc<World>, position: DVec3) -> SharedEntity {
-    use crate::entity::entities::SheepEntity;
-
-    let sheep = Arc::new(SheepEntity::new(
-        &vanilla_entities::SHEEP,
-        next_entity_id(),
-        position,
-        Arc::downgrade(world),
-    ));
-    world
-        .try_add_entity(Arc::clone(&sheep) as SharedEntity)
-        .expect("sheep in a loaded chunk");
-    sheep
-}
-
-#[test]
-fn data_entity_reads_and_rewrites_live_entity_state() {
-    with_world(
-        "data_entity_live_state",
-        |server, world, player, _packets| {
-            let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
-            let source = source(server, player);
-
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data get entity @e[type=minecraft:sheep,limit=1] Pos"
-                ),
-                (true, 3),
-                "`Pos` is a collection, so `get` reports its size"
-            );
-
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data merge entity @e[type=minecraft:sheep,limit=1] {CustomName:'Named',NoGravity:1b}"
-                ),
-                (true, 1)
-            );
-            assert_eq!(
-                sheep
-                    .custom_name()
-                    .map(|name| name.to_plain(&DisplayResolutor)),
-                Some("Named".to_owned()),
-                "the live entity receives the merged name"
-            );
-            assert!(sheep.is_no_gravity());
-
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data modify entity @e[type=minecraft:sheep,limit=1] Motion set value [1.0d,0.0d,0.0d]"
-                ),
-                (true, 1)
-            );
-            assert_eq!(sheep.velocity().x, 1.0);
-
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data remove entity @e[type=minecraft:sheep,limit=1] NoGravity"
-                ),
-                (true, 1)
-            );
-            assert!(!sheep.is_no_gravity());
-        },
-    );
-}
-
-#[test]
-fn data_entity_resets_omitted_fields_and_keeps_the_uuid() {
-    with_world(
-        "data_entity_reset_semantics",
-        |server, world, player, _packets| {
-            let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
-            let uuid = sheep.uuid();
-            let source = source(server, player);
-
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data merge entity @e[type=minecraft:sheep,limit=1] {CustomName:'Named',NoGravity:1b,Tags:[\"marked\"]}"
-                ),
-                (true, 1)
-            );
-            assert!(sheep.is_no_gravity());
-
-            // `remove` drops a field from the compound that is written back, so
-            // vanilla `Entity.load` resets it to the default instead of keeping
-            // the previous value.
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data remove entity @e[type=minecraft:sheep,limit=1] NoGravity"
-                ),
-                (true, 1)
-            );
-            assert!(
-                !sheep.is_no_gravity(),
-                "an absent NoGravity is reset instead of kept"
-            );
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data remove entity @e[type=minecraft:sheep,limit=1] CustomName"
-                ),
-                (true, 1)
-            );
-            assert!(
-                sheep.custom_name().is_none(),
-                "an absent CustomName is reset instead of kept"
-            );
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data remove entity @e[type=minecraft:sheep,limit=1] Tags"
-                ),
-                (true, 1)
-            );
-            assert!(sheep.tags().is_empty(), "absent Tags are cleared");
-
-            // Vanilla loads the payload and then restores the original UUID.
-            assert_eq!(
-                run(
-                    server,
-                    &source,
-                    "data merge entity @e[type=minecraft:sheep,limit=1] {UUID:[I;0,0,0,0]}"
-                ),
-                (true, 1)
-            );
-            assert_eq!(
-                sheep.uuid(),
-                uuid,
-                "a payload UUID cannot rename the entity identity"
-            );
-        },
-    );
-}
-
-#[test]
-fn data_entity_refuses_player_data_and_reports_failure() {
-    with_world(
-        "data_entity_player_rejection",
-        |server, world, player, _packets| {
-            let _ = world;
-            let source = source(server, player);
-            let (success, _) = run(server, &source, "data merge entity @s {CustomName:'\"X\"'}");
-            assert!(
-                !success,
-                "vanilla `EntityDataAccessor.setData` rejects player data"
-            );
-            assert!(player.custom_name().is_none());
-        },
-    );
-}
-
-#[test]
-fn execute_store_entity_writes_through_the_shared_loader() {
-    with_world("execute_store_entity", |server, world, player, _packets| {
-        let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
-        let source = source(server, player);
-
-        let (success, stored) = run(
-            server,
-            &source,
-            "execute store result entity @e[type=minecraft:sheep,limit=1] PortalCooldown int 1 run data get entity @s Air",
-        );
-        assert!(success);
-        assert!(stored > 0, "the inner `data get` reports the air supply");
-        assert_eq!(
-            sheep.portal_cooldown(),
-            stored,
-            "`execute store entity` writes through the same live entity loader"
-        );
-    });
 }

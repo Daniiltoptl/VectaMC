@@ -235,6 +235,7 @@ mod block_entity_item_data;
 mod book_resolution;
 mod connection_lifecycle;
 mod data_command;
+mod data_entity;
 mod player_limit;
 
 #[test]

@@ -224,6 +224,9 @@ pub trait LivingEntity: Entity {
     /// Appends vanilla-shaped living state used by command NBT predicates.
     fn save_command_nbt(&self, nbt: &mut NbtCompound) {
         nbt.insert("Health", self.get_health());
+        if self.invulnerable_time() > 0 {
+            nbt.insert("invulnerable_time", self.invulnerable_time());
+        }
         nbt.insert(
             "HurtTime",
             NbtTag::Short(self.living_base().hurt_time() as i16),

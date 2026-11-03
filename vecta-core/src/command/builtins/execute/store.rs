@@ -26,7 +26,7 @@ use crate::scoreboard::{ScoreHolder, Scoreboard, ScoreboardError, ScoreboardObje
 use crate::{
     block_entity::{BlockEntityLoadContext, SharedBlockEntity},
     command::storage::CommandStorage,
-    entity::SharedEntity,
+    entity::{EntityNbtLoadError, SharedEntity},
 };
 
 type Builder = CommandNodeBuilder<CommandSource, VectaCommandRuntime>;
@@ -48,7 +48,7 @@ pub(super) fn target(name: &'static str, store_result: bool) -> Builder {
         )
         .then(
             literal("entity").then(
-                argument("targets", VectaArgumentType::entities())
+                argument("target", VectaArgumentType::entity())
                     .then(data_path(StoreDataTarget::Entity, store_result)),
             ),
         )
@@ -154,19 +154,14 @@ fn store_entity_data(
     data_type: StoreDataType,
     store_result: bool,
 ) -> Result<CommandSource, CommandSyntaxError> {
-    let entities = context.entities("targets")?;
+    let entity = context.entity("target")?;
     let path = parsed_path(context)?;
     let scale = parsed_scale(context)?;
     let source = context.source();
     let callback = CommandResultCallback::new(move |success, result| {
         let value = stored_value(store_result, success, result);
-        for entity in &entities {
-            if store_entity_data_value(entity, &path, data_type.tag(value, scale)).is_err() {
-                tracing::warn!(
-                    entity = entity.id(),
-                    "failed to store execute result in entity"
-                );
-            }
+        if let Err(error) = store_entity_data_value(&entity, &path, data_type.tag(value, scale)) {
+            tracing::debug!(entity = entity.id(), %error, "execute store entity was rejected");
         }
     });
     let callback = CommandResultCallback::chain(source.callback(), callback);
@@ -185,7 +180,7 @@ fn store_entity_data_value(
         .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)?;
     entity
         .load_command_data((&borrowed).into())
-        .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)
+        .map_err(StoreDataMutationError::EntityLoad)
 }
 
 fn store_block_data(
@@ -343,6 +338,7 @@ enum StoreDataMutationError {
     Path(NbtPathMutationError),
     ExpectedCompoundRoot,
     InvalidWrittenNbt,
+    EntityLoad(EntityNbtLoadError),
 }
 
 impl fmt::Display for StoreDataMutationError {
@@ -351,6 +347,7 @@ impl fmt::Display for StoreDataMutationError {
             Self::Path(error) => write!(formatter, "{error}"),
             Self::ExpectedCompoundRoot => write!(formatter, "NBT mutation replaced compound root"),
             Self::InvalidWrittenNbt => write!(formatter, "mutated NBT could not be reborrowed"),
+            Self::EntityLoad(error) => write!(formatter, "{error}"),
         }
     }
 }

@@ -1,4 +1,6 @@
 use std::collections::BTreeSet;
+use thiserror::Error;
+use vecta_utils::nbt::{NbtNumeric as _, nbt_list_values};
 
 use super::*;
 use crate::entity::block_attached_entity::BlockAttachedEntity;
@@ -43,19 +45,61 @@ fn landing_particle_position(entity_position: DVec3, landing_pos: BlockPos) -> D
 }
 
 fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
-    let values = nbt.list(key)?.doubles()?;
-    let &[x, y, z, ..] = values.as_slice() else {
+    let values = read_nbt_collection(nbt, key)?;
+    let [x, y, z, ..] = values.as_slice() else {
         return None;
     };
-    Some(DVec3::new(x, y, z))
+    Some(DVec3::new(x.codec_f64()?, y.codec_f64()?, z.codec_f64()?))
 }
 
 fn read_nbt_rotation(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<(f32, f32)> {
-    let values = nbt.list(key)?.floats()?;
-    let &[yaw, pitch, ..] = values.as_slice() else {
+    let values = read_nbt_collection(nbt, key)?;
+    let [yaw, pitch, ..] = values.as_slice() else {
         return None;
     };
-    Some((yaw, pitch))
+    Some((yaw.codec_f32()?, pitch.codec_f32()?))
+}
+
+fn read_nbt_collection(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Vec<NbtTag>> {
+    match nbt.get(key)?.to_owned() {
+        NbtTag::List(list) => Some(nbt_list_values(&list)),
+        NbtTag::ByteArray(values) => Some(
+            values
+                .into_iter()
+                .map(|value| NbtTag::Byte(value as i8))
+                .collect(),
+        ),
+        NbtTag::IntArray(values) => Some(values.into_iter().map(NbtTag::Int).collect()),
+        NbtTag::LongArray(values) => Some(values.into_iter().map(NbtTag::Long).collect()),
+        _ => None,
+    }
+}
+
+fn read_nbt_int(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<i32> {
+    let tag = nbt.get(key)?;
+    tag.byte()
+        .map(i32::from)
+        .or_else(|| tag.short().map(i32::from))
+        .or_else(|| tag.int())
+        .or_else(|| tag.long().map(|value| value as i32))
+        .or_else(|| tag.float().map(|value| value.floor() as i32))
+        .or_else(|| tag.double().map(|value| value.floor() as i32))
+}
+
+fn read_nbt_bool(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<bool> {
+    // TagValueInput.getBooleanOr uses NumericTag.byteValue, not Codec.BOOL.
+    read_nbt_int(nbt, key).map(|value| value as i8 != 0)
+}
+
+/// Failures applying command NBT to a live entity.
+#[derive(Debug, Error)]
+pub enum EntityNbtLoadError {
+    /// Vanilla forbids command NBT writes to players.
+    #[error("player data cannot be modified")]
+    PlayerData,
+    /// World tracking rejected the requested position.
+    #[error(transparent)]
+    Movement(#[from] EntityMoveError),
 }
 
 /// How an entity NBT load treats fields the payload omits.
@@ -3888,7 +3932,7 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         debug_assert!(loaded.is_ok(), "a merge load never reports a move failure");
     }
 
-    /// Applies command-written NBT with vanilla `Entity.load` reset semantics.
+    /// Applies command-written base NBT and the implemented subtype loaders.
     ///
     /// Vanilla `EntityDataAccessor.setData` reloads the whole base state, so a
     /// field the payload omits returns to its default instead of keeping the
@@ -3897,8 +3941,12 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     fn load_command_data(
         &self,
         nbt: BorrowedNbtCompoundView<'_, '_>,
-    ) -> Result<(), EntityMoveError> {
-        self.apply_entity_nbt(nbt, EntityNbtLoad::Reset)
+    ) -> Result<(), EntityNbtLoadError> {
+        if self.as_player().is_some() {
+            return Err(EntityNbtLoadError::PlayerData);
+        }
+        self.apply_entity_nbt(nbt, EntityNbtLoad::Reset)?;
+        Ok(())
     }
 
     /// Applies the shared base entity fields for both load modes.
@@ -3917,11 +3965,6 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         mode: EntityNbtLoad,
     ) -> Result<(), EntityMoveError> {
         let reset = mode == EntityNbtLoad::Reset;
-        let read_int = |key: &str| {
-            nbt.int(key)
-                .or_else(|| nbt.short(key).map(i32::from))
-                .or_else(|| nbt.byte(key).map(i32::from))
-        };
 
         let position = load_value_or(reset, read_nbt_dvec3(&nbt, "Pos"), DVec3::ZERO);
         if let Some(position) = position
@@ -3936,6 +3979,9 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
 
         if let Some(motion) = load_value_or(reset, read_nbt_dvec3(&nbt, "Motion"), DVec3::ZERO) {
             self.set_velocity(sanitize_nbt_motion(motion));
+            if reset {
+                self.base().mark_velocity_sync();
+            }
         }
 
         if let Some((yaw, pitch)) =
@@ -3948,36 +3994,30 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
             }
         }
 
-        let fall_distance = nbt
-            .double("fall_distance")
-            .or_else(|| nbt.double("FallDistance"));
+        let fall_distance = nbt.get("fall_distance").and_then(|tag| tag.codec_f64());
         if let Some(fall_distance) = load_value_or(reset, fall_distance, 0.0) {
             self.set_fall_distance(fall_distance);
         }
 
-        if let Some(on_ground) =
-            load_value_or(reset, nbt.byte("OnGround").map(|value| value != 0), false)
-        {
+        if let Some(on_ground) = load_value_or(reset, read_nbt_bool(&nbt, "OnGround"), false) {
             self.set_on_ground(on_ground);
         }
 
         let mut save_data = self.base().save_data();
-        if let Some(air_supply) = load_value_or(reset, read_int("Air"), self.max_air_supply()) {
+        if let Some(air_supply) =
+            load_value_or(reset, read_nbt_int(&nbt, "Air"), self.max_air_supply())
+        {
             save_data.air_supply = air_supply;
         }
-        if let Some(portal_cooldown) = load_value_or(reset, read_int("PortalCooldown"), 0) {
+        if let Some(portal_cooldown) = load_value_or(reset, read_nbt_int(&nbt, "PortalCooldown"), 0)
+        {
             save_data.portal_cooldown = portal_cooldown;
         }
-        if let Some(no_gravity) =
-            load_value_or(reset, nbt.byte("NoGravity").map(|value| value != 0), false)
-        {
+        if let Some(no_gravity) = load_value_or(reset, read_nbt_bool(&nbt, "NoGravity"), false) {
             save_data.no_gravity = no_gravity;
         }
-        if let Some(invulnerable) = load_value_or(
-            reset,
-            nbt.byte("Invulnerable").map(|value| value != 0),
-            false,
-        ) {
+        if let Some(invulnerable) = load_value_or(reset, read_nbt_bool(&nbt, "Invulnerable"), false)
+        {
             save_data.invulnerable = invulnerable;
         }
         let custom_name = nbt
@@ -3986,21 +4026,15 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         if reset || custom_name.is_some() {
             save_data.custom_name = custom_name;
         }
-        if let Some(custom_name_visible) = load_value_or(
-            reset,
-            nbt.byte("CustomNameVisible").map(|value| value != 0),
-            false,
-        ) {
+        if let Some(custom_name_visible) =
+            load_value_or(reset, read_nbt_bool(&nbt, "CustomNameVisible"), false)
+        {
             save_data.custom_name_visible = custom_name_visible;
         }
-        if let Some(silent) =
-            load_value_or(reset, nbt.byte("Silent").map(|value| value != 0), false)
-        {
+        if let Some(silent) = load_value_or(reset, read_nbt_bool(&nbt, "Silent"), false) {
             save_data.silent = silent;
         }
-        if let Some(glowing) =
-            load_value_or(reset, nbt.byte("Glowing").map(|value| value != 0), false)
-        {
+        if let Some(glowing) = load_value_or(reset, read_nbt_bool(&nbt, "Glowing"), false) {
             save_data.glowing = glowing;
         }
         let tags = nbt
@@ -4021,17 +4055,24 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         }
         self.base().replace_save_data(save_data);
 
-        if let Some(remaining_fire_ticks) = load_value_or(reset, read_int("Fire"), 0) {
+        if let Some(remaining_fire_ticks) = load_value_or(
+            reset,
+            read_nbt_int(&nbt, "Fire").map(|value| i32::from(value as i16)),
+            0,
+        ) {
             self.set_remaining_fire_ticks(remaining_fire_ticks);
         }
-        if let Some(ticks_frozen) = load_value_or(reset, read_int("TicksFrozen"), 0) {
+        if let Some(ticks_frozen) = load_value_or(reset, read_nbt_int(&nbt, "TicksFrozen"), 0) {
             self.set_ticks_frozen(ticks_frozen);
         }
-        if let Some(has_visual_fire) = load_value_or(
-            reset,
-            nbt.byte("HasVisualFire").map(|value| value != 0),
-            false,
-        ) {
+        if let Some(living) = self.as_living_entity()
+            && let Some(time) = load_value_or(reset, read_nbt_int(&nbt, "invulnerable_time"), 0)
+        {
+            living.set_invulnerable_time(time);
+        }
+        if let Some(has_visual_fire) =
+            load_value_or(reset, read_nbt_bool(&nbt, "HasVisualFire"), false)
+        {
             self.base().set_visual_fire(has_visual_fire);
         }
 
