@@ -236,6 +236,7 @@ mod book_resolution;
 mod connection_lifecycle;
 mod data_command;
 mod data_entity;
+mod living_load;
 mod player_limit;
 
 #[test]

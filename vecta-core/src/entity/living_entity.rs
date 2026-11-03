@@ -67,6 +67,8 @@ pub trait LivingEntity: Entity {
         self.tick_living_environmental_damage();
         self.living_base().decrement_hurt_time();
         self.living_base().tick_last_hurt_by_player_memory();
+        // Resolve UUID-only loaded references before applying combat-memory expiry.
+        let _ = self.last_hurt_by_mob();
         self.living_base()
             .tick_living_combat_memory(self.tick_count());
     }
@@ -521,7 +523,8 @@ pub trait LivingEntity: Entity {
         // A reference restored from NBT only carries the UUID until the mob is
         // loaded, so resolve it through the world directory on demand.
         let uuid = self.living_base().last_hurt_by_mob_uuid()?;
-        let entity = self.level()?.get_entity_by_uuid(&uuid)?;
+        let entity = self.level()?.get_entity_in_domain_by_uuid(&uuid)?;
+        entity.as_living_entity()?;
         self.living_base().remember_last_hurt_by_mob(&entity);
         Some(entity)
     }
@@ -2970,6 +2973,35 @@ pub trait LivingEntity: Entity {
         None
     }
 
+    /// Moves to the bed surface without starting a new sleep interaction.
+    fn set_pos_to_bed(&self, bed_position: BlockPos) -> Result<(), EntityMoveError> {
+        let world = self.level().ok_or(EntityMoveError::NotLive {
+            entity_id: self.id(),
+        })?;
+        let state = world.get_block_state(bed_position);
+        let sleep_height = BLOCK_BEHAVIORS
+            .get_behavior(state.get_block())
+            .get_sleep_height(state, world.as_ref(), bed_position)
+            .ok_or(EntityMoveError::InvalidSleepPosition {
+                entity_id: self.id(),
+                bed_position,
+            })?;
+        self.set_pos_to_bed_with_height(sleep_height, bed_position)
+    }
+
+    /// Moves to the bed without changing occupancy, riding, pose or velocity.
+    fn set_pos_to_bed_with_height(
+        &self,
+        sleep_height: f64,
+        bed_position: BlockPos,
+    ) -> Result<(), EntityMoveError> {
+        self.try_set_position(DVec3::new(
+            f64::from(bed_position.x()) + 0.5,
+            f64::from(bed_position.y()) + sleep_height + BED_SLEEP_POSITION_OFFSET,
+            f64::from(bed_position.z()) + 0.5,
+        ))
+    }
+
     /// Starts sleeping at the given bed position.
     fn start_sleeping(&self, bed_position: BlockPos) -> Result<(), EntityMoveError> {
         let Some(world) = self.level() else {
@@ -2993,11 +3025,7 @@ pub trait LivingEntity: Entity {
             self.stop_riding();
         }
 
-        self.try_set_position(DVec3::new(
-            f64::from(bed_position.x()) + 0.5,
-            f64::from(bed_position.y()) + sleep_height + BED_SLEEP_POSITION_OFFSET,
-            f64::from(bed_position.z()) + 0.5,
-        ))?;
+        self.set_pos_to_bed_with_height(sleep_height, bed_position)?;
 
         if block_state.is_bed() {
             world.set_block(
@@ -3010,6 +3038,7 @@ pub trait LivingEntity: Entity {
         self.set_pose(EntityPose::Sleeping);
         self.set_sleeping_pos(bed_position);
         self.set_velocity(DVec3::ZERO);
+        self.base().mark_velocity_sync();
         Ok(())
     }
 

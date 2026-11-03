@@ -6,19 +6,18 @@
 //! attribution, equipment and the impulse context. It mirrors
 //! `LivingEntity.readAdditionalSaveData`/`addAdditionalSaveData` field by field.
 //!
-//! Vanilla 26.3 has no saved data for the brain or the locator-bar icon in this
-//! method's supported scope: Vecta has neither foundation, so those two fields
-//! are neither read nor written instead of being faked.
+//! Brain and locator-bar icon persistence are not implemented in Vecta yet.
 
 use std::str::FromStr;
 
 use simdnbt::owned::{NbtList, NbtTag};
 use vecta_registry::REGISTRY;
 use vecta_registry::attribute::AttributeRef;
-use vecta_utils::{BlockPos, Identifier};
+use vecta_utils::{BlockPos, Identifier, nbt::NbtNumeric as _};
 
 use super::entity::{
-    load_value_or, read_nbt_bool, read_nbt_dvec3, read_nbt_f32, read_nbt_int, read_uuid,
+    load_value_or, read_nbt_bool, read_nbt_dvec3, read_nbt_f32, read_nbt_int, read_nbt_int_stream,
+    read_uuid,
 };
 use super::*;
 use crate::entity::attribute::{AttributeModifier, AttributeModifierOperation};
@@ -108,10 +107,8 @@ pub(crate) fn load_living_data<E: LivingEntity + ?Sized>(
 
     load_attributes(entity, nbt);
 
-    match read_effects(nbt) {
-        Some(effects) => living.replace_active_mob_effects(effects),
-        None if reset => living.replace_active_mob_effects(Vec::new()),
-        None => {}
+    if reset || nbt.get("active_effects").is_some() {
+        living.replace_active_mob_effects(read_effects(nbt).unwrap_or_default());
     }
 
     // Attributes load first, so the health clamp sees the loaded max health.
@@ -121,10 +118,10 @@ pub(crate) fn load_living_data<E: LivingEntity + ?Sized>(
     }
 
     if let Some(hurt_time) = load_value_or(reset, read_nbt_int(nbt, "HurtTime"), 0) {
-        living.set_hurt_time(hurt_time);
+        living.set_hurt_time(i32::from(hurt_time as i16));
     }
     if let Some(death_time) = load_value_or(reset, read_nbt_int(nbt, "DeathTime"), 0) {
-        living.set_death_time(death_time);
+        living.set_death_time(i32::from(death_time as i16));
     }
     if let Some(fall_flying) = load_value_or(reset, read_nbt_bool(nbt, "FallFlying"), false) {
         entity.set_fall_flying(fall_flying);
@@ -167,17 +164,18 @@ fn load_attributes<E: LivingEntity + ?Sized>(entity: &E, nbt: &BorrowedNbtCompou
         };
 
         // `ExtraCodecs.optionalAlwaysPresentFieldOf` defaults a missing base to 0.
-        attributes.set_base_value(attribute, packed.double("base").unwrap_or(0.0));
-
-        let Some(modifiers) = packed.list("modifiers").and_then(|list| list.compounds()) else {
-            continue;
-        };
-        for packed_modifier in modifiers {
-            let Some(modifier) = read_attribute_modifier(&packed_modifier) else {
-                continue;
-            };
-            attributes.set_modifier(attribute, modifier, true);
-        }
+        let base = packed
+            .get("base")
+            .and_then(|tag| tag.codec_f64())
+            .unwrap_or(0.0);
+        let modifiers = packed
+            .list("modifiers")
+            .and_then(|list| list.compounds())
+            .into_iter()
+            .flat_map(IntoIterator::into_iter)
+            .filter_map(|modifier| read_attribute_modifier(&modifier))
+            .collect();
+        attributes.apply_packed(attribute, base, modifiers);
     }
 }
 
@@ -191,19 +189,20 @@ fn read_attribute_modifier(nbt: &BorrowedNbtCompoundView<'_, '_>) -> Option<Attr
     let operation = AttributeModifierOperation::by_name(&nbt.string("operation")?.to_string())?;
     Some(AttributeModifier {
         id,
-        amount: nbt.double("amount")?,
+        amount: nbt.get("amount")?.codec_f64()?,
         operation,
     })
 }
 
-/// Reads `active_effects`, failing the whole list on an unknown entry.
+/// Retains the successfully decoded entries from a partial list result.
 fn read_effects(nbt: &BorrowedNbtCompoundView<'_, '_>) -> Option<Vec<MobEffectInstance>> {
     let compounds = nbt.list("active_effects")?.compounds()?;
-    let mut effects = Vec::new();
-    for compound in compounds {
-        effects.push(MobEffectInstance::from_vanilla_nbt(&compound)?);
-    }
-    Some(effects)
+    Some(
+        compounds
+            .into_iter()
+            .filter_map(|compound| MobEffectInstance::from_vanilla_nbt(&compound))
+            .collect(),
+    )
 }
 
 fn load_sleeping_state<E: LivingEntity + ?Sized>(
@@ -211,9 +210,8 @@ fn load_sleeping_state<E: LivingEntity + ?Sized>(
     nbt: &BorrowedNbtCompoundView<'_, '_>,
     reset: bool,
 ) {
-    let sleeping_pos = nbt
-        .int_array("sleeping_pos")
-        .filter(|pos| pos.len() == 3)
+    let sleeping_pos = read_nbt_int_stream(nbt, "sleeping_pos")
+        .filter(|pos| pos.len() >= 3)
         .map(|pos| BlockPos::new(pos[0], pos[1], pos[2]));
 
     let Some(bed_position) = sleeping_pos else {
@@ -227,7 +225,7 @@ fn load_sleeping_state<E: LivingEntity + ?Sized>(
     entity.set_pose(EntityPose::Sleeping);
     // A freshly created entity is still on its first tick and keeps the saved
     // position, exactly like vanilla's `!this.firstTick` guard.
-    if !entity.base().is_first_tick() && entity.start_sleeping(bed_position).is_err() {
+    if !entity.base().is_first_tick() && entity.set_pos_to_bed(bed_position).is_err() {
         entity.stop_sleeping();
     }
 }
@@ -245,6 +243,11 @@ fn load_combat_references<E: LivingEntity + ?Sized>(
         None if reset => entity.living_base().clear_last_hurt_by_player(),
         None => {}
     }
+    if reset || nbt.get("last_hurt_by_player_memory_time").is_some() {
+        entity.living_base().set_last_hurt_by_player_memory_time(
+            read_nbt_int(nbt, "last_hurt_by_player_memory_time").unwrap_or(0),
+        );
+    }
 
     // Vanilla stores the timestamp as "ticks since the hit", not an absolute one.
     let ticks_since_hit = read_nbt_int(nbt, "ticks_since_last_hurt_by_mob").unwrap_or(0);
@@ -255,7 +258,7 @@ fn load_combat_references<E: LivingEntity + ?Sized>(
         ),
         None if reset => entity
             .living_base()
-            .set_last_hurt_by_mob_uuid(None, entity.tick_count()),
+            .set_last_hurt_by_mob_uuid(None, entity.tick_count().wrapping_sub(ticks_since_hit)),
         None => {}
     }
 }

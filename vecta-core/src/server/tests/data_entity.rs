@@ -8,13 +8,13 @@ use crate::scoreboard::ScoreHolder;
 use vecta_registry::vanilla_mob_effects;
 use vecta_utils::WorldAabb;
 
-fn living(entity: &SharedEntity) -> &dyn LivingEntity {
+pub(super) fn living(entity: &SharedEntity) -> &dyn LivingEntity {
     entity
         .as_living_entity()
         .expect("the fixture is a living entity")
 }
 
-fn spawn_sheep(world: &Arc<World>, position: DVec3) -> SharedEntity {
+pub(super) fn spawn_sheep(world: &Arc<World>, position: DVec3) -> SharedEntity {
     use crate::entity::entities::SheepEntity;
 
     let sheep = Arc::new(SheepEntity::new(

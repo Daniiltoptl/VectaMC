@@ -26,12 +26,12 @@ use vecta_registry::vanilla_entity_data::VanillaLivingEntityData;
 use vecta_registry::vanilla_mob_effects;
 use vecta_registry::{REGISTRY, RegistryExt as _};
 use vecta_utils::locks::{IntoShared, Shared, SyncMutex};
+use vecta_utils::nbt::NbtNumeric as _;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, Identifier};
 
 use crate::behavior::MOB_EFFECT_BEHAVIORS;
 use crate::entity::attribute::{AttributeMap, AttributeModifier, AttributeModifierOperation};
-use crate::entity::entity::{read_nbt_bool, read_nbt_int};
 use crate::entity::synced_data::EntitySyncedData;
 use crate::entity::{BorrowedNbtCompoundView, LivingEntity, SharedEntity, WeakEntity};
 use crate::inventory::equipment::{EntityEquipment, EquipmentSlot, OwnedEntityEquipment};
@@ -177,9 +177,7 @@ impl MobEffectInstance {
 
     /// Parses vanilla's `MobEffectInstance.CODEC` shape.
     ///
-    /// Returns `None` for an unknown effect id. Vanilla treats that as a failed
-    /// codec decode for the whole `active_effects` list, so the caller drops the
-    /// list instead of keeping the entries it could parse.
+    /// Returns `None` when the required effect id cannot be decoded.
     #[must_use]
     pub(crate) fn from_vanilla_nbt(nbt: &BorrowedNbtCompoundView<'_, '_>) -> Option<Self> {
         let key = Identifier::from_str(&nbt.string("id")?.to_string()).ok()?;
@@ -190,15 +188,31 @@ impl MobEffectInstance {
     fn from_vanilla_details(effect: MobEffectRef, nbt: &BorrowedNbtCompoundView<'_, '_>) -> Self {
         // `amplifier` is an unsigned byte; `show_icon` falls back to
         // `show_particles` when the payload omits it.
-        let amplifier = i32::from(nbt.byte("amplifier").unwrap_or(0) as u8);
-        let visible = read_nbt_bool(nbt, "show_particles").unwrap_or(true);
+        let amplifier = i32::from(
+            nbt.get("amplifier")
+                .and_then(|tag| tag.codec_i32())
+                .unwrap_or(0) as u8,
+        );
+        let visible = nbt
+            .get("show_particles")
+            .and_then(|tag| tag.codec_bool())
+            .unwrap_or(true);
         Self {
             effect,
-            duration: read_nbt_int(nbt, "duration").unwrap_or(0),
+            duration: nbt
+                .get("duration")
+                .and_then(|tag| tag.codec_i32())
+                .unwrap_or(0),
             amplifier: clamp_effect_amplifier(amplifier),
-            ambient: read_nbt_bool(nbt, "ambient").unwrap_or(false),
+            ambient: nbt
+                .get("ambient")
+                .and_then(|tag| tag.codec_bool())
+                .unwrap_or(false),
             visible,
-            show_icon: read_nbt_bool(nbt, "show_icon").unwrap_or(visible),
+            show_icon: nbt
+                .get("show_icon")
+                .and_then(|tag| tag.codec_bool())
+                .unwrap_or(visible),
             hidden_effect: nbt
                 .compound("hidden_effect")
                 .map(|hidden| Box::new(Self::from_vanilla_details(effect, &hidden))),
@@ -1111,27 +1125,18 @@ impl LivingEntityBase {
     /// modifier installation) do not run. Effect modifiers reach the attribute
     /// map through the saved `attributes` list instead, exactly like vanilla.
     pub fn replace_active_mob_effects(&self, effects: Vec<MobEffectInstance>) {
-        let mut removed = Vec::new();
+        let has_effects = !effects.is_empty();
         {
             let mut active = self.active_mob_effects.lock();
-            removed.extend(active.keys().copied());
             active.clear();
-            for effect in &effects {
-                active.insert(effect.effect, effect.clone());
+            for effect in effects {
+                active.insert(effect.effect, effect);
             }
         }
-
-        self.mark_effects_dirty();
-        for effect in removed {
-            if !effects.iter().any(|loaded| loaded.effect == effect) {
-                self.queue_mob_effect_sync(MobEffectSyncChange::Remove { effect });
-            }
-        }
-        for effect in effects {
-            self.queue_mob_effect_sync(MobEffectSyncChange::Update {
-                effect,
-                blend_for_self: true,
-            });
+        // Loading writes the map directly; gameplay effect hooks and packets
+        // do not run. Vanilla marks display state dirty while inserting entries.
+        if has_effects {
+            self.mark_effects_dirty();
         }
     }
 
@@ -1731,7 +1736,7 @@ impl LivingEntityBase {
             return Some(player);
         }
         world
-            .get_entity_by_uuid(&uuid)
+            .get_entity_in_domain_by_uuid(&uuid)
             .filter(|entity| entity.as_player().is_some())
     }
 

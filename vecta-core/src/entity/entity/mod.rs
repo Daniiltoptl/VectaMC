@@ -1,6 +1,6 @@
 use std::collections::BTreeSet;
 use thiserror::Error;
-use vecta_utils::nbt::{NbtNumeric as _, nbt_list_values};
+use vecta_utils::nbt::{NbtNumeric, nbt_list_values};
 
 use super::*;
 use crate::entity::block_attached_entity::BlockAttachedEntity;
@@ -99,10 +99,21 @@ pub(super) fn read_nbt_f32(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> 
         .or_else(|| tag.double().map(|value| value as f32))
 }
 
-/// Reads a UUID stored as the vanilla four-int array.
+pub(super) fn read_nbt_int_stream(
+    nbt: &BorrowedNbtCompoundView<'_, '_>,
+    key: &str,
+) -> Option<Vec<i32>> {
+    let values = read_nbt_collection(nbt, key)?;
+    values.iter().map(NbtNumeric::codec_i32).collect()
+}
+
+/// Reads a UUID, including the valid prefix of an overlong numeric codec input.
 pub(super) fn read_uuid(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Uuid> {
-    let values = nbt.int_array(key)?;
-    Uuid::from_int_array(&values)
+    let values = read_nbt_int_stream(nbt, key)?;
+    let [a, b, c, d, ..] = values.as_slice() else {
+        return None;
+    };
+    Uuid::from_int_array(&[*a, *b, *c, *d])
 }
 
 pub(super) fn read_nbt_bool(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<bool> {
