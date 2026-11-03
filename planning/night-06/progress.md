@@ -379,3 +379,27 @@ Cargo предупредил о mimalloc/dhat cfg; dependency сохранена
 Следующий ID: placement read context, затем G024/entity NBT и
 [большая очередь](../../WORKBUDDY_CONTINUE_06_05.md) из12 направлений (>150 карточек).
 G023 без карт не делать главным объёмом следующего сеанса.
+
+## Сеанс 5: placement context, region I/O, `/data entity`
+
+Полные детали — в [report-next-05.md](report-next-05.md).
+
+1. **B-06-09 снят.** `BlockEntityLoadContext::for_server_world` + передача
+   контекста из `BlockItem::place_with` через `player.server.upgrade()`.
+   `load_item_custom_data` теперь `load_additional_with_context`. Книга кафедры
+   разрешается при авторизованной установке и не переразрешается при reload.
+2. **W06-105: настоящий region I/O.** Новый тест пишет `.mca` через
+   `RegionManager` и читает обратно. Нашёл две реальные ошибки: сохранение
+   писало `save_additional` без карты компонентов, а factory-загрузка читала
+   `load_additional` вместо `load_with_components`. Обе исправлены по vanilla
+   `LevelChunk`; detached-контекст сохраняет «диск не разрешает текст».
+3. **B-06-06 снят для провайдера.** `Entity::apply_entity_nbt` с режимами
+   Merge/Reset, `Entity::load_command_data`, провайдер `entity` в `/data`
+   (get/merge/remove/modify, отказ игрокам, UUID не читается), `/execute store
+   entity` на том же загрузчике.
+
+Partial: `modify … compute` (нужны типизированные `ContextFloatProvider`/
+`ContextIntProvider` + `LootContextSources`, ~30 реализаций — отдельный срез),
+recipe-book award при взятии результата печи (нужен `ServerRecipeBook`).
+
+Проверки: workspace **4285 passed / 0 failed / 18 ignored**, fmt и Clippy exit 0.

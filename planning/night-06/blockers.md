@@ -206,3 +206,39 @@ Java разрешает книгу для уже прикреплённой ка
 custom-data → components → setPlacedBy. Для playerless callers отдельно
 проверить фактические зависимости. Это открытая реализация, а не подтверждённый
 внешний архитектурный блокер; следующий пакет начинается с неё.
+
+## B-06-09 · СНЯТ — placement получает контекст из игрока
+
+Ревью G022 верно указало на ложную диагностику: `Player::server()` существует,
+явный `BlockEntityLoadContext` согласован ранее, новая ссылка World→Server не
+нужна. Реализовано `BlockEntityLoadContext::for_server_world(server, world)` и
+передача из `BlockItem::place_with` через `player.server.upgrade()` (тот же
+паттерн, что в `lectern_block.rs`/`books.rs`); playerless placement остаётся
+detached. Server-backed тест: OP+creative ставит кафедру с unresolved книгой,
+страница резолвится из storage и не переразрешается после смены storage.
+Зависимые карточки: G021/G022 (item context).
+
+## B-06-06 · СНЯТ для провайдера `/data entity`
+
+Общий reset-load реализован: `Entity::apply_entity_nbt(nbt, EntityNbtLoad)`
+переиспользует существующие readers `apply_spawn_data` (Pos/Motion/Rotation/
+Air/Fire/tags/флаги/subtype loader) и различается только трактовкой
+отсутствующего ключа и способом коммита позиции (`try_set_position` для живой
+entity). `/data entity` и `/execute store entity` используют
+`Entity::load_command_data`; UUID загрузчиком не читается.
+
+Остаток: `postDataManipulated` (в vanilla переопределён только Villager —
+в Vecta нет villagers) и `Team` (нет scoreboard-команд). Зависимые карточки:
+G024 (living persistence), G022 (compute).
+
+## B-06-07 · уточнён — `compute` это типизированные providers, не extractor
+
+`ContextFloatProvider`/`ContextIntProvider` — inline codecs с диспетчеризацией
+по типу (`ContextFloatProviderTypes`), а не registry-данные из SteelExtractor.
+В 26.3 это ~30 реализаций на float и столько же на int
+(`Absolute/Average/Ceiling/ConditionalValue/ConstantValue/Cosine/Difference/
+EnchantmentLevel/EnvironmentAttribute/Floor/FromInt/Length/Maximum/Minimum/
+Modulus/Negate/Power/Product/Quotient/Round/Sine/SquareRoot/StorageValue/Sum/
+Truncate/Uniform/WeightedList`), плюс `LootContextSources` для источников
+контекста. Это отдельный крупный срез: типизированные провайдеры + источники +
+реальный command consumer. Половину узла команды не коммитил.

@@ -16,6 +16,8 @@
 | Ревью сеанса 2, workspace | **4245 passed / 0 failed / 18 ignored**, exit 0 |
 | Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
 | Сеанс 4 (G022) | `/data` для block/storage, foundation путей NBT; workspace **4273/0/18**, fmt/Clippy exit 0 |
+| Ревью G022 | `cd11aa81a`; workspace **4279/0/18**, utils 228, paths 31 |
+| Сеанс 5 | placement context, настоящий region I/O, `/data entity`; workspace **4285/0/18** |
 | Ревью G022, Codex | `cd11aa81a`; workspace **4279/0/18**, fmt/Clippy exit0; Cargo manifest warning см. review |
 | Статус G021 после ревью | gate реализован после produced output; W06-105 без region I/O/unload/restart, lectern item text context для G022 |
 | Первый срез ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
@@ -26,7 +28,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **Item placement read context → G024/entity NBT → большая очередь из 12 направлений** |
+| Следующий consumer | **`modify … compute`**, затем направление 3 (раздатчик/durability/equip) |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),

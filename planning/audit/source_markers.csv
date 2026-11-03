@@ -66,8 +66,7 @@ vecta-core/src/command/builtins/domain.rs,102,// TODO: Add pagination for domain
 vecta-core/src/command/builtins/execute/condition.rs,30,// TODO: Add items after every vanilla command-slot provider and container inventory is
 vecta-core/src/command/builtins/execute/condition.rs,32,// TODO: Add predicate and function after their runtime registries are ported.
 vecta-core/src/command/builtins/execute/condition.rs,33,// TODO: Restore Vecta stopwatch conditions with the stopwatch command system.
-vecta-core/src/command/builtins/execute/store.rs,36,// TODO: Add bossbar after Vecta has a persistent custom-bossbar manager.
-vecta-core/src/command/builtins/execute/store.rs,37,// TODO: Add entity after live entity NBT can reload every command-visible field.
+vecta-core/src/command/builtins/execute/store.rs,37,// TODO: Add bossbar after Vecta has a persistent custom-bossbar manager.
 vecta-core/src/command/builtins/locate.rs,45,// TODO: Add `locate biome` once Vecta has an asynchronous closest-biome search.
 vecta-core/src/command/builtins/locate.rs,46,// TODO: Add `locate poi` once Vecta has a point-of-interest manager.
 vecta-core/src/command/builtins/summon.rs,38,// TODO: Add the vanilla compound-NBT branch once Vecta has an SNBT compound
@@ -95,9 +94,9 @@ vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: 
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1412,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2612,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,4024,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/entity/mod.rs,1430,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2630,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,4109,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
 vecta-core/src/entity/living_entity.rs,714,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
 vecta-core/src/entity/living_entity.rs,722,// TODO: apply helmet damage once those equipment hooks exist.
 vecta-core/src/entity/living_entity.rs,760,// TODO: Play secondary hurt sounds once equipment effects expose them.
