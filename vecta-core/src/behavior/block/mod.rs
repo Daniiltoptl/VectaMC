@@ -1,6 +1,7 @@
 //! Block behavior trait and registry.
 
 use std::sync::{Arc, Weak};
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use glam::DVec3;
 use smallvec::SmallVec;
@@ -17,7 +18,7 @@ use vecta_registry::enchantment_effect::EnchantmentEffectComponent;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::fluid::{FluidRef, FluidState};
 use vecta_registry::item_stack::ItemStack;
-use vecta_registry::loot_table::{LootContext, LootTableRef};
+use vecta_registry::loot_table::{LootContext, LootTableRef, loot_context_params};
 use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::vanilla_block_tags::BlockTag;
 use vecta_registry::vanilla_entities;
@@ -67,6 +68,7 @@ pub(crate) fn default_can_be_replaced(
 #[must_use]
 pub(crate) fn drop_from_block_interact_loot_table(
     world: &Arc<World>,
+    pos: BlockPos,
     key: LootTableRef,
     interacted_block_state: BlockStateId,
     _interacted_block_entity: Option<SharedBlockEntity>,
@@ -77,18 +79,34 @@ pub(crate) fn drop_from_block_interact_loot_table(
 
     let interacting_equipment = interacting_entity.and_then(loot_equipment);
     world.random().with_loot(key, 0, |rng| {
-        let mut ctx = LootContext::new(rng).with_block_state(interacted_block_state);
+        let mut ctx = LootContext::new(rng)
+            .with_parameter(loot_context_params::BLOCK_STATE, interacted_block_state)
+            .with_parameter(
+                loot_context_params::ORIGIN,
+                (
+                    f64::from(pos.x()) + 0.5,
+                    f64::from(pos.y()) + 0.5,
+                    f64::from(pos.z()) + 0.5,
+                ),
+            );
         if let Some(interacting_entity) = interacting_entity {
-            ctx = ctx.with_interacting_entity(entity_loot_ref(
-                interacting_entity,
-                interacting_equipment.as_ref(),
-            ));
+            ctx = ctx.with_parameter(
+                loot_context_params::INTERACTING_ENTITY,
+                entity_loot_ref(interacting_entity, interacting_equipment.as_ref()),
+            );
         }
 
         if let Some(tool) = tool {
-            ctx = ctx.with_tool(tool);
+            ctx = ctx.with_parameter(loot_context_params::TOOL, tool);
         }
 
+        let validation = ctx
+            .params
+            .validate(&loot_context_param_sets::BLOCK_INTERACT);
+        assert!(
+            validation.is_ok(),
+            "Invalid block interaction loot parameters: {validation:?}"
+        );
         key.get_random_items(&mut ctx)
     })
 }

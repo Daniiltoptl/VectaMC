@@ -1,4 +1,6 @@
 use std::ptr;
+use vecta_registry::loot_table::loot_context_params;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use super::{
     Arc, BLOCK_BEHAVIORS, BlockLootContext, BlockPos, BlockStateExt, BlockStateId, CLevelEvent,
@@ -426,25 +428,38 @@ impl World {
         };
 
         let entity_equipment = context.entity().and_then(loot_equipment);
+        let empty_tool = ItemStack::empty();
         context.world().random().with_loot(loot_table, 0, |rng| {
             let mut ctx = LootContext::new(rng)
                 .with_luck(context.luck())
-                .with_block_state(state)
-                .with_origin(
-                    f64::from(context.pos().x()),
-                    f64::from(context.pos().y()),
-                    f64::from(context.pos().z()),
+                .with_parameter(loot_context_params::BLOCK_STATE, state)
+                .with_parameter(
+                    loot_context_params::TOOL,
+                    context.tool().unwrap_or(&empty_tool),
+                )
+                .with_parameter(
+                    loot_context_params::ORIGIN,
+                    (
+                        f64::from(context.pos().x()) + 0.5,
+                        f64::from(context.pos().y()) + 0.5,
+                        f64::from(context.pos().z()) + 0.5,
+                    ),
                 );
-            if let Some(tool) = context.tool() {
-                ctx = ctx.with_tool(tool);
-            }
             if let Some(entity) = context.entity() {
-                ctx = ctx.with_this_entity(entity_loot_ref(entity, entity_equipment.as_ref()));
+                ctx = ctx.with_parameter(
+                    loot_context_params::THIS_ENTITY,
+                    entity_loot_ref(entity, entity_equipment.as_ref()),
+                );
             }
             if let Some(radius) = context.explosion_radius() {
-                ctx = ctx.with_explosion(radius);
+                ctx = ctx.with_parameter(loot_context_params::EXPLOSION_RADIUS, radius);
             }
 
+            let validation = ctx.params.validate(&loot_context_param_sets::BLOCK);
+            assert!(
+                validation.is_ok(),
+                "Invalid block loot parameters: {validation:?}"
+            );
             loot_table.get_random_items(&mut ctx)
         })
     }

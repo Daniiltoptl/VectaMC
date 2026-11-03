@@ -1,4 +1,6 @@
 use std::mem;
+use vecta_registry::loot_table::loot_context_params;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use vecta_math::{DEGREE_90, trig};
 use vecta_registry::data_components::vanilla_components::{DEATH_PROTECTION, USE_EFFECTS};
@@ -3289,21 +3291,28 @@ fn death_loot_items<E: LivingEntity + ?Sized>(
 
     world.random().with_loot(loot_table, seed, |rng| {
         let mut context = LootContext::new(rng)
-            .with_origin(position.x, position.y, position.z)
+            .with_parameter(
+                loot_context_params::ORIGIN,
+                (position.x, position.y, position.z),
+            )
             .with_game_time(world.game_time())
-            .with_killed_by_player(killed_by_player)
-            .with_this_entity(this_entity)
-            .with_damage_source(damage_source);
+            .with_parameter(loot_context_params::THIS_ENTITY, this_entity)
+            .with_parameter(loot_context_params::DAMAGE_SOURCE, damage_source);
         if let Some(entity) = causing_entity {
-            context = context.with_killer_entity(entity);
+            context = context.with_parameter(loot_context_params::ATTACKING_ENTITY, entity);
         }
         if let Some(entity) = direct_entity {
-            context = context.with_direct_killer_entity(entity);
+            context = context.with_parameter(loot_context_params::DIRECT_ATTACKING_ENTITY, entity);
         }
         if let Some(entity) = last_damage_player {
-            context = context.with_last_damage_player(entity);
+            context = context.with_parameter(loot_context_params::LAST_DAMAGE_PLAYER, entity);
         }
 
+        let validation = context.params.validate(&loot_context_param_sets::ENTITY);
+        assert!(
+            validation.is_ok(),
+            "Invalid entity loot parameters: {validation:?}"
+        );
         loot_table.get_random_items(&mut context)
     })
 }
@@ -3321,15 +3330,23 @@ pub(crate) fn shearing_loot_items<E: LivingEntity + ?Sized>(
     let game_time = level.as_ref().map(|level| level.game_time());
     with_loot_source(level.as_deref(), loot_table, 0, |rng| {
         let mut context = LootContext::new(rng)
-            .with_origin(position.x, position.y, position.z)
-            .with_this_entity(entity_loot_ref(
-                entity.as_entity_event_source(),
-                Some(&equipment),
-            ))
-            .with_tool(tool);
+            .with_parameter(
+                loot_context_params::ORIGIN,
+                (position.x, position.y, position.z),
+            )
+            .with_parameter(
+                loot_context_params::THIS_ENTITY,
+                entity_loot_ref(entity.as_entity_event_source(), Some(&equipment)),
+            )
+            .with_parameter(loot_context_params::TOOL, tool);
         if let Some(game_time) = game_time {
             context = context.with_game_time(game_time);
         }
+        let validation = context.params.validate(&loot_context_param_sets::SHEARING);
+        assert!(
+            validation.is_ok(),
+            "Invalid shearing loot parameters: {validation:?}"
+        );
         loot_table.get_random_items(&mut context)
     })
 }

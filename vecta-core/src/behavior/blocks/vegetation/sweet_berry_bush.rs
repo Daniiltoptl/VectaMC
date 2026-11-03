@@ -146,6 +146,7 @@ impl BlockBehavior for SweetBerryBushBlock {
 
         let items = drop_from_block_interact_loot_table(
             world,
+            pos,
             &vanilla_loot_tables::HARVEST_SWEET_BERRY_BUSH,
             state,
             world.get_block_entity(pos),

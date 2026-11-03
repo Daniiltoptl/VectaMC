@@ -1,5 +1,9 @@
 # Slot display registry extraction (Minecraft Java 26.3)
 
+Loot keys/parameter sets and number-provider type extraction are documented in
+[loot-contexts.md](loot-contexts.md), with the verified Java25 source-launch
+workflow and reproducible entry points beside it.
+
 The asset `vecta-registry/build_assets/slot_displays.json` comes from the live
 `BuiltInRegistries.SLOT_DISPLAY`, not a transcription of Java registration order.
 

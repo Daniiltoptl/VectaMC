@@ -4,7 +4,7 @@ use crate::{
     instrument::InstrumentRef, item_stack::ItemStack,
 };
 use rustc_hash::FxHashMap;
-use vecta_utils::{BlockStateId, Identifier};
+use vecta_utils::Identifier;
 
 mod conditions;
 mod context;

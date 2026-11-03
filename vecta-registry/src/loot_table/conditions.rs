@@ -1,3 +1,4 @@
+use super::loot_context_params;
 use super::{
     BlockStateExt, DamageSourceInfo, DyeColor, EntityEquipmentRef, EntityRef, EntityRefFlags,
     Identifier, ItemStack, LootContext, LootContextEntity, NumberProvider, NumberProviderRange,
@@ -223,7 +224,7 @@ impl LootCondition {
     pub fn test(&self, ctx: &mut LootContext<'_>) -> bool {
         match self {
             LootCondition::SurvivesExplosion => {
-                if let Some(radius) = ctx.explosion_radius {
+                if let Some(radius) = ctx.params.get(loot_context_params::EXPLOSION_RADIUS) {
                     // Vanilla: 1/radius chance to survive
                     ctx.rng.next_f32() <= (1.0 / radius)
                 } else {
@@ -231,7 +232,7 @@ impl LootCondition {
                 }
             }
             LootCondition::MatchBlock { block, properties } => {
-                if let Some(state) = ctx.block_state {
+                if let Some(state) = ctx.params.get(loot_context_params::BLOCK_STATE) {
                     let state_block = state.get_block();
                     // Check block matches
                     if state_block.key != *block {
@@ -273,7 +274,7 @@ impl LootCondition {
                 ctx.rng.next_f32() < effective_chance
             }
             LootCondition::MatchTool(predicate) => {
-                if let Some(tool) = ctx.tool {
+                if let Some(tool) = ctx.params.get(loot_context_params::TOOL) {
                     predicate.test(tool, ctx)
                 } else {
                     // No tool in context - only passes if predicate is Any
@@ -292,7 +293,9 @@ impl LootCondition {
             LootCondition::Inverted(inner) => !inner.test(ctx),
             LootCondition::AnyOf(conditions) => conditions.iter().any(|c| c.test(ctx)),
             LootCondition::AllOf(conditions) => conditions.iter().all(|c| c.test(ctx)),
-            LootCondition::KilledByPlayer => ctx.killed_by_player,
+            LootCondition::KilledByPlayer => {
+                ctx.params.has(loot_context_params::LAST_DAMAGE_PLAYER.id())
+            }
             LootCondition::EntityProperties { entity, predicate } => {
                 let Some(entity) = ctx.get_entity(*entity) else {
                     return false;
@@ -490,7 +493,7 @@ impl EntityEquipment {
 
 impl DamageSourcePredicate {
     fn test(&self, ctx: &LootContext<'_>) -> bool {
-        let Some(damage_source) = ctx.damage_source else {
+        let Some(damage_source) = ctx.params.get(loot_context_params::DAMAGE_SOURCE) else {
             return false;
         };
 
@@ -507,7 +510,7 @@ impl DamageSourcePredicate {
         }
 
         if let Some(predicate) = &self.source_entity {
-            let Some(entity) = ctx.killer_entity else {
+            let Some(entity) = ctx.params.get(loot_context_params::ATTACKING_ENTITY) else {
                 return false;
             };
             if !predicate.test(entity, ctx) {
@@ -516,7 +519,7 @@ impl DamageSourcePredicate {
         }
 
         if let Some(predicate) = &self.direct_entity {
-            let Some(entity) = ctx.direct_killer_entity else {
+            let Some(entity) = ctx.params.get(loot_context_params::DIRECT_ATTACKING_ENTITY) else {
                 return false;
             };
             if !predicate.test(entity, ctx) {

@@ -67,6 +67,7 @@ mod instruments;
 mod items;
 mod jukebox_songs;
 mod level_events;
+mod loot_contexts;
 mod loot_tables;
 mod map_decoration_types;
 mod menu_types;
@@ -237,6 +238,7 @@ pub fn main() {
         (tags::dialog(), DIALOG_TAGS),
         (menu_types::build(), MENU_TYPES),
         (slot_displays::build(), SLOT_DISPLAYS),
+        (loot_contexts::build(), "context_key_sets"),
         (mob_effects::build(), MOB_EFFECTS),
         (map_decoration_types::build(), MAP_DECORATION_TYPES),
         (potions::build(), POTIONS),

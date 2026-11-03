@@ -168,6 +168,7 @@ fn drop_loot(transform: &BlockTransformData, context: &UseOnContext, old_state: 
     let player: &Player = context.player;
     let drops = drop_from_block_interact_loot_table(
         context.world,
+        pos,
         table,
         old_state,
         context.world.get_block_entity(pos),

@@ -1,5 +1,13 @@
-use super::{BlockStateId, DyeColor, Identifier, ItemStack, REGISTRY, RegistryExt};
+use super::{DyeColor, Identifier, ItemStack, REGISTRY, RegistryExt};
 use crate::equipment::EquipmentSlot;
+
+mod map;
+mod parameter_sets;
+mod parameters;
+pub use crate::vanilla_context_key_sets::params as loot_context_params;
+pub use map::*;
+pub use parameter_sets::*;
+pub use parameters::*;
 use vecta_utils::random::{Random as _, RandomSource};
 
 /// Entity target for loot context lookups.
@@ -81,7 +89,7 @@ pub enum ScoreboardTarget {
 
 impl NumberProvider {
     /// Get a value from this provider using the given RNG.
-    pub fn get(&self, rng: &mut RandomSource, ctx: Option<&LootContextRef<'_>>) -> f32 {
+    pub fn get(&self, rng: &mut RandomSource, ctx: Option<&ContextMap<'_>>) -> f32 {
         match self {
             Self::Constant(v) => *v,
             Self::Uniform { min, max } => next_float(rng, *min, *max),
@@ -95,25 +103,24 @@ impl NumberProvider {
                 count as f32
             }
             Self::Score { .. } => {
-                // TODO: Implement when scoreboard system is available
+                // TODO: Read the domain scoreboard through the loot level context.
                 let _ = ctx;
                 0.0
             }
             Self::Storage { .. } => {
-                // TODO: Implement when command storage system is available
+                // TODO: Read domain command storage through the loot level context.
                 let _ = ctx;
                 0.0
             }
             Self::EnchantmentLevel { enchantment } => ctx
-                .and_then(|c| c.tool)
+                .and_then(|c| c.get(loot_context_params::TOOL))
                 .map_or(0.0, |t| t.get_enchantment_level(enchantment) as f32),
         }
     }
 
     /// Get a value using the loot context's RNG and parameters.
     pub fn get_float(&self, ctx: &mut LootContext<'_>) -> f32 {
-        let ctx_ref = LootContextRef { tool: ctx.tool };
-        self.get(ctx.rng, Some(&ctx_ref))
+        self.get(ctx.rng, Some(&ctx.params))
     }
 
     /// Get a value without context (for backwards compatibility).
@@ -144,11 +151,7 @@ impl NumberProvider {
     }
 
     /// Get the value as an integer with context.
-    pub fn get_int_with_ctx(
-        &self,
-        rng: &mut RandomSource,
-        ctx: Option<&LootContextRef<'_>>,
-    ) -> i32 {
+    pub fn get_int_with_ctx(&self, rng: &mut RandomSource, ctx: Option<&ContextMap<'_>>) -> i32 {
         match self {
             Self::Uniform { min, max } => uniform_int(rng, math_round(*min), math_round(*max)),
             other => math_round(other.get(rng, ctx)),
@@ -247,51 +250,13 @@ impl NumberProviderRange {
     }
 }
 
-/// Reference to loot context for number provider evaluation.
-/// This is a simplified view to avoid circular references.
-pub struct LootContextRef<'a> {
-    pub tool: Option<&'a ItemStack>,
-    // Add more fields as needed for Score/Storage providers
-}
-
-/// Context for loot table evaluation, containing all relevant game state.
-///
-/// This mirrors vanilla's `LootContext` / `LootParams` system.
+/// Loot parameters share one typed map; RNG, luck and level state are separate.
 pub struct LootContext<'a> {
-    /// Random number generator.
     pub rng: &'a mut RandomSource,
-    /// Luck value (e.g., from Luck of the Sea enchantment).
     pub luck: f32,
-    /// The block state being broken (for block loot tables).
-    pub block_state: Option<BlockStateId>,
-    /// The tool used to break the block.
-    pub tool: Option<&'a ItemStack>,
-    /// Explosion radius if caused by an explosion.
-    pub explosion_radius: Option<f32>,
-    /// Whether the entity was killed by a player.
-    pub killed_by_player: bool,
-
-    /// World position where the loot is generated (block position or entity death location).
-    pub origin: Option<(f64, f64, f64)>,
-    /// Current game time in ticks (for `TimeCheck` condition).
+    pub params: ContextMap<'a>,
     pub game_time: Option<i64>,
-    /// Current weather state.
     pub weather: Option<WeatherState>,
-    /// The entity being looted (the killed mob, block entity owner, etc.).
-    /// This is a type-erased pointer; actual entity data depends on game implementation.
-    pub this_entity: Option<EntityRef<'a>>,
-    /// The entity that killed `this_entity` (for mob loot tables).
-    pub killer_entity: Option<EntityRef<'a>>,
-    /// The direct attacker entity (e.g., arrow, not the player who shot it).
-    pub direct_killer_entity: Option<EntityRef<'a>>,
-    /// The player who dealt the final damage (may be different from killer).
-    pub last_damage_player: Option<EntityRef<'a>>,
-    /// Damage source information for entity deaths.
-    pub damage_source: Option<DamageSourceInfo<'a>>,
-    /// Block entity reference for container/block loot.
-    pub block_entity: Option<BlockEntityRef<'a>>,
-    /// The entity interacting with a block/entity (e.g., player opening a chest).
-    pub interacting_entity: Option<EntityRef<'a>>,
 }
 
 /// Weather state for `WeatherCheck` condition.
@@ -392,157 +357,78 @@ pub struct BlockEntityRef<'a> {
 }
 
 impl<'a> LootContext<'a> {
-    /// Create a new loot context with just an RNG.
-    pub const fn new(rng: &'a mut RandomSource) -> Self {
+    pub fn new(rng: &'a mut RandomSource) -> Self {
         Self {
             rng,
             luck: 0.0,
-            block_state: None,
-            tool: None,
-            explosion_radius: None,
-            killed_by_player: false,
-            origin: None,
+            params: ContextMap::default(),
             game_time: None,
             weather: None,
-            this_entity: None,
-            killer_entity: None,
-            direct_killer_entity: None,
-            last_damage_player: None,
-            damage_source: None,
-            block_entity: None,
-            interacting_entity: None,
         }
     }
 
-    /// Set the luck value.
+    #[must_use]
+    pub fn with_parameter<T: ContextValueType>(
+        mut self,
+        key: ContextKey<T>,
+        value: T::Value<'a>,
+    ) -> Self {
+        self.params.set(key, Some(value));
+        self
+    }
+
+    #[must_use]
+    pub fn with_optional_parameter<T: ContextValueType>(
+        mut self,
+        key: ContextKey<T>,
+        value: Option<T::Value<'a>>,
+    ) -> Self {
+        self.params.set(key, value);
+        self
+    }
+
     #[must_use]
     pub const fn with_luck(mut self, luck: f32) -> Self {
         self.luck = luck;
         self
     }
 
-    /// Set the block state.
-    #[must_use]
-    pub const fn with_block_state(mut self, state: BlockStateId) -> Self {
-        self.block_state = Some(state);
-        self
-    }
-
-    /// Set the tool used.
-    #[must_use]
-    pub const fn with_tool(mut self, tool: &'a ItemStack) -> Self {
-        self.tool = Some(tool);
-        self
-    }
-
-    /// Set the explosion radius.
-    #[must_use]
-    pub const fn with_explosion(mut self, radius: f32) -> Self {
-        self.explosion_radius = Some(radius);
-        self
-    }
-
-    /// Set whether killed by player.
-    #[must_use]
-    pub const fn with_killed_by_player(mut self, killed: bool) -> Self {
-        self.killed_by_player = killed;
-        self
-    }
-
-    /// Set the world origin position.
-    #[must_use]
-    pub const fn with_origin(mut self, x: f64, y: f64, z: f64) -> Self {
-        self.origin = Some((x, y, z));
-        self
-    }
-
-    /// Set the game time.
     #[must_use]
     pub const fn with_game_time(mut self, time: i64) -> Self {
         self.game_time = Some(time);
         self
     }
 
-    /// Set the weather state.
     #[must_use]
     pub const fn with_weather(mut self, weather: WeatherState) -> Self {
         self.weather = Some(weather);
         self
     }
 
-    /// Set the entity being looted.
-    #[must_use]
-    pub const fn with_this_entity(mut self, entity: EntityRef<'a>) -> Self {
-        self.this_entity = Some(entity);
-        self
-    }
-
-    /// Set the killer entity.
-    #[must_use]
-    pub const fn with_killer_entity(mut self, entity: EntityRef<'a>) -> Self {
-        self.killer_entity = Some(entity);
-        self
-    }
-
-    /// Set the direct killer entity (e.g., projectile).
-    #[must_use]
-    pub const fn with_direct_killer_entity(mut self, entity: EntityRef<'a>) -> Self {
-        self.direct_killer_entity = Some(entity);
-        self
-    }
-
-    /// Set the player who dealt the final damage.
-    #[must_use]
-    pub const fn with_last_damage_player(mut self, entity: EntityRef<'a>) -> Self {
-        self.last_damage_player = Some(entity);
-        self
-    }
-
-    /// Set the damage source information.
-    #[must_use]
-    pub const fn with_damage_source(mut self, damage_source: DamageSourceInfo<'a>) -> Self {
-        self.damage_source = Some(damage_source);
-        self
-    }
-
-    /// Set the block entity reference.
-    #[must_use]
-    pub const fn with_block_entity(mut self, block_entity: BlockEntityRef<'a>) -> Self {
-        self.block_entity = Some(block_entity);
-        self
-    }
-
-    /// Set the interacting entity (e.g., player opening a chest).
-    #[must_use]
-    pub const fn with_interacting_entity(mut self, entity: EntityRef<'a>) -> Self {
-        self.interacting_entity = Some(entity);
-        self
-    }
-
-    /// Get the level of an enchantment on the tool by identifier.
     #[must_use]
     pub fn get_enchantment_level_by_id(&self, enchantment: &Identifier) -> i32 {
-        self.tool
-            .map_or(0, |t| t.get_enchantment_level(enchantment))
+        self.params
+            .get(loot_context_params::TOOL)
+            .map_or(0, |tool| tool.get_enchantment_level(enchantment))
     }
 
-    /// Get the level of an enchantment on the attacking entity's equipment.
     #[must_use]
     pub fn get_attacking_entity_enchantment_level(&self, enchantment: &Identifier) -> i32 {
-        self.killer_entity
+        self.params
+            .get(loot_context_params::ATTACKING_ENTITY)
             .and_then(|entity| entity.equipment)
             .map_or(0, |equipment| equipment.get_enchantment_level(enchantment))
     }
 
-    /// Get an entity reference by target.
     #[must_use]
-    pub const fn get_entity(&self, target: LootContextEntity) -> Option<EntityRef<'a>> {
-        match target {
-            LootContextEntity::This => self.this_entity,
-            LootContextEntity::Killer => self.killer_entity,
-            LootContextEntity::DirectKiller => self.direct_killer_entity,
-            LootContextEntity::KillerPlayer => self.last_damage_player,
-            LootContextEntity::Interacting => self.interacting_entity,
-        }
+    pub fn get_entity(&self, target: LootContextEntity) -> Option<EntityRef<'a>> {
+        let key = match target {
+            LootContextEntity::This => loot_context_params::THIS_ENTITY,
+            LootContextEntity::Killer => loot_context_params::ATTACKING_ENTITY,
+            LootContextEntity::DirectKiller => loot_context_params::DIRECT_ATTACKING_ENTITY,
+            LootContextEntity::KillerPlayer => loot_context_params::LAST_DAMAGE_PLAYER,
+            LootContextEntity::Interacting => loot_context_params::INTERACTING_ENTITY,
+        };
+        self.params.get(key)
     }
 }

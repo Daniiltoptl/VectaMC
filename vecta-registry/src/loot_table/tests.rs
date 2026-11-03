@@ -1,6 +1,7 @@
 use crate::data_components::vanilla_components::{ENCHANTMENTS, INSTRUMENT, ItemEnchantments};
 use crate::equipment::EquipmentSlot;
 use crate::items::ItemRef;
+use crate::loot_table::loot_context_params;
 use crate::vanilla_instrument_tags::InstrumentTag;
 use crate::vanilla_items;
 use crate::{init_vanilla_registry, vanilla_loot_tables};
@@ -114,7 +115,7 @@ fn test_pig_loot_drops_raw_porkchop_when_not_on_fire() {
         chicken_variant: None,
     };
 
-    let mut ctx = LootContext::new(&mut rng).with_this_entity(pig);
+    let mut ctx = LootContext::new(&mut rng).with_parameter(loot_context_params::THIS_ENTITY, pig);
     let items = vanilla_loot_tables::ENTITIES_PIG.get_random_items(&mut ctx);
 
     assert_eq!(items.len(), 1);
@@ -220,7 +221,8 @@ fn chicken_lay_drops_the_egg_matching_the_chicken_variant() {
             chicken_variant: Some(variant),
         };
 
-        let mut ctx = LootContext::new(&mut rng).with_this_entity(chicken);
+        let mut ctx =
+            LootContext::new(&mut rng).with_parameter(loot_context_params::THIS_ENTITY, chicken);
         let items = vanilla_loot_tables::GAMEPLAY_CHICKEN_LAY.get_random_items(&mut ctx);
 
         assert_eq!(
@@ -250,7 +252,7 @@ fn sheared_predicate_rejects_non_sheep_entities() {
         sheep_sheared: None,
         chicken_variant: None,
     };
-    let mut ctx = LootContext::new(&mut rng).with_this_entity(pig);
+    let mut ctx = LootContext::new(&mut rng).with_parameter(loot_context_params::THIS_ENTITY, pig);
 
     let condition = LootCondition::EntityProperties {
         entity: LootContextEntity::This,
@@ -287,7 +289,7 @@ fn test_pig_loot_smelt_condition_uses_entity_fire_flag() {
         chicken_variant: None,
     };
 
-    let mut ctx = LootContext::new(&mut rng).with_this_entity(pig);
+    let mut ctx = LootContext::new(&mut rng).with_parameter(loot_context_params::THIS_ENTITY, pig);
     let items = vanilla_loot_tables::ENTITIES_PIG.get_random_items(&mut ctx);
 
     assert_eq!(items.len(), 1);
@@ -344,10 +346,10 @@ fn roll_killed_by_player(
         .flat_map(|seed| {
             let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
             let mut ctx = LootContext::new(&mut rng)
-                .with_killed_by_player(true)
-                .with_this_entity(victim)
-                .with_killer_entity(player)
-                .with_direct_killer_entity(player);
+                .with_parameter(loot_context_params::LAST_DAMAGE_PLAYER, player)
+                .with_parameter(loot_context_params::THIS_ENTITY, victim)
+                .with_parameter(loot_context_params::ATTACKING_ENTITY, player)
+                .with_parameter(loot_context_params::DIRECT_ATTACKING_ENTITY, player);
             table.get_random_items(&mut ctx)
         })
         .collect()
@@ -436,13 +438,18 @@ fn random_chance_with_enchanted_bonus_reads_attacker_not_tool() {
 
     let mut rng = test_rng();
     let mut tool_only = LootContext::new(&mut rng)
-        .with_tool(&looting_sword)
-        .with_killer_entity(living_entity_ref(&player_key, &empty_equipment));
+        .with_parameter(loot_context_params::TOOL, &looting_sword)
+        .with_parameter(
+            loot_context_params::ATTACKING_ENTITY,
+            living_entity_ref(&player_key, &empty_equipment),
+        );
     assert!(!condition.test(&mut tool_only));
 
     let mut rng = test_rng();
-    let mut attacker_only = LootContext::new(&mut rng)
-        .with_killer_entity(living_entity_ref(&player_key, &looting_equipment));
+    let mut attacker_only = LootContext::new(&mut rng).with_parameter(
+        loot_context_params::ATTACKING_ENTITY,
+        living_entity_ref(&player_key, &looting_equipment),
+    );
     assert!(condition.test(&mut attacker_only));
 }
 
@@ -474,8 +481,10 @@ fn enchanted_count_increase_rounds_like_java_math_round() {
     let mut item = ItemStack::with_count(&vanilla_items::PORKCHOP, 2);
 
     let mut rng = test_rng();
-    let mut ctx =
-        LootContext::new(&mut rng).with_killer_entity(living_entity_ref(&player_key, &equipment));
+    let mut ctx = LootContext::new(&mut rng).with_parameter(
+        loot_context_params::ATTACKING_ENTITY,
+        living_entity_ref(&player_key, &equipment),
+    );
     function.apply(&mut item, &mut ctx);
 
     // Java `Math.round(-0.5f)` is 0, where Rust's `f32::round` gives -1.
@@ -515,7 +524,8 @@ fn test_explosion_decay_function() {
 
     for seed in 0u64..100 {
         let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
-        let mut ctx = LootContext::new(&mut rng).with_explosion(4.0);
+        let mut ctx =
+            LootContext::new(&mut rng).with_parameter(loot_context_params::EXPLOSION_RADIUS, 4.0);
         let mut item = ItemStack::with_count(&crate::vanilla_items::STONE, initial_count);
         cond_func.function.apply(&mut item, &mut ctx);
         total_survived += item.count;
@@ -566,7 +576,8 @@ fn test_survives_explosion_condition() {
     let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(0));
     let mut survived = 0;
     for _ in 0..ROLLS {
-        let mut ctx = LootContext::new(&mut rng).with_explosion(4.0);
+        let mut ctx =
+            LootContext::new(&mut rng).with_parameter(loot_context_params::EXPLOSION_RADIUS, 4.0);
         if !vanilla_loot_tables::BLOCKS_GRAVEL
             .get_random_items(&mut ctx)
             .is_empty()

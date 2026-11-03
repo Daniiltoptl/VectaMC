@@ -6,7 +6,6 @@ use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty};
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::items::item::BlockHitResult;
-use vecta_registry::loot_table::LootContext;
 use vecta_registry::{
     sound_events, vanilla_blocks, vanilla_game_events, vanilla_items, vanilla_loot_tables,
 };
@@ -14,6 +13,7 @@ use vecta_utils::random::Random as _;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
 
+use crate::behavior::block::drop_from_block_interact_loot_table;
 use crate::behavior::blocks::vegetation::bonemealable::BonemealAction;
 use crate::behavior::blocks::vegetation::growing_plant_head_block::{
     GrowingPlantHeadBehavior, GrowingPlantHeadBlock,
@@ -22,7 +22,7 @@ use crate::behavior::context::BlockPlaceContext;
 use crate::behavior::{InteractionResult, InventoryAccess};
 use crate::behavior::{block::BlockBehavior, blocks::vegetation::bonemealable::Bonemealable};
 use crate::block_entity::SharedBlockEntity;
-use crate::entity::{Entity, entity_loot_ref, loot_equipment};
+use crate::entity::Entity;
 use crate::player::Player;
 use crate::world::game_event::GameEventContext;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
@@ -83,15 +83,15 @@ impl CaveVinesBlock {
         if !state.get_value(BERRIES) {
             return InteractionResult::Pass;
         }
-        let equipment = loot_equipment(source_entity);
-        let items = world
-            .random()
-            .with_loot(&vanilla_loot_tables::HARVEST_CAVE_VINE, 0, |rng| {
-                let mut ctx = LootContext::new(rng)
-                    .with_block_state(state)
-                    .with_interacting_entity(entity_loot_ref(source_entity, equipment.as_ref()));
-                vanilla_loot_tables::HARVEST_CAVE_VINE.get_random_items(&mut ctx)
-            });
+        let items = drop_from_block_interact_loot_table(
+            world,
+            pos,
+            &vanilla_loot_tables::HARVEST_CAVE_VINE,
+            state,
+            world.get_block_entity(pos),
+            None,
+            Some(source_entity),
+        );
         for item in items {
             world.pop_resource(pos, item);
         }

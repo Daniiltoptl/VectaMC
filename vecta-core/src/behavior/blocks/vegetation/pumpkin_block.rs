@@ -62,6 +62,7 @@ impl BlockBehavior for PumpkinBlock {
 
         let drops = drop_from_block_interact_loot_table(
             world,
+            pos,
             &vanilla_loot_tables::CARVE_PUMPKIN,
             state,
             world.get_block_entity(pos),

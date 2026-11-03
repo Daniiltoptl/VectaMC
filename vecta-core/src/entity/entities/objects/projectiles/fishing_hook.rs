@@ -22,7 +22,9 @@ use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::fluid::FluidStateExt;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::loot_table::LootContext;
+use vecta_registry::loot_table::loot_context_params;
 use vecta_registry::particle_type::ParticleData;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 use vecta_registry::vanilla_entity_data::FishingBobberEntityData;
 use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::vanilla_particle_types::{BUBBLE, FISHING, SPLASH};
@@ -494,6 +496,10 @@ impl FishingHookEntity {
     }
 
     /// Retrieves the entity caught by this fishing hook and returns the resulting damage value.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internally assembled loot parameters violate the fishing contract.
     pub fn retrieve(&self, rod: &ItemStack) -> i32 {
         let mut damage = 0;
 
@@ -541,14 +547,22 @@ impl FishingHookEntity {
                             0,
                             |rng| {
                                 let mut loot_ctx = LootContext::new(rng)
-                                    .with_origin(
-                                        self.position().x,
-                                        self.position().y,
-                                        self.position().z,
+                                    .with_parameter(
+                                        loot_context_params::ORIGIN,
+                                        (self.position().x, self.position().y, self.position().z),
                                     )
-                                    .with_tool(rod)
-                                    .with_this_entity(entity_loot_ref(self, None))
+                                    .with_parameter(loot_context_params::TOOL, rod)
+                                    .with_parameter(
+                                        loot_context_params::THIS_ENTITY,
+                                        entity_loot_ref(self, None),
+                                    )
                                     .with_luck(luck as f32 + player.get_luck());
+                                let validation =
+                                    loot_ctx.params.validate(&loot_context_param_sets::FISHING);
+                                assert!(
+                                    validation.is_ok(),
+                                    "Invalid fishing loot parameters: {validation:?}"
+                                );
                                 vanilla_loot_tables::GAMEPLAY_FISHING
                                     .get_random_items(&mut loot_ctx)
                             },

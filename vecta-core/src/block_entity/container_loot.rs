@@ -4,6 +4,8 @@
 //! entity until the first consumer reads the contents. Only then is the table
 //! rolled and dropped, so opening, a comparator read or a chunk save can never
 //! generate the same loot twice.
+use vecta_registry::loot_table::loot_context_params;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use std::str::FromStr as _;
 
@@ -126,6 +128,10 @@ impl ContainerLoot {
     /// The table reference is cleared before the roll, so a failure to resolve
     /// the table cannot leave a container that would roll again on the next
     /// read.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internally assembled loot parameters violate the chest contract.
     pub fn unpack(
         &self,
         world: Option<&World>,
@@ -154,12 +160,19 @@ impl ContainerLoot {
         );
         let equipment = player.and_then(|player| loot_equipment(player));
         let roll = |rng: &mut RandomSource| {
-            let mut ctx = LootContext::new(rng).with_origin(center.x, center.y, center.z);
+            let mut ctx = LootContext::new(rng)
+                .with_parameter(loot_context_params::ORIGIN, (center.x, center.y, center.z));
             if let Some(player) = player {
-                ctx = ctx
-                    .with_luck(player.get_luck())
-                    .with_interacting_entity(entity_loot_ref(player, equipment.as_ref()));
+                ctx = ctx.with_luck(player.get_luck()).with_parameter(
+                    loot_context_params::THIS_ENTITY,
+                    entity_loot_ref(player, equipment.as_ref()),
+                );
             }
+            let validation = ctx.params.validate(&loot_context_param_sets::CHEST);
+            assert!(
+                validation.is_ok(),
+                "Invalid chest loot parameters: {validation:?}"
+            );
             table.fill(slots, &mut ctx);
         };
 

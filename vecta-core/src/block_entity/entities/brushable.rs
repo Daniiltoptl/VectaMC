@@ -1,4 +1,6 @@
 //! Brushable block entity for archaeology brush progress and delayed loot.
+use vecta_registry::loot_table::loot_context_params;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use std::str::FromStr as _;
 use std::sync::{Arc, Weak};
@@ -224,13 +226,24 @@ impl BrushableBlockEntity {
                 with_loot_source(self.base.level().as_deref(), table, seed, |rng| {
                     let mut ctx = LootContext::new(rng)
                         .with_luck(player.get_luck())
-                        .with_tool(brush)
-                        .with_origin(
-                            f64::from(pos.x()) + 0.5,
-                            f64::from(pos.y()) + 0.5,
-                            f64::from(pos.z()) + 0.5,
+                        .with_parameter(loot_context_params::TOOL, brush)
+                        .with_parameter(
+                            loot_context_params::ORIGIN,
+                            (
+                                f64::from(pos.x()) + 0.5,
+                                f64::from(pos.y()) + 0.5,
+                                f64::from(pos.z()) + 0.5,
+                            ),
                         )
-                        .with_this_entity(entity_loot_ref(player, Some(&equipment)));
+                        .with_parameter(
+                            loot_context_params::THIS_ENTITY,
+                            entity_loot_ref(player, Some(&equipment)),
+                        );
+                    let validation = ctx.params.validate(&loot_context_param_sets::ARCHAEOLOGY);
+                    assert!(
+                        validation.is_ok(),
+                        "Invalid archaeology loot parameters: {validation:?}"
+                    );
                     table.get_random_items(&mut ctx)
                 })
             }

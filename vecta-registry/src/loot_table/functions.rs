@@ -1,3 +1,4 @@
+use super::loot_context_params;
 use super::{
     DyeColor, EquipmentSlotGroup, Identifier, InstrumentRef, ItemPredicate, ItemStack,
     LootCondition, LootContext, LootContextEntity, LootEntry, NumberProvider, REGISTRY,
@@ -351,7 +352,7 @@ impl LootFunction {
                 }
             }
             LootFunction::ExplosionDecay => {
-                if let Some(radius) = ctx.explosion_radius {
+                if let Some(radius) = ctx.params.get(loot_context_params::EXPLOSION_RADIUS) {
                     // Each item has 1/radius chance to survive
                     let probability = 1.0 / radius;
                     let mut result_count = 0;

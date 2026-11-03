@@ -1,5 +1,7 @@
 //! Vanilla Chicken entity with variant + sound-variant parity, wing-flap
 //! slow-fall, and periodic egg-laying behavior.
+use vecta_registry::loot_table::loot_context_params;
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 use std::str::FromStr;
 use std::sync::{Arc, Weak};
@@ -375,8 +377,19 @@ impl ChickenEntity {
         // Vanilla `LootContextParamSets.GIFT` carries only ORIGIN and THIS_ENTITY.
         let items = with_loot_source(self.level().as_deref(), loot_table, 0, |rng| {
             let mut context = LootContext::new(rng)
-                .with_origin(position.x, position.y, position.z)
-                .with_this_entity(entity_loot_ref(self, Some(&equipment)));
+                .with_parameter(
+                    loot_context_params::ORIGIN,
+                    (position.x, position.y, position.z),
+                )
+                .with_parameter(
+                    loot_context_params::THIS_ENTITY,
+                    entity_loot_ref(self, Some(&equipment)),
+                );
+            let validation = context.params.validate(&loot_context_param_sets::GIFT);
+            assert!(
+                validation.is_ok(),
+                "Invalid gift loot parameters: {validation:?}"
+            );
             loot_table.get_random_items(&mut context)
         });
         let dropped_any = !items.is_empty();

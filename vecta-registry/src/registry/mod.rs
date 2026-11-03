@@ -281,6 +281,7 @@ pub struct Registry {
     pub dialogs: DialogRegistry,
     pub menu_types: MenuTypeRegistry,
     pub slot_displays: crate::recipe::SlotDisplayTypeRegistry,
+    pub context_key_sets: crate::loot_table::ContextKeySetRegistry,
     pub mob_effects: MobEffectRegistry,
     pub map_decoration_types: MapDecorationTypeRegistry,
     pub potions: PotionRegistry,
@@ -396,6 +397,7 @@ impl Registry {
         vanilla_dialog_tags::DialogTag::register_dialog_tags(&mut registry.dialogs);
         vanilla_menu_types::register_menu_types(&mut registry.menu_types);
         crate::vanilla_slot_displays::register_slot_displays(&mut registry.slot_displays);
+        crate::vanilla_context_key_sets::register_context_key_sets(&mut registry.context_key_sets);
         vanilla_mob_effects::register_mob_effects(&mut registry.mob_effects);
         vanilla_map_decoration_types::register_map_decoration_types(
             &mut registry.map_decoration_types,
@@ -498,6 +500,7 @@ impl Registry {
         self.dialogs.freeze();
         self.menu_types.freeze();
         self.slot_displays.freeze();
+        self.context_key_sets.freeze();
         self.mob_effects.freeze();
         self.map_decoration_types.freeze();
         self.potions.freeze();
@@ -764,6 +767,7 @@ impl Registry {
             dialogs: DialogRegistry::new(),
             menu_types: MenuTypeRegistry::new(),
             slot_displays: crate::recipe::SlotDisplayTypeRegistry::new(),
+            context_key_sets: crate::loot_table::ContextKeySetRegistry::new(),
             mob_effects: MobEffectRegistry::new(),
             map_decoration_types: MapDecorationTypeRegistry::new(),
             potions: PotionRegistry::new(),
