@@ -3,6 +3,27 @@
 Проверенные блокеры. Формат: что проверено → чего не хватает → риск догадки →
 точный path/output/decision → зависимые карточки.
 
+## Сеанс7: актуальный статус B-06-07
+
+Единая typed ContextMap и миграция текущих loot callers реализованы; выбирать
+эту архитектуру повторно не нужно. Produced metadata16ключей/31set получена и
+используется build generator. Нового общего provider codec/factory ещё нет.
+
+Java StoredNumberAccess требует level→server command storage; ScoreboardValue
+требует scoreboard. Проверены World и server-owned DomainScoreboards/
+DomainCommandStorage: у World нет доступа к этим сервисам. Предложен отдельный
+read context домена с shared Arc владением живыми данными и без World→Server
+ссылки. Пользователь **одобрил общий контекст чтения домена** с Arc данными;
+новый выбор владения закрыт, следующий шаг — реализация. Повторно не спрашивать.
+EntityRef также пока содержит predicate/equipment view без score-holder identity;
+для score consumer нельзя подставлять entity type вместо личности сущности.
+
+Из local SteelExtractor уже получен type catalog:28float+23int=51, включая
+number_dispatcher в обеих группах. Output лежит в checkout, source/reproduction
+сохранены в scripts/steel-extractor/loot-contexts.md. Configured provider values
+пока не извлечены. Не заменять отсутствующие consumers no-op variants.
+Подробности: [сеанс07](report-next-07.md).
+
 ## Актуализация после ревью сеанса6, 2026-11-03
 
 Ниже сохранена история диагнозов. Актуальные уточнения имеют приоритет:

@@ -12,9 +12,12 @@ G022 block/storage и общие NBT paths прошли [ревью](../reviews/
 Supported G024 living load/save, Team/UUID и break callback реализованы и прошли
 [ревью сеанса06](../reviews/night-06-session06-codex.md) с исправлениями codecs,
 attributes, effects, сна и references. Brain/locator-bar icon ещё не готовы.
-Следующий slice: **единый typed ContextMap в existing LootContext** и миграция
-всех loot callers (путь уже согласован), providers/compute, затем остальные
-направления [запроса07](../../WORKBUDDY_CONTINUE_06_07.md).
+Typed ContextMap, generated parameter sets и миграция текущих loot callers
+реализованы в [сеансе07](report-next-07.md). Не повторять этот срез.
+Следующий slice: **providers/compute**, затем остальные направления
+[запроса07](../../WORKBUDDY_CONTINUE_06_07.md). Пользователь одобрил общий
+domain read context с shared Arc scoreboard/storage; реализовывать его. Actual
+каталог извлечён:28float+23int=51тип, NumberDispatcher есть в обеих группах.
 Не возвращаться к готовым рамкам вместо открытых shared consumers.
 B-06-04 снят: новый apply hook на обычном reload не нужен.
 Строки завершённых групп ниже сохраняют исторический порядок,

@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление после ревью сеанса6, 2026-11-03.
+Обновление сеанса7, 2026-11-03. Проверки/код текущего среза — в report-next-07.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -31,7 +31,8 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **Единый typed ContextMap в existing LootContext** (путь согласован), миграция всех loot callers, providers и `modify … compute`, затем направления 3–12 |
+| Сеанс7, первый срез | `2a0ef1daf`: typed ContextMap,16keys/31sets, все текущие callers; workspace **4304/0/18**, Clippy/fmt exit0, Python4, audit3105/49/230 |
+| Следующий consumer | **Одобренный общий domain read context** с Arc scoreboard/storage, затем providers/compute и направления 3–12 |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),

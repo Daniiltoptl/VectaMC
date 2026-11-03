@@ -1,5 +1,14 @@
 # Сеанс 07: единый loot context, compute и большая очередь vanilla
 
+> Актуализация: срезA (единая typed ContextMap, migration всех текущих callers,
+> metadata16keys/31sets) реализован, см. planning/night-06/report-next-07.md.
+> Не делай его повторно. Следующий consumer — providers/compute. Новый вопрос
+> о владении общим domain read context решён: пользователь одобрил shared Arc
+> scoreboard/storage и отдельный read context без World→Server ссылки.
+> Оба архитектурных решения согласованы, повторно не спрашивать.
+> Actual catalog:28float+23int=51тип. Первый код `2a0ef1daf`, workspace4304/0/18.
+> Исходный объём задания ниже сохраняется для оставшейся очереди.
+
 Работай в `C:\Users\My comp\Desktop\Vecta`, ветка `codex/night-vanilla-03`.
 Продолжай actual tip вместе с ревью Codex, не откатывайся к историческим SHA.
 Задача — писать и проверять код до доступного лимита сеанса. Завершение одного

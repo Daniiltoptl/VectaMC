@@ -1,6 +1,6 @@
 path,line,marker
-vecta-core/src/behavior/block/mod.rs,76,// TODO: Add the block entity to the context when it can be done.
-vecta-core/src/behavior/block/mod.rs,242,// TODO: extract the correct rules from block spawn rule
+vecta-core/src/behavior/block/mod.rs,78,// TODO: Add the block entity to the context when it can be done.
+vecta-core/src/behavior/block/mod.rs,260,// TODO: extract the correct rules from block spawn rule
 vecta-core/src/behavior/blocks/building/bed_block.rs,28,/// TODO: Mirror vanilla `BedBlock.useWithoutItem` invalid-dimension explosion
 vecta-core/src/behavior/blocks/building/bed_block.rs,31,/// TODO: Mirror vanilla `BedBlock.kickVillagerOutOfBed` once villager sleeping
 vecta-core/src/behavior/blocks/building/bed_block.rs,329,// TODO: When WOrld::explode foundation exists display the bedrule error remove both halves and create the bad respawn point explosion
@@ -55,7 +55,7 @@ vecta-core/src/behavior/items/tipped_arrow.rs,16,// TODO: Implement inherited Ar
 vecta-core/src/block_entity/entities/beacon.rs,63,// TODO: Expose a `getBeamSections` equivalent when server-side callers need it.
 vecta-core/src/block_entity/entities/beacon.rs,427,// TODO: Trigger the CONSTRUCT_BEACON criterion for nearby players on activation once
 vecta-core/src/block_entity/entities/bell.rs,199,// TODO: make bell sleep when not used
-vecta-core/src/block_entity/entities/brushable.rs,221,// TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
+vecta-core/src/block_entity/entities/brushable.rs,223,// TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
 vecta-core/src/block_entity/entities/potent_sulfur.rs,279,"// TODO: Add nausea ticker (WET / DORMANT states, every 10 ticks) after the mob-effect refactor adds timed instances and sync."
 vecta-core/src/chunk/chunk_map/mod.rs,1332,"// TODO: Vecta records vanilla's FLAG_KEEP_DIMENSION_ACTIVE, but has no"
 vecta-core/src/chunk/paletted_container.rs,523,//TODO: Use a nonEmpty counter?
@@ -88,27 +88,27 @@ vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,240,// TODO: add this f
 vecta-core/src/entity/entities/mobs/passive/sheep/mod.rs,251,// TODO: add this function to DyeColor
 vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,99,"// TODO: Implement portal handling, fire refresh, dragon fight callbacks, and explosion behavior."
 vecta-core/src/entity/entities/objects/items/item_entity.rs,713,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,186,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,519,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,188,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,525,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,571,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,676,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,919,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
 vecta-core/src/entity/entity/mod.rs,1501,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
 vecta-core/src/entity/entity/mod.rs,2697,// TODO: Recursively reposition this entity's passengers (vanilla
 vecta-core/src/entity/entity/mod.rs,4228,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
-vecta-core/src/entity/living_entity.rs,686,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
-vecta-core/src/entity/living_entity.rs,694,// TODO: apply helmet damage once those equipment hooks exist.
-vecta-core/src/entity/living_entity.rs,732,// TODO: Play secondary hurt sounds once equipment effects expose them.
-vecta-core/src/entity/living_entity.rs,991,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
-vecta-core/src/entity/living_entity.rs,1031,// TODO: Create wither rose for killer
-vecta-core/src/entity/living_entity.rs,1086,/// equal to the base reward (see TODO).
-vecta-core/src/entity/living_entity.rs,1088,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
-vecta-core/src/entity/living_entity.rs,1107,// TODO: Drop non-mob equipment overrides once those foundations exist.
-vecta-core/src/entity/living_entity.rs,1396,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
-vecta-core/src/entity/living_entity.rs,1839,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/entity/living_entity.rs,2561,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
-vecta-core/src/entity/living_entity.rs,3196,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
+vecta-core/src/entity/living_entity.rs,688,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
+vecta-core/src/entity/living_entity.rs,696,// TODO: apply helmet damage once those equipment hooks exist.
+vecta-core/src/entity/living_entity.rs,734,// TODO: Play secondary hurt sounds once equipment effects expose them.
+vecta-core/src/entity/living_entity.rs,993,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
+vecta-core/src/entity/living_entity.rs,1033,// TODO: Create wither rose for killer
+vecta-core/src/entity/living_entity.rs,1088,/// equal to the base reward (see TODO).
+vecta-core/src/entity/living_entity.rs,1090,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
+vecta-core/src/entity/living_entity.rs,1109,// TODO: Drop non-mob equipment overrides once those foundations exist.
+vecta-core/src/entity/living_entity.rs,1398,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
+vecta-core/src/entity/living_entity.rs,1841,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/entity/living_entity.rs,2563,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
+vecta-core/src/entity/living_entity.rs,3198,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
 vecta-core/src/entity/mob/mod.rs,698,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
 vecta-core/src/entity/mob/mod.rs,785,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
 vecta-core/src/entity/mob/mod.rs,1068,// TODO: Apply EquipmentDrops enchantment value effects once damage
@@ -132,7 +132,7 @@ vecta-core/src/inventory/slots/crafting_slots.rs,89,// TODO: Unlock the recipe a
 vecta-core/src/inventory/slots/furnace_slots.rs,135,// TODO: Award crafted stats/recipes and trigger RECIPE_CRAFTED once supported.
 vecta-core/src/player/advancement/mod.rs,64,//TODO: register advancement listener
 vecta-core/src/player/advancement/mod.rs,97,//TODO: unregister advancement listener
-vecta-core/src/player/advancement/rewards.rs,42,//TODO grant recipes and functions when implemented
+vecta-core/src/player/advancement/rewards.rs,61,//TODO grant recipes and functions when implemented
 vecta-core/src/player/chat/message_validator.rs,163,// TODO: Verify checksum if needed (checksum == 0 means skip validation)
 vecta-core/src/player/chat/mod.rs,129,// TODO: Also exempt the singleplayer owner once Vecta models that state.
 vecta-core/src/player/connection/mod.rs,214,// TODO: Centralize the minimum with config validation when zero view distance is supported.
@@ -175,8 +175,8 @@ vecta-core/src/player/stats_counter.rs,181,// TODO: Reset score of the objective
 vecta-core/src/portal/end_portal.rs,88,/// TODO(respawn): replace this with the vanilla personal bed/anchor respawn path once Vecta has
 vecta-core/src/server/registry_cache.rs,73,//TODO: For non vanilla entries we need to encode the data into nbt
 vecta-core/src/world/explosion/mod.rs,497,// TODO: Add trigger branch with windcharges
-vecta-core/src/world/level_effects.rs,341,"// TODO: This only covers the `drop_items` path. In vanilla, container"
-vecta-core/src/world/level_effects.rs,381,// TODO: block entity and entity drops
+vecta-core/src/world/level_effects.rs,343,"// TODO: This only covers the `drop_items` path. In vanilla, container"
+vecta-core/src/world/level_effects.rs,383,// TODO: block entity and entity drops
 vecta-core/src/worldgen/generator/registry.rs,256,// TODO: Implement vanilla FlatLevelGeneratorSettings::adjustGenerationSettings for these flags.
 vecta-core/src/worldgen/structure/piece_placer/template_piece.rs,44,// TODO: Add family-specific data marker dispatch before enabling these pieces.
 vecta-core/src/worldgen/structure/piece_placer/template_piece.rs,318,// TODO: Add family-specific data marker dispatch before enabling these pieces.
@@ -213,19 +213,19 @@ vecta-registry/src/item_stack.rs,997,// TODO: Implement firework explosion setti
 vecta-registry/src/item_stack.rs,1008,// TODO: Implement book cover setting
 vecta-registry/src/item_stack.rs,1018,// TODO: Implement written book pages setting
 vecta-registry/src/item_stack.rs,1028,// TODO: Implement writable book pages setting
-vecta-registry/src/loot_table/conditions.rs,304,// TODO: Implement when world position data is available in context
-vecta-registry/src/loot_table/conditions.rs,337,// TODO: Implement when scoreboard system is available
-vecta-registry/src/loot_table/conditions.rs,341,// TODO: Implement condition registry lookup
-vecta-registry/src/loot_table/context.rs,98,// TODO: Implement when scoreboard system is available
-vecta-registry/src/loot_table/context.rs,103,// TODO: Implement when command storage system is available
+vecta-registry/src/loot_table/conditions.rs,307,// TODO: Implement when world position data is available in context
+vecta-registry/src/loot_table/conditions.rs,340,// TODO: Implement when scoreboard system is available
+vecta-registry/src/loot_table/conditions.rs,344,// TODO: Implement condition registry lookup
+vecta-registry/src/loot_table/context.rs,106,// TODO: Read the domain scoreboard through the loot level context.
+vecta-registry/src/loot_table/context.rs,111,// TODO: Read domain command storage through the loot level context.
 vecta-registry/src/loot_table/entries.rs,474,// TODO: Implement when block entity system supports inventory retrieval
 vecta-registry/src/loot_table/entries.rs,485,// TODO: Implement when block entity system supports slot access
-vecta-registry/src/loot_table/functions.rs,398,// TODO: Implement when enchantment system is ready
-vecta-registry/src/loot_table/functions.rs,402,// TODO: Implement when enchantment system is ready
-vecta-registry/src/loot_table/functions.rs,407,// TODO: Implement when block entity system is ready
-vecta-registry/src/loot_table/functions.rs,411,// TODO: Implement block state copying
-vecta-registry/src/loot_table/functions.rs,415,// TODO: Implement component setting from JSON
-vecta-registry/src/loot_table/functions.rs,430,// TODO: Implement exploration map creation
-vecta-registry/src/loot_table/functions.rs,434,// TODO: Implement name setting
-vecta-registry/src/loot_table/functions.rs,532,// TODO: Implement function registry lookup
+vecta-registry/src/loot_table/functions.rs,399,// TODO: Implement when enchantment system is ready
+vecta-registry/src/loot_table/functions.rs,403,// TODO: Implement when enchantment system is ready
+vecta-registry/src/loot_table/functions.rs,408,// TODO: Implement when block entity system is ready
+vecta-registry/src/loot_table/functions.rs,412,// TODO: Implement block state copying
+vecta-registry/src/loot_table/functions.rs,416,// TODO: Implement component setting from JSON
+vecta-registry/src/loot_table/functions.rs,431,// TODO: Implement exploration map creation
+vecta-registry/src/loot_table/functions.rs,435,// TODO: Implement name setting
+vecta-registry/src/loot_table/functions.rs,533,// TODO: Implement function registry lookup
 vecta-registry/src/recipe/crafting/matching.rs,383,// TODO: Populate this from saved map data once maps are implemented.

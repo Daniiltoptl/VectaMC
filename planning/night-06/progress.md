@@ -1,5 +1,21 @@
 # Night 06 — progress
 
+## Сеанс7: ContextMap и все текущие loot consumers
+
+Реализована единая typed ContextMap с сохранением borrowed values и shared RNG.
+Удалены отдельные параметры LootContext и LootContextRef. Generator использует
+produced SteelExtractor output:16ключей/31param set. Текущие игровые consumers
+переведены и проверяют свои sets; исправлены chest THIS_ENTITY, условие
+KilledByPlayer по LAST_DAMAGE_PLAYER и block origin/empty tool.
+
+Код `2a0ef1daf`: workspace4304/0/18, Clippy/fmt exit0, Python4,
+audit3105/49/230. Детали: [report-next-07.md](report-next-07.md).
+Score/Storage legacy stubs и SlotProvider consumer не объявляются готовыми.
+Общий read context домена с shared Arc scoreboard/storage **одобрен
+пользователем**; это следующий срез, повторно разрешение не спрашивать.
+Provider type output уже
+получен:28float+23int=51, а не49; новая factory/compute ещё не реализована.
+
 ## Актуальное ревью сеанса6
 
 Проверен incoming `65716df85..e1efc174b`; общий living loader, region I/O,
@@ -15,9 +31,9 @@ audit3105/49/230. Cargo manifest warning mimalloc сохранён и объяс
 Brain/locator-bar icon и durability criteria остаются открытыми; это не full
 vanilla LivingEntity parity. Полное ядро vanilla всё ещё не готово.
 
-Следующий [большой запрос07](../../WORKBUDDY_CONTINUE_06_07.md): согласованный
-единый typed ContextMap в existing LootContext, миграция всех loot callers,
-реальные provider registries и compute, затем вся очередь направлений3–12.
+В [большом запросе07](../../WORKBUDDY_CONTINUE_06_07.md) срез ContextMap и
+миграции callers теперь реализован; остаются реальные provider registries и
+compute, затем вся очередь направлений3–12.
 Новый вопрос о выборе этой архитектуры не требуется. Seeded RNG/domains сохранять.
 
 Ветка `codex/night-vanilla-03`. Стартовый HEAD `3a79ec57f`
