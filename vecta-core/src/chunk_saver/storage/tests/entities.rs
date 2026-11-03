@@ -633,3 +633,153 @@ fn a_saved_barrel_restores_identity_and_contents_through_the_storage_decoder() {
     );
     drop(guard);
 }
+
+#[test]
+fn a_barrel_survives_a_real_region_file_round_trip() {
+    use std::env::temp_dir;
+    use std::sync::Weak;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use simdnbt::owned::NbtCompound;
+    use text_components::TextComponent;
+    use vecta_registry::data_components::DataComponentMap;
+    use vecta_registry::data_components::components::CustomData;
+    use vecta_registry::data_components::vanilla_components::CUSTOM_DATA;
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{vanilla_blocks, vanilla_items};
+    use vecta_utils::Downcast as _;
+
+    use crate::block_entity::entities::BarrelBlockEntity;
+    use crate::block_entity::{BlockEntity as _, BlockEntityLoadContext};
+    use crate::chunk::status::ChunkStatus;
+    use crate::chunk_saver::region_manager::RegionManager;
+    use crate::inventory::lock::ContainerLockGuard;
+    use crate::test_support::{fresh_test_world, insert_ready_full_chunk};
+
+    init_globals();
+    let fixture = fresh_test_world("region_barrel_roundtrip");
+    let world = &fixture.world;
+    let pos = BlockPos::new(3, 64, 5);
+    let chunk_pos = ChunkPos::from_block_pos(pos);
+    insert_ready_full_chunk(world, chunk_pos);
+    assert!(world.set_block(
+        pos,
+        vanilla_blocks::BARREL.default_state(),
+        UpdateFlags::UPDATE_ALL
+    ));
+
+    let block_entity = world.get_block_entity(pos).expect("barrel entity");
+    let mut identity = NbtCompound::new();
+    identity.insert("CustomName", TextComponent::plain("Storage").to_codec_nbt());
+    let mut lock = NbtCompound::new();
+    lock.insert("items", "minecraft:diamond");
+    identity.insert("lock", lock);
+    assert!(block_entity.load_item_custom_data(&identity, &BlockEntityLoadContext::detached()));
+    let barrel = block_entity
+        .downcast_ref::<BarrelBlockEntity>()
+        .expect("barrel implementation");
+    let container = barrel.container_ref().expect("barrel container");
+    let id = container.container_id();
+    {
+        let mut guard = ContainerLockGuard::lock_all(std::slice::from_ref(&container));
+        assert!(guard.set_item(id, 7, ItemStack::with_count(&vanilla_items::DIAMOND, 5)));
+    }
+    let mut stored = DataComponentMap::new();
+    let mut custom = NbtCompound::new();
+    custom.insert("marker", 1_i32);
+    stored.set(
+        CUSTOM_DATA,
+        Some(CustomData::try_from_compound(custom).expect("custom data")),
+    );
+    block_entity.base().set_stored_components(stored);
+
+    let prepared = world
+        .chunk_map
+        .with_chunk_at_status(chunk_pos, ChunkStatus::Full, |chunk| {
+            ChunkStorage::prepare_chunk_save(chunk, ChunkStatus::Full, &[], true)
+        })
+        .flatten()
+        .expect("the dirty chunk prepares for saving");
+
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime");
+
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time after epoch")
+        .as_nanos();
+    let dir = temp_dir().join(format!("vecta-region-{unique}"));
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .expect("encoding pool");
+    let regions = RegionManager::new(dir.clone());
+    let loaded = runtime.block_on(async {
+        assert!(
+            regions
+                .save_chunk_data(prepared, &pool)
+                .await
+                .expect("region write"),
+            "the prepared chunk is written to the region file"
+        );
+
+        // The load path expects the region to be acquired, like the chunk map does.
+        assert!(
+            regions
+                .acquire_chunk(chunk_pos)
+                .await
+                .expect("region acquire"),
+            "the saved chunk is present in the region index"
+        );
+        let storage = ChunkStorage::Disk(regions);
+        storage
+            .load_chunk(
+                chunk_pos,
+                world.dimension_type.min_y,
+                world.dimension_type.height,
+                Weak::new(),
+                &pool,
+            )
+            .await
+            .expect("region read")
+            .expect("the region file holds the chunk")
+    });
+    let restored = loaded
+        .chunk
+        .get_block_entity(pos)
+        .expect("the loaded chunk rebuilds the barrel");
+    let restored_barrel = restored
+        .downcast_ref::<BarrelBlockEntity>()
+        .expect("the region decoder uses the registered barrel factory");
+    assert_eq!(
+        restored_barrel.identity().custom_name(),
+        Some(TextComponent::plain("Storage")),
+        "the name survives the region file"
+    );
+    assert!(restored_barrel.identity().is_locked());
+
+    let restored_container = restored_barrel.container_ref().expect("restored container");
+    let restored_id = restored_container.container_id();
+    let guard = ContainerLockGuard::lock_all(std::slice::from_ref(&restored_container));
+    assert_eq!(
+        guard
+            .get(restored_id)
+            .expect("the restored container is locked")
+            .get_item(7),
+        &ItemStack::with_count(&vanilla_items::DIAMOND, 5),
+        "the restored container is functional and still holds its contents"
+    );
+    drop(guard);
+    assert!(
+        restored
+            .base()
+            .stored_components()
+            .get(CUSTOM_DATA)
+            .is_some(),
+        "an explicit component survives the region file"
+    );
+
+    std::fs::remove_dir_all(dir).expect("temporary region directory is removed");
+}

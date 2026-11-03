@@ -140,15 +140,22 @@ impl BlockItem {
                 let item = context.with_item(|item| item.copy_with_count(item.count()));
                 // The entity is already attached, so an authorized payload resolves
                 // server-dependent text exactly like Vanilla's attached
-                // `loadAdditional`. Playerless placement has no server reference.
-                let load_context = context.player().map_or_else(
-                    || Ok(BlockEntityLoadContext::detached()),
-                    |player| {
-                        BlockEntityLoadContext::for_server_world(&player.server(), &context.world)
-                    },
-                );
-                if let Ok(load_context) = load_context
-                    && let Some(data) = item.get(BLOCK_ENTITY_DATA)
+                // `loadAdditional`. Playerless placement, or a player whose server
+                // is already gone, keeps the detached decode.
+                let load_context = match context.player() {
+                    Some(player) => player.server.upgrade().map_or_else(
+                        BlockEntityLoadContext::detached,
+                        |server| {
+                            BlockEntityLoadContext::for_server_world(&server, &context.world)
+                                .unwrap_or_else(|error| {
+                                    log::warn!("placement NBT load has no read context: {error}");
+                                    BlockEntityLoadContext::detached()
+                                })
+                        },
+                    ),
+                    None => BlockEntityLoadContext::detached(),
+                };
+                if let Some(data) = item.get(BLOCK_ENTITY_DATA)
                     && data.block_entity_type().key == block_entity.get_type().key
                     && (!block_entity.get_type().only_op_can_set_nbt
                         || context

@@ -14,6 +14,8 @@ use vecta_registry::vanilla_block_entity_types;
 use vecta_registry::{REGISTRY, RegistryEntry, RegistryExt};
 use vecta_utils::{BlockPos, BlockStateId};
 
+use super::BlockEntityLoadContext;
+
 use super::SharedBlockEntity;
 #[cfg_attr(
     not(test),
@@ -105,8 +107,12 @@ impl BlockEntityRegistry {
     }
 
     /// Creates and loads a block entity, falling back to an unimplemented entity.
-    /// This is the pre-level-binding decode phase of Vanilla `loadStatic`;
-    /// attached NBT updates must instead supply a [`super::BlockEntityLoadContext`].
+    ///
+    /// This is the pre-level-binding decode phase, mirroring `LevelChunk`'s
+    /// `BlockEntity.loadWithComponents`: the entity reads both its additional
+    /// data and its stored component map. Text that needs a server stays
+    /// unresolved, because the context is [`BlockEntityLoadContext::detached`];
+    /// attached NBT updates must supply a live context instead.
     #[must_use]
     pub fn create_and_load_or_unimplemented(
         &self,
@@ -119,7 +125,7 @@ impl BlockEntityRegistry {
         let id = block_entity_type.id();
         if let Some(factory) = self.entries.get(id).and_then(|entry| entry.factory) {
             let entity = factory(level, pos, state);
-            entity.load_additional(nbt);
+            entity.load_with_components(nbt, &BlockEntityLoadContext::detached());
             entity
         } else {
             let nbt_view: BorrowedRootNbtCompound<'_, '_> = nbt.into();
@@ -149,7 +155,7 @@ impl BlockEntityRegistry {
             let mut nbt_bytes = Vec::new();
             nbt.write(&mut nbt_bytes);
             if let Ok(borrowed) = read_borrowed_compound(&mut Cursor::new(&nbt_bytes)) {
-                entity.load_additional(&borrowed);
+                entity.load_with_components(&borrowed, &BlockEntityLoadContext::detached());
             } else {
                 log::warn!(
                     "failed to reborrow owned NBT for block entity {}",

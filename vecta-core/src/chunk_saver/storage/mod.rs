@@ -761,11 +761,11 @@ impl ChunkStorage {
             .map(|entity| {
                 let pos = entity.get_block_pos();
 
-                // Serialize NBT data
-                let mut nbt = NbtCompound::new();
-                entity.save_additional(&mut nbt);
+                // Vanilla `LevelChunk` persists `saveWithFullMetadata`, whose payload is
+                // `saveWithoutMetadata`: the additional data plus the stored component map.
+                // The type and position travel in the record itself.
                 let mut nbt_bytes = Vec::new();
-                nbt.write(&mut nbt_bytes);
+                entity.save_without_metadata().write(&mut nbt_bytes);
 
                 PersistentBlockEntity {
                     x: (pos.0.x - chunk_pos.0.x * 16) as u8,
