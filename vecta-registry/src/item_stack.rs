@@ -290,9 +290,9 @@ impl ItemStack {
         self.set_damage_value(new_damage);
 
         if self.is_broken() {
-            // TODO: Call onEquippedItemBroken callback which:
-            // - Broadcasts entity event (byte 47 for mainhand) for break sound/particles
-            // - Stops location-based effects (removes attribute modifiers)
+            // The owner runs `onEquippedItemBroken` for the slot: this stack has
+            // no entity or level, so the break event, the attribute-modifier
+            // cleanup and the statistic belong to the caller that holds them.
             self.shrink_one();
             return true;
         }
