@@ -2,7 +2,10 @@
 
 mod accessor;
 
-use simdnbt::owned::{NbtCompound, NbtTag};
+use simdnbt::{
+    Mutf8Str, Mutf8String,
+    owned::{NbtCompound, NbtTag},
+};
 use text_components::TextComponent;
 use vecta_utils::{
     Identifier,
@@ -418,9 +421,14 @@ fn tag_value(tag: &NbtTag) -> i32 {
         NbtTag::Long(value) => (*value as f64).floor() as i32,
         NbtTag::Float(value) => f64::from(*value).floor() as i32,
         NbtTag::Double(value) => value.floor() as i32,
-        NbtTag::String(value) => {
-            i32::try_from(value.to_string_lossy().encode_utf16().count()).unwrap_or(i32::MAX)
-        }
+        NbtTag::String(value) => i32::try_from(
+            value
+                .as_bytes()
+                .iter()
+                .filter(|byte| **byte & 0xc0 != 0x80)
+                .count(),
+        )
+        .unwrap_or(i32::MAX),
         NbtTag::List(list) => i32::try_from(nbt_list_values(list).len()).unwrap_or(i32::MAX),
         NbtTag::ByteArray(values) => i32::try_from(values.len()).unwrap_or(i32::MAX),
         NbtTag::IntArray(values) => i32::try_from(values.len()).unwrap_or(i32::MAX),
@@ -453,18 +461,17 @@ fn stringify(
         (Some(start), None) => substring(&text, start, None)?,
         (Some(start), Some(end)) => substring(&text, start, Some(end))?,
     };
-    Ok(NbtTag::String(processed.into()))
+    Ok(NbtTag::String(processed))
 }
 
-fn tag_as_text(tag: &NbtTag) -> Result<String, CommandSyntaxError> {
+fn tag_as_text(tag: &NbtTag) -> Result<Mutf8String, CommandSyntaxError> {
     let text = match tag {
-        NbtTag::String(value) => value.to_string(),
+        NbtTag::String(value) => return Ok(value.clone()),
         NbtTag::Byte(value) => format!("{value}b"),
         NbtTag::Short(value) => format!("{value}s"),
         NbtTag::Int(value) => value.to_string(),
         NbtTag::Long(value) => format!("{value}L"),
-        NbtTag::Float(value) => format!("{}f", java_float_text(f64::from(*value))),
-        NbtTag::Double(value) => format!("{}d", java_float_text(*value)),
+        NbtTag::Float(_) | NbtTag::Double(_) => accessor::render_tag(tag),
         other => {
             return Err(CommandSyntaxError::dynamic(
                 translations::COMMANDS_DATA_MODIFY_EXPECTED_VALUE
@@ -473,24 +480,24 @@ fn tag_as_text(tag: &NbtTag) -> Result<String, CommandSyntaxError> {
             ));
         }
     };
-    Ok(text)
-}
-
-/// Formats a float the way Java's `Double.toString` does, keeping the trailing
-/// `.0` that Rust omits for integral values.
-fn java_float_text(value: f64) -> String {
-    let text = value.to_string();
-    if text.contains(['.', 'e', 'E']) || text.contains("inf") || text.contains("NaN") {
-        text
-    } else {
-        format!("{text}.0")
-    }
+    Ok(text.into())
 }
 
 /// Vanilla `DataCommands.substring` over UTF-16 code units, as Java indexes strings.
-fn substring(input: &str, start: i32, end: Option<i32>) -> Result<String, CommandSyntaxError> {
-    let units: Vec<u16> = input.encode_utf16().collect();
-    let length = i32::try_from(units.len()).unwrap_or(i32::MAX);
+fn substring(
+    input: &Mutf8Str,
+    start: i32,
+    end: Option<i32>,
+) -> Result<Mutf8String, CommandSyntaxError> {
+    // MUTF-8 encodes each UTF-16 unit separately, including unpaired surrogates.
+    let mut boundaries: Vec<usize> = input
+        .as_bytes()
+        .iter()
+        .enumerate()
+        .filter_map(|(index, byte)| (*byte & 0xc0 != 0x80).then_some(index))
+        .collect();
+    boundaries.push(input.len());
+    let length = i32::try_from(boundaries.len() - 1).unwrap_or(i32::MAX);
     let absolute_start = if start >= 0 { start } else { length + start };
     let absolute_end = match end {
         Some(end) if end >= 0 => end,
@@ -510,8 +517,8 @@ fn substring(input: &str, start: i32, end: Option<i32>) -> Result<String, Comman
     }
 
     let from = usize::try_from(absolute_start).unwrap_or(0);
-    let to = usize::try_from(absolute_end).unwrap_or(units.len());
-    Ok(String::from_utf16_lossy(&units[from..to]))
+    let to = usize::try_from(absolute_end).unwrap_or(boundaries.len() - 1);
+    Ok(Mutf8Str::from_slice(&input.as_bytes()[boundaries[from]..boundaries[to]]).to_owned())
 }
 
 fn into_compound(root: NbtTag) -> Result<NbtCompound, CommandSyntaxError> {
@@ -613,6 +620,17 @@ mod tests {
 
     #[test]
     fn string_sources_use_vanilla_numeric_suffixes() {
+        for (value, expected) in [
+            (NbtTag::Float(0.1), "0.1f"),
+            (NbtTag::Float(-0.0), "-0.0f"),
+            (NbtTag::Float(1.0e7), "1.0E7f"),
+            (NbtTag::Double(1.0e-4), "1.0E-4d"),
+        ] {
+            assert_eq!(
+                stringify(&value, None, None).expect("numeric text"),
+                NbtTag::String(expected.into())
+            );
+        }
         assert_eq!(
             stringify(&NbtTag::Byte(1), None, None).expect("byte text"),
             NbtTag::String("1b".into())
@@ -638,6 +656,22 @@ mod tests {
 
     #[test]
     fn string_substrings_use_utf16_indices_and_reject_out_of_range() {
+        let text = NbtTag::String("a😀z".into());
+        let high = stringify(&text, Some(1), Some(2)).expect("high surrogate");
+        let low = stringify(&text, Some(2), Some(3)).expect("low surrogate");
+        assert_eq!(
+            high,
+            NbtTag::String(Mutf8Str::from_slice(&[0xed, 0xa0, 0xbd]).to_owned())
+        );
+        assert_eq!(
+            low,
+            NbtTag::String(Mutf8Str::from_slice(&[0xed, 0xb8, 0x80]).to_owned())
+        );
+        assert_eq!(tag_value(&high), 1);
+        assert_eq!(
+            stringify(&high, None, None).expect("preserve surrogate"),
+            high
+        );
         assert_eq!(
             stringify(&NbtTag::String("abcdef".into()), Some(1), Some(4)).expect("substring"),
             NbtTag::String("bcd".into())

@@ -1,10 +1,14 @@
 //! `/data` behaviour against a live server, world and player.
 
+use std::iter;
+
 use crate::chunk::Chunk;
 use crate::chunk::status::ChunkStatus;
 use simdnbt::ToNbtTag as _;
 use simdnbt::owned::NbtList;
 use text_components::content::NbtSource;
+use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
+use vecta_registry::blocks::properties::{BlockStateProperties, Direction};
 use vecta_registry::data_components::components::WrittenBookContent;
 use vecta_registry::data_components::vanilla_components::WRITTEN_BOOK_CONTENT;
 use vecta_utils::types::InteractionHand;
@@ -14,7 +18,7 @@ use super::book_resolution::{nbt_page, unresolved_book};
 use super::*;
 
 use crate::behavior::{BLOCK_BEHAVIORS, BlockHitResult, InventoryAccess};
-use crate::block_entity::entities::{BarrelBlockEntity, LecternBlockEntity};
+use crate::block_entity::entities::{BarrelBlockEntity, ComparatorBlockEntity, LecternBlockEntity};
 use crate::block_entity::{BlockEntity as _, BlockEntityLoadContext, SharedBlockEntity};
 use crate::bootstrap::init_globals;
 use crate::inventory::lock::ContainerLockGuard;
@@ -448,6 +452,78 @@ fn data_merge_marks_the_chunk_unsaved() {
                 is_dirty(),
                 "`BlockEntity.setChanged` marks the chunk unsaved after a `/data` write"
             );
+        },
+    );
+}
+
+#[test]
+fn data_merge_updates_a_comparator_through_the_scheduled_tick() {
+    with_world(
+        "data_merge_updates_a_comparator_through_the_scheduled_tick",
+        |server, world, player, _| {
+            place_barrel(world, POS);
+            let comparator_pos = POS.west();
+            world.set_block(
+                comparator_pos.below(),
+                vanilla_blocks::STONE.default_state(),
+                UpdateFlags::UPDATE_ALL,
+            );
+            let state = vanilla_blocks::COMPARATOR
+                .default_state()
+                .set_value(&BlockStateProperties::HORIZONTAL_FACING, Direction::East);
+            assert!(world.set_block(comparator_pos, state, UpdateFlags::UPDATE_ALL));
+            let comparator_entity = world.get_block_entity(comparator_pos).expect("comparator");
+            let comparator = comparator_entity
+                .downcast_ref::<ComparatorBlockEntity>()
+                .expect("typed comparator");
+            assert_eq!(comparator.output_signal(), 0);
+            let source = source(server, player);
+            let payload = items_payload(
+                (0..27)
+                    .map(|slot| {
+                        item_entry(slot, &ItemStack::with_count(&vanilla_items::DIAMOND, 64))
+                    })
+                    .collect(),
+            );
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    &format!("data merge block 30 65 30 {payload}")
+                ),
+                (true, 1)
+            );
+            assert_eq!(
+                comparator.output_signal(),
+                0,
+                "output waits for the comparator tick"
+            );
+            assert!(world.has_scheduled_block_tick(comparator_pos, &vanilla_blocks::COMPARATOR));
+            world
+                .reconcile_active_scheduled_tick_chunks(iter::once(ChunkPos::from_block_pos(
+                    comparator_pos,
+                )))
+                .expect("active chunk");
+            let now = world.game_time();
+            assert!(
+                world
+                    .begin_scheduled_tick_phase(now + 1, 64)
+                    .ticks
+                    .is_empty()
+            );
+            let due = world.begin_scheduled_tick_phase(now + 2, 64);
+            assert_eq!(due.ticks.len(), 1);
+            assert_eq!(due.ticks[0].pos, comparator_pos);
+            let behavior = BLOCK_BEHAVIORS.get_behavior(&vanilla_blocks::COMPARATOR);
+            behavior.tick(world.get_block_state(comparator_pos), world, comparator_pos);
+            assert_eq!(comparator.output_signal(), 15);
+            assert_eq!(
+                run(server, &source, "data remove block 30 65 30 Items"),
+                (true, 1)
+            );
+            assert!(world.has_scheduled_block_tick(comparator_pos, &vanilla_blocks::COMPARATOR));
+            behavior.tick(world.get_block_state(comparator_pos), world, comparator_pos);
+            assert_eq!(comparator.output_signal(), 0);
         },
     );
 }

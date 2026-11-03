@@ -111,11 +111,12 @@ fn floating_to_string(
             break;
         }
     }
-    let Some((mut digits, decimal_exponent)) = selected else {
+    let Some((mut digits, mut decimal_exponent)) = selected else {
         panic!("full-precision Rust decimal did not round-trip");
     };
     while digits.ends_with('0') {
         digits.pop();
+        decimal_exponent += 1;
     }
     let scientific_exponent = digits.len() as i32 + decimal_exponent - 1;
     let mut output = if (-3..0).contains(&scientific_exponent) {
@@ -151,7 +152,7 @@ fn floating_to_string(
 
 #[cfg(test)]
 mod tests {
-    use super::{float_to_string, is_blank, is_space_char, is_whitespace};
+    use super::{double_to_string, float_to_string, is_blank, is_space_char, is_whitespace};
 
     #[test]
     fn matches_java_whitespace_exclusions() {
@@ -184,5 +185,45 @@ mod tests {
         assert_eq!(float_to_string(-0.0), "-0.0");
         assert_eq!(float_to_string(90.0), "90.0");
         assert_eq!(float_to_string(45.5), "45.5");
+    }
+
+    #[test]
+    fn removing_trailing_significand_zeroes_preserves_decimal_magnitude() {
+        for (value, expected) in [
+            (0.1, "0.1"),
+            (0.01, "0.01"),
+            (10.0, "10.0"),
+            (1.0e7, "1.0E7"),
+        ] {
+            assert_eq!(float_to_string(value), expected);
+        }
+        for (value, expected) in [
+            (0.1, "0.1"),
+            (0.01, "0.01"),
+            (10.0, "10.0"),
+            (1.0e7, "1.0E7"),
+        ] {
+            assert_eq!(double_to_string(value), expected);
+        }
+        for exponent in -38..=38 {
+            let value = 10.0_f32.powi(exponent);
+            assert_eq!(
+                float_to_string(value)
+                    .parse::<f32>()
+                    .expect("decimal")
+                    .to_bits(),
+                value.to_bits()
+            );
+        }
+        for exponent in -300..=300 {
+            let value = 10.0_f64.powi(exponent);
+            assert_eq!(
+                double_to_string(value)
+                    .parse::<f64>()
+                    .expect("decimal")
+                    .to_bits(),
+                value.to_bits()
+            );
+        }
     }
 }

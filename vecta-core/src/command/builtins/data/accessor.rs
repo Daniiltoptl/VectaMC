@@ -98,8 +98,8 @@ impl DataAccessor {
     ///
     /// A block entity is reloaded through the command's live read context, so
     /// server-dependent text resolves the same way it does for `/setblock` and
-    /// `/execute store`. A rejected payload restores the previous state instead
-    /// of leaving a half-applied entity behind.
+    /// `/execute store`. The owned-NBT bridge validates the encoded compound
+    /// before invoking any loader, so a decode error cannot change the entity.
     pub(super) fn set_data(
         &self,
         source: &CommandSource,
@@ -109,15 +109,13 @@ impl DataAccessor {
             Target::Block { pos, block_entity } => {
                 let world = Arc::clone(source.world());
                 let load_context = BlockEntityLoadContext::for_source(source)?;
-                let snapshot = block_entity.save_with_full_metadata();
-                if let Err(error) = block_entity.load_with_owned_components(&data, &load_context) {
-                    block_entity
-                        .load_with_owned_components(&snapshot, &BlockEntityLoadContext::detached())
-                        .ok();
-                    return Err(CommandSyntaxError::dynamic(format!(
-                        "Failed to load block entity data at {pos:?}: {error}"
-                    )));
-                }
+                block_entity
+                    .load_with_owned_components(&data, &load_context)
+                    .map_err(|error| {
+                        CommandSyntaxError::dynamic(format!(
+                            "Failed to load block entity data at {pos:?}: {error}"
+                        ))
+                    })?;
 
                 // Vanilla `BlockDataAccessor.setData` marks the entity changed and
                 // broadcasts the new block-entity data; `setChanged` also refreshes
