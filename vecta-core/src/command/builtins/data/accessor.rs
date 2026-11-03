@@ -1,7 +1,9 @@
 //! `/data` targets and the live-update rules that follow a write.
 
+use std::io::Cursor;
 use std::sync::Arc;
 
+use simdnbt::borrow::read_compound as read_borrowed_compound;
 use simdnbt::owned::{NbtCompound, NbtTag};
 use text_components::TextComponent;
 use vecta_utils::{BlockPos, Identifier, nbt::to_canonical_snbt, translations};
@@ -12,21 +14,24 @@ use super::super::super::{
 };
 use super::super::execute::{loaded_block_position, source_command_storage};
 use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
+use crate::entity::{Entity as _, SharedEntity};
 
 /// A vanilla `/data` target provider.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum Provider {
+    Entity,
     Block,
     Storage,
 }
 
 impl Provider {
     /// Target and source providers in vanilla registration order.
-    pub(super) const ALL: [Self; 2] = [Self::Block, Self::Storage];
+    pub(super) const ALL: [Self; 3] = [Self::Entity, Self::Block, Self::Storage];
 
     /// The literal that introduces this provider in the command graph.
     pub(super) const fn name(self) -> &'static str {
         match self {
+            Self::Entity => "entity",
             Self::Block => "block",
             Self::Storage => "storage",
         }
@@ -34,6 +39,7 @@ impl Provider {
 
     pub(super) fn argument_type(self) -> VectaArgumentType {
         match self {
+            Self::Entity => VectaArgumentType::entity(),
             Self::Block => VectaArgumentType::block_pos(),
             Self::Storage => VectaArgumentType::storage_key(),
         }
@@ -62,6 +68,9 @@ impl Provider {
                     target: Target::Block { pos, block_entity },
                 })
             }
+            Self::Entity => Ok(DataAccessor {
+                target: Target::Entity(context.entity(name)?),
+            }),
             Self::Storage => Ok(DataAccessor {
                 target: Target::Storage(context.identifier(name)?.clone()),
             }),
@@ -75,6 +84,7 @@ pub(super) struct DataAccessor {
 }
 
 enum Target {
+    Entity(SharedEntity),
     Block {
         pos: BlockPos,
         block_entity: SharedBlockEntity,
@@ -89,6 +99,7 @@ impl DataAccessor {
         source: &CommandSource,
     ) -> Result<NbtCompound, CommandSyntaxError> {
         match &self.target {
+            Target::Entity(entity) => Ok(entity.nbt_for_data_compare()),
             Target::Block { block_entity, .. } => Ok(block_entity.save_with_full_metadata()),
             Target::Storage(id) => Ok(source_command_storage(source)?.get(id)),
         }
@@ -124,6 +135,32 @@ impl DataAccessor {
                 world.send_block_updated(*pos);
                 Ok(())
             }
+            Target::Entity(entity) => {
+                // Vanilla `EntityDataAccessor.setData` refuses player data outright.
+                if entity.as_player().is_some() {
+                    return Err(CommandSyntaxError::dynamic(TextComponent::from(
+                        &translations::COMMANDS_DATA_ENTITY_INVALID,
+                    )));
+                }
+
+                let mut bytes = Vec::new();
+                data.write(&mut bytes);
+                let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice())).map_err(
+                    |error| {
+                        CommandSyntaxError::dynamic(format!(
+                            "Failed to encode entity data: {error}"
+                        ))
+                    },
+                )?;
+                // The base loader never reads `UUID`, so a payload cannot rename the
+                // entity identity; vanilla loads then restores the original id.
+                entity
+                    .load_command_data((&borrowed).into())
+                    .map_err(|error| {
+                        CommandSyntaxError::dynamic(format!("Failed to apply entity data: {error}"))
+                    })?;
+                Ok(())
+            }
             Target::Storage(id) => {
                 source_command_storage(source)?.set(id.clone(), data);
                 Ok(())
@@ -133,6 +170,9 @@ impl DataAccessor {
 
     pub(super) fn modified_success(&self) -> TextComponent {
         match &self.target {
+            Target::Entity(entity) => translations::COMMANDS_DATA_ENTITY_MODIFIED
+                .message([entity.display_name()])
+                .component(),
             Target::Block { pos, .. } => translations::COMMANDS_DATA_BLOCK_MODIFIED
                 .message([
                     pos.x().to_string(),
@@ -149,6 +189,9 @@ impl DataAccessor {
     pub(super) fn print_success(&self, tag: &NbtTag) -> TextComponent {
         let printed = TextComponent::plain(render_tag(tag));
         match &self.target {
+            Target::Entity(entity) => translations::COMMANDS_DATA_ENTITY_QUERY
+                .message([entity.display_name(), printed])
+                .component(),
             Target::Block { pos, .. } => translations::COMMANDS_DATA_BLOCK_QUERY
                 .message([
                     TextComponent::plain(pos.x().to_string()),
@@ -167,6 +210,14 @@ impl DataAccessor {
         let scale = TextComponent::plain(format!("{scale:.2}"));
         let value = TextComponent::plain(value.to_string());
         match &self.target {
+            Target::Entity(entity) => translations::COMMANDS_DATA_ENTITY_GET
+                .message([
+                    TextComponent::plain(path.to_owned()),
+                    entity.display_name(),
+                    scale,
+                    value,
+                ])
+                .component(),
             Target::Block { pos, .. } => translations::COMMANDS_DATA_BLOCK_GET
                 .message([
                     TextComponent::plain(path.to_owned()),

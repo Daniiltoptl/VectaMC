@@ -34,7 +34,6 @@ const EXECUTE_ROOT: CommandRedirectTarget = CommandRedirectTarget::CommandRoot;
 
 pub(super) fn target(name: &'static str, store_result: bool) -> Builder {
     // TODO: Add bossbar after Vecta has a persistent custom-bossbar manager.
-    // TODO: Add entity after live entity NBT can reload every command-visible field.
     literal(name)
         .then(
             literal("score").then(
@@ -44,6 +43,12 @@ pub(super) fn target(name: &'static str, store_result: bool) -> Builder {
                             store_score(context, store_result)
                         }),
                 ),
+            ),
+        )
+        .then(
+            literal("entity").then(
+                argument("targets", VectaArgumentType::entities())
+                    .then(data_path(StoreDataTarget::Entity, store_result)),
             ),
         )
         .then(
@@ -101,6 +106,7 @@ fn data_type(
 
 #[derive(Clone, Copy)]
 enum StoreDataTarget {
+    Entity,
     Block,
     Storage,
 }
@@ -136,9 +142,51 @@ fn store_data(
     store_result: bool,
 ) -> Result<CommandSource, CommandSyntaxError> {
     match target {
+        StoreDataTarget::Entity => store_entity_data(context, data_type, store_result),
         StoreDataTarget::Block => store_block_data(context, data_type, store_result),
         StoreDataTarget::Storage => store_storage_data(context, data_type, store_result),
     }
+}
+
+fn store_entity_data(
+    context: &VectaCommandContext<CommandSource>,
+    data_type: StoreDataType,
+    store_result: bool,
+) -> Result<CommandSource, CommandSyntaxError> {
+    let entities = context.entities("targets")?;
+    let path = parsed_path(context)?;
+    let scale = parsed_scale(context)?;
+    let source = context.source();
+    let callback = CommandResultCallback::new(move |success, result| {
+        let value = stored_value(store_result, success, result);
+        for entity in &entities {
+            if store_entity_data_value(entity, &path, data_type.tag(value, scale)).is_err() {
+                tracing::warn!(
+                    entity = entity.id(),
+                    "failed to store execute result in entity"
+                );
+            }
+        }
+    });
+    let callback = CommandResultCallback::chain(source.callback(), callback);
+    Ok(source.with_callback(callback))
+}
+
+fn store_entity_data_value(
+    entity: &crate::entity::SharedEntity,
+    path: &NbtPath,
+    value: NbtTag,
+) -> Result<(), StoreDataMutationError> {
+    use crate::entity::Entity as _;
+
+    let data = mutate_compound_path(entity.nbt_for_data_compare(), path, value)?;
+    let mut bytes = Vec::new();
+    data.write(&mut bytes);
+    let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
+        .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)?;
+    entity
+        .load_command_data((&borrowed).into())
+        .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)
 }
 
 fn store_block_data(
