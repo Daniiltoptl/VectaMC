@@ -78,7 +78,7 @@ Vecta добавляла их как transient. Из-за этого они не
 | `cargo fmt --all --check` | exit 0 |
 | `cargo clippy --locked --workspace --all-targets --all-features -j 1 -- -D warnings` | exit 0 (1m34s; без новых suppressions) |
 | `python -m unittest discover -s scripts -p 'test_*.py'` | 4 tests OK |
-| `python scripts/audit_vanilla.py` | 3105 objects / 49 BE / 231 markers, provenance обновлён |
+| `python scripts/audit_vanilla.py` | 3105 objects / 49 BE / **230** markers (минус TODO `onEquippedItemBroken`), provenance `115e74670` |
 | узкие: `data_entity` 9, `player::tests::a_broken_held_item` 1, `a_living_entity_keeps_health…` 1 | зелёные |
 | `vecta-core --lib` | 3359 passed / 0 failed / 1 ignored |
 
@@ -133,7 +133,8 @@ param sets. Реализация compute на ней означала бы вт�
 ### Прочее
 
 - `ITEM_DURABILITY_CHANGED` criteria в `ItemStack::hurt_and_break` остаётся TODO:
-  advancement-criteria foundation в Vecta отсутствует.
+  advancement-criteria foundation в Vecta отсутствует. Соседний TODO про
+  `onEquippedItemBroken` снят: контракт теперь описан и выполняется вызывающими.
 - `onEquippedItemBroken` для мобов (`LivingEntity::on_equipped_item_broken`)
   пока только обновляет модификаторы атрибутов; entity event для мобов не
   проверялся отдельным тестом.

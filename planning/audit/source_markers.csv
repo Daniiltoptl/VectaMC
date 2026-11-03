@@ -189,7 +189,6 @@ vecta-registry/src/advancement/registry.rs,115,/// TODO made the registry behind
 vecta-registry/src/blocks/properties.rs,1005,//TODO: These got quickly implemented so the ordering might be off. Fix in the future.
 vecta-registry/src/game_events.rs,18,// TODO: GameEventListenerRegistry per Chunk Section
 vecta-registry/src/item_stack.rs,288,// TODO: Trigger ITEM_DURABILITY_CHANGED advancement criteria
-vecta-registry/src/item_stack.rs,293,// TODO: Call onEquippedItemBroken callback which:
 vecta-registry/src/item_stack.rs,714,// TODO: Implement when damage component system is ready
 vecta-registry/src/item_stack.rs,726,// TODO: Implement when enchantment registry and system are ready
 vecta-registry/src/item_stack.rs,741,// TODO: Implement when enchantment registry and system are ready
