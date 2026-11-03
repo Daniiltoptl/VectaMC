@@ -5,7 +5,7 @@
 //! embed this struct and expose it via `LivingEntity::living_base()`, just like
 //! `EntityBase` is used for core `Entity` fields.
 
-use std::{array, mem, sync::Arc};
+use std::{array, mem, str::FromStr, sync::Arc};
 
 use glam::DVec3;
 use rustc_hash::FxHashMap;
@@ -24,14 +24,16 @@ use vecta_registry::mob_effect_instance::INFINITE_EFFECT_DURATION;
 use vecta_registry::vanilla_attributes;
 use vecta_registry::vanilla_entity_data::VanillaLivingEntityData;
 use vecta_registry::vanilla_mob_effects;
+use vecta_registry::{REGISTRY, RegistryExt as _};
 use vecta_utils::locks::{IntoShared, Shared, SyncMutex};
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, Identifier};
 
 use crate::behavior::MOB_EFFECT_BEHAVIORS;
 use crate::entity::attribute::{AttributeMap, AttributeModifier, AttributeModifierOperation};
+use crate::entity::entity::{read_nbt_bool, read_nbt_int};
 use crate::entity::synced_data::EntitySyncedData;
-use crate::entity::{LivingEntity, SharedEntity, WeakEntity};
+use crate::entity::{BorrowedNbtCompoundView, LivingEntity, SharedEntity, WeakEntity};
 use crate::inventory::equipment::{EntityEquipment, EquipmentSlot, OwnedEntityEquipment};
 use crate::world::World;
 
@@ -171,6 +173,36 @@ impl MobEffectInstance {
         let mut nbt = self.details_to_vanilla_nbt();
         nbt.insert("id", self.effect.key.to_string());
         nbt
+    }
+
+    /// Parses vanilla's `MobEffectInstance.CODEC` shape.
+    ///
+    /// Returns `None` for an unknown effect id. Vanilla treats that as a failed
+    /// codec decode for the whole `active_effects` list, so the caller drops the
+    /// list instead of keeping the entries it could parse.
+    #[must_use]
+    pub(crate) fn from_vanilla_nbt(nbt: &BorrowedNbtCompoundView<'_, '_>) -> Option<Self> {
+        let key = Identifier::from_str(&nbt.string("id")?.to_string()).ok()?;
+        let effect = REGISTRY.mob_effects.by_key(&key)?;
+        Some(Self::from_vanilla_details(effect, nbt))
+    }
+
+    fn from_vanilla_details(effect: MobEffectRef, nbt: &BorrowedNbtCompoundView<'_, '_>) -> Self {
+        // `amplifier` is an unsigned byte; `show_icon` falls back to
+        // `show_particles` when the payload omits it.
+        let amplifier = i32::from(nbt.byte("amplifier").unwrap_or(0) as u8);
+        let visible = read_nbt_bool(nbt, "show_particles").unwrap_or(true);
+        Self {
+            effect,
+            duration: read_nbt_int(nbt, "duration").unwrap_or(0),
+            amplifier: clamp_effect_amplifier(amplifier),
+            ambient: read_nbt_bool(nbt, "ambient").unwrap_or(false),
+            visible,
+            show_icon: read_nbt_bool(nbt, "show_icon").unwrap_or(visible),
+            hidden_effect: nbt
+                .compound("hidden_effect")
+                .map(|hidden| Box::new(Self::from_vanilla_details(effect, &hidden))),
+        }
     }
 
     fn details_to_vanilla_nbt(&self) -> NbtCompound {
@@ -638,6 +670,7 @@ struct LivingEntityState {
     last_hurt_by_player_entity: Option<WeakEntity>,
     last_hurt_by_player_memory_time: i32,
     last_hurt_by_mob: Option<WeakEntity>,
+    last_hurt_by_mob_uuid: Option<Uuid>,
     last_hurt_by_mob_timestamp: i32,
     last_hurt_mob: Option<WeakEntity>,
     last_hurt_mob_timestamp: i32,
@@ -675,6 +708,7 @@ impl LivingEntityState {
             last_hurt_by_player_entity: None,
             last_hurt_by_player_memory_time: 0,
             last_hurt_by_mob: None,
+            last_hurt_by_mob_uuid: None,
             last_hurt_by_mob_timestamp: 0,
             last_hurt_mob: None,
             last_hurt_mob_timestamp: 0,
@@ -983,6 +1017,14 @@ impl LivingEntityBase {
         self.state.lock().absorption_amount = amount.clamp(0.0, max_absorption);
     }
 
+    /// Assigns absorption without the gameplay clamp.
+    ///
+    /// Vanilla loads `AbsorptionAmount` through `internalSetAbsorptionAmount`,
+    /// which stores the raw value; only `setAbsorptionAmount` clamps.
+    pub fn internal_set_absorption_amount(&self, amount: f32) {
+        self.state.lock().absorption_amount = amount;
+    }
+
     /// Marks this entity to skip dropping experience on death.
     pub fn skip_drop_experience(&self) {
         self.state.lock().skip_drop_experience = true;
@@ -1059,6 +1101,37 @@ impl LivingEntityBase {
                     id: entry.id.clone(),
                 });
             }
+        }
+    }
+
+    /// Replaces every active effect with a loaded set.
+    ///
+    /// Mirrors `LivingEntity.readAdditionalSaveData`: the map is cleared and
+    /// refilled directly, so gameplay hooks (`on_effect_started`, attribute
+    /// modifier installation) do not run. Effect modifiers reach the attribute
+    /// map through the saved `attributes` list instead, exactly like vanilla.
+    pub fn replace_active_mob_effects(&self, effects: Vec<MobEffectInstance>) {
+        let mut removed = Vec::new();
+        {
+            let mut active = self.active_mob_effects.lock();
+            removed.extend(active.keys().copied());
+            active.clear();
+            for effect in &effects {
+                active.insert(effect.effect, effect.clone());
+            }
+        }
+
+        self.mark_effects_dirty();
+        for effect in removed {
+            if !effects.iter().any(|loaded| loaded.effect == effect) {
+                self.queue_mob_effect_sync(MobEffectSyncChange::Remove { effect });
+            }
+        }
+        for effect in effects {
+            self.queue_mob_effect_sync(MobEffectSyncChange::Update {
+                effect,
+                blend_for_self: true,
+            });
         }
     }
 
@@ -1234,7 +1307,9 @@ impl LivingEntityBase {
                     amount: modifier.amount * f64::from(effect.amplifier + 1),
                     operation: modifier.operation,
                 },
-                false,
+                // Vanilla applies effect modifiers with `addPermanentModifier`, so
+                // they travel in the saved `attributes` list and survive a reload.
+                true,
             );
         }
     }
@@ -1305,6 +1380,16 @@ impl LivingEntityBase {
         } else {
             state.current_impulse_context_reset_grace_time = 0;
         }
+    }
+
+    /// Restores the saved impulse context verbatim.
+    ///
+    /// Vanilla loads both fields directly; the gameplay helpers only ever widen
+    /// the grace window or install a new impact position.
+    pub fn restore_impulse_context(&self, grace_time: i32, impact_pos: Option<DVec3>) {
+        let mut state = self.state.lock();
+        state.current_impulse_context_reset_grace_time = grace_time;
+        state.current_impulse_impact_pos = impact_pos;
     }
 
     /// Returns the position of the most recent knockback/impulse impact, if still active.
@@ -1556,6 +1641,11 @@ impl LivingEntityBase {
         self.state.lock().hurt_time
     }
 
+    /// Restores the hurt animation timer from saved data.
+    pub fn set_hurt_time(&self, hurt_time: i32) {
+        self.state.lock().hurt_time = hurt_time;
+    }
+
     /// Returns the current hurt duration
     #[must_use]
     pub fn hurt_duration(&self) -> i32 {
@@ -1597,6 +1687,14 @@ impl LivingEntityBase {
         state.last_hurt_by_player = Some(player_uuid);
         state.last_hurt_by_player_entity = None;
         state.last_hurt_by_player_memory_time = time_to_remember;
+    }
+
+    /// Forgets the player that last hurt this entity.
+    pub fn clear_last_hurt_by_player(&self) {
+        let mut state = self.state.lock();
+        state.last_hurt_by_player = None;
+        state.last_hurt_by_player_entity = None;
+        state.last_hurt_by_player_memory_time = 0;
     }
 
     /// Sets the remaining memory time without touching the remembered player.
@@ -1656,6 +1754,15 @@ impl LivingEntityBase {
         living_entity_from_weak(&mut state.last_hurt_by_mob)
     }
 
+    /// Returns the UUID of the mob that last hurt this entity.
+    ///
+    /// Vanilla stores this reference as a UUID that may not resolve to a loaded
+    /// entity, so the identity outlives the live reference.
+    #[must_use]
+    pub fn last_hurt_by_mob_uuid(&self) -> Option<Uuid> {
+        self.state.lock().last_hurt_by_mob_uuid
+    }
+
     /// Returns the tick timestamp this entity was last hurt by a mob.
     #[must_use]
     pub fn last_hurt_by_mob_timestamp(&self) -> i32 {
@@ -1666,7 +1773,23 @@ impl LivingEntityBase {
     pub fn set_last_hurt_by_mob(&self, target: Option<&SharedEntity>, tick_count: i32) {
         let mut state = self.state.lock();
         state.last_hurt_by_mob = weak_living_entity(target);
+        state.last_hurt_by_mob_uuid = target.map(|target| target.uuid());
         state.last_hurt_by_mob_timestamp = tick_count;
+    }
+
+    /// Records a mob reference that arrived as a UUID only, as NBT loads do.
+    pub fn set_last_hurt_by_mob_uuid(&self, target: Option<Uuid>, tick_count: i32) {
+        let mut state = self.state.lock();
+        state.last_hurt_by_mob = None;
+        state.last_hurt_by_mob_uuid = target;
+        state.last_hurt_by_mob_timestamp = tick_count;
+    }
+
+    /// Caches a resolved reference so later lookups skip the world directory.
+    pub fn remember_last_hurt_by_mob(&self, target: &SharedEntity) {
+        let mut state = self.state.lock();
+        state.last_hurt_by_mob = weak_living_entity(Some(target));
+        state.last_hurt_by_mob_uuid = Some(target.uuid());
     }
 
     /// Returns vanilla `LivingEntity.lastHurtMob`, if still resolvable.
@@ -1752,6 +1875,11 @@ impl LivingEntityBase {
     #[must_use]
     pub fn death_time(&self) -> i32 {
         self.state.lock().death_time
+    }
+
+    /// Restores the death animation timer from saved data.
+    pub fn set_death_time(&self, death_time: i32) {
+        self.state.lock().death_time = death_time;
     }
 
     /// Resets all death-related state back to alive defaults.

@@ -204,12 +204,18 @@ pub trait LivingEntity: Entity {
     }
 
     /// Loads equipment slots from NBT.
-    fn load_equipment(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
-        if let Some(equipment_tag) = nbt.compound("equipment") {
+    ///
+    /// Vanilla replaces the whole equipment set, so a payload without an
+    /// `equipment` compound clears every slot when `clear_when_absent` is set
+    /// (a command or disk load) and leaves the slots alone for spawn data.
+    fn load_equipment(&self, nbt: BorrowedNbtCompoundView<'_, '_>, clear_when_absent: bool) {
+        let equipment_tag = nbt.compound("equipment");
+        if equipment_tag.is_some() || clear_when_absent {
             let mut equipment = self.living_base().equipment().lock();
             for slot in EquipmentSlot::ALL {
                 let item = equipment_tag
-                    .get(slot.name())
+                    .as_ref()
+                    .and_then(|tag| tag.get(slot.name()))
                     .and_then(|tag| tag.compound())
                     .and_then(|comp| ItemStack::from_borrowed_compound(&comp))
                     .unwrap_or_else(ItemStack::empty);
@@ -221,79 +227,26 @@ pub trait LivingEntity: Entity {
         }
     }
 
+    /// Saves the living state vanilla persists with the entity record.
+    fn save_living_data(&self, nbt: &mut NbtCompound) {
+        super::living_data::save_living_data(self, nbt);
+    }
+
+    /// Loads the living state vanilla restores with the entity record.
+    ///
+    /// `reset` selects vanilla `Entity.load` semantics (an omitted field returns
+    /// to its default) or the merge used by spawn-item data.
+    fn load_living_data(&self, nbt: BorrowedNbtCompoundView<'_, '_>, reset: bool) {
+        super::living_data::load_living_data(self, &nbt, reset);
+    }
+
     /// Appends vanilla-shaped living state used by command NBT predicates.
     fn save_command_nbt(&self, nbt: &mut NbtCompound) {
-        nbt.insert("Health", self.get_health());
+        self.save_living_data(nbt);
+        // `invulnerableTime` is runtime-only in vanilla, but the command snapshot
+        // round-trips it so `/data` reads and writes the same value.
         if self.invulnerable_time() > 0 {
             nbt.insert("invulnerable_time", self.invulnerable_time());
-        }
-        nbt.insert(
-            "HurtTime",
-            NbtTag::Short(self.living_base().hurt_time() as i16),
-        );
-        nbt.insert(
-            "DeathTime",
-            NbtTag::Short(self.living_base().death_time() as i16),
-        );
-        nbt.insert("AbsorptionAmount", self.get_absorption_amount());
-        nbt.insert(
-            "current_impulse_context_reset_grace_time",
-            self.living_base()
-                .current_impulse_context_reset_grace_time(),
-        );
-        if let Some(impact) = self.living_base().current_impulse_impact_pos() {
-            nbt.insert(
-                "current_explosion_impact_pos",
-                NbtList::Double(vec![impact.x, impact.y, impact.z]),
-            );
-        }
-        nbt.insert("attributes", self.attributes().lock().to_vanilla_nbt());
-
-        let mut effects = self.living_base().active_mob_effects();
-        effects.sort_by_key(|effect| effect.effect().try_id().unwrap_or(usize::MAX));
-        if !effects.is_empty() {
-            nbt.insert(
-                "active_effects",
-                NbtList::Compound(
-                    effects
-                        .iter()
-                        .map(ActiveMobEffect::to_vanilla_nbt)
-                        .collect(),
-                ),
-            );
-        }
-
-        nbt.insert("FallFlying", nbt_bool(self.is_fall_flying()));
-        if let Some(pos) = self.sleeping_pos() {
-            nbt.insert(
-                "sleeping_pos",
-                NbtTag::IntArray(vec![pos.x(), pos.y(), pos.z()]),
-            );
-        }
-        if let Some(uuid) = self.last_hurt_by_player_uuid() {
-            nbt.insert(
-                "last_hurt_by_player",
-                NbtTag::IntArray(uuid.to_int_array().to_vec()),
-            );
-            nbt.insert(
-                "last_hurt_by_player_memory_time",
-                self.last_hurt_by_player_memory_time(),
-            );
-        }
-        if let Some(entity) = self.last_hurt_by_mob() {
-            nbt.insert(
-                "last_hurt_by_mob",
-                NbtTag::IntArray(entity.uuid().to_int_array().to_vec()),
-            );
-            nbt.insert(
-                "ticks_since_last_hurt_by_mob",
-                self.tick_count()
-                    .wrapping_sub(self.last_hurt_by_mob_timestamp()),
-            );
-        }
-
-        if self.as_mob().is_none() {
-            self.save_equipment(nbt);
         }
     }
 
@@ -562,7 +515,20 @@ pub trait LivingEntity: Entity {
 
     /// Returns the mob that last hurt this entity, if still resolvable.
     fn last_hurt_by_mob(&self) -> Option<SharedEntity> {
-        self.living_base().last_hurt_by_mob()
+        if let Some(entity) = self.living_base().last_hurt_by_mob() {
+            return Some(entity);
+        }
+        // A reference restored from NBT only carries the UUID until the mob is
+        // loaded, so resolve it through the world directory on demand.
+        let uuid = self.living_base().last_hurt_by_mob_uuid()?;
+        let entity = self.level()?.get_entity_by_uuid(&uuid)?;
+        self.living_base().remember_last_hurt_by_mob(&entity);
+        Some(entity)
+    }
+
+    /// Returns the UUID of the mob that last hurt this entity.
+    fn last_hurt_by_mob_uuid(&self) -> Option<Uuid> {
+        self.living_base().last_hurt_by_mob_uuid()
     }
 
     /// Returns the tick timestamp this entity was last hurt by a mob.

@@ -101,6 +101,9 @@ impl EntityRegistry {
         }
 
         let nbt: BorrowedNbtCompoundView<'_, '_> = nbt.into();
+        if let Some(living) = entity.as_living_entity() {
+            living.load_living_data(nbt, true);
+        }
         entity.load_additional(nbt);
         entity.set_old_position_to_current();
         entity.base().set_old_rotation_to_current();

@@ -791,3 +791,149 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
 
     fs::remove_dir_all(dir).expect("temporary region directory is removed");
 }
+
+#[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one test walks the whole write/read path so the living-state assertions stay together"
+)]
+fn a_living_entity_keeps_health_effects_and_equipment_across_a_region_file() {
+    use std::env::temp_dir;
+    use std::fs;
+    use std::slice;
+    use std::sync::Weak;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use tokio::runtime::Builder;
+    use vecta_registry::item_stack::ItemStack;
+    use vecta_registry::{vanilla_items, vanilla_mob_effects};
+
+    use crate::chunk::status::ChunkStatus;
+    use crate::chunk_saver::region_manager::RegionManager;
+    use crate::entity::entities::SheepEntity;
+    use crate::entity::{MobEffectInstance, SharedEntity};
+    use crate::inventory::equipment::EquipmentSlot;
+    use crate::test_support::{fresh_test_world, insert_ready_full_chunk};
+
+    init_globals();
+    let fixture = fresh_test_world("region_sheep_roundtrip");
+    let world = &fixture.world;
+    let pos = BlockPos::new(4, 65, 6);
+    let chunk_pos = ChunkPos::from_block_pos(pos);
+    insert_ready_full_chunk(world, chunk_pos);
+
+    let sheep: SharedEntity = Arc::new(SheepEntity::new(
+        &vanilla_entities::SHEEP,
+        next_entity_id(),
+        DVec3::new(4.5, 65.0, 6.5),
+        Arc::downgrade(world),
+    ));
+    let sheep_living = sheep.as_living_entity().expect("sheep is living");
+    sheep_living.set_health(5.0);
+    sheep_living.living_base().set_hurt_time(4);
+    sheep_living
+        .living_base()
+        .replace_active_mob_effects(vec![MobEffectInstance::with_duration(
+            vanilla_mob_effects::SPEED,
+            200,
+            1,
+        )]);
+    sheep_living.living_base().equipment().lock().set(
+        EquipmentSlot::MainHand,
+        ItemStack::new(&vanilla_items::DIAMOND_SWORD),
+    );
+    let player_uuid = uuid::Uuid::from_u128(0x1234_5678);
+    sheep_living.set_last_hurt_by_player(player_uuid, 100);
+
+    let prepared = world
+        .chunk_map
+        .with_chunk_at_status(chunk_pos, ChunkStatus::Full, |chunk| {
+            ChunkStorage::prepare_chunk_save(
+                chunk,
+                ChunkStatus::Full,
+                slice::from_ref(&sheep),
+                true,
+            )
+        })
+        .flatten()
+        .expect("the chunk with the sheep prepares for saving");
+
+    let unique = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("system time after epoch")
+        .as_nanos();
+    let dir = temp_dir().join(format!("vecta-region-sheep-{unique}"));
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .expect("encoding pool");
+    let regions = RegionManager::new(dir.clone());
+    let runtime = Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime");
+
+    let loaded = runtime.block_on(async {
+        assert!(
+            regions
+                .save_chunk_data(prepared, &pool)
+                .await
+                .expect("region write"),
+            "the prepared chunk is written to the region file"
+        );
+        assert!(
+            regions
+                .acquire_chunk(chunk_pos)
+                .await
+                .expect("region acquire"),
+            "the saved chunk is present in the region index"
+        );
+        let storage = ChunkStorage::Disk(regions);
+        storage
+            .load_chunk(
+                chunk_pos,
+                world.dimension_type.min_y,
+                world.dimension_type.height,
+                Weak::new(),
+                &pool,
+            )
+            .await
+            .expect("region read")
+            .expect("the region file holds the chunk")
+    });
+
+    let restored = loaded
+        .pending_entities
+        .iter()
+        .find(|entity| entity.entity_type().key == vanilla_entities::SHEEP.key)
+        .expect("the region file restores the sheep");
+    let restored_living = restored
+        .as_living_entity()
+        .expect("the restored sheep is a living entity");
+
+    assert_eq!(
+        restored_living.get_health(),
+        5.0,
+        "damaged health survives the region file instead of healing to full"
+    );
+    assert_eq!(restored_living.living_base().hurt_time(), 4);
+    let effect = restored_living
+        .mob_effect(vanilla_mob_effects::SPEED)
+        .expect("the active effect survives the region file");
+    assert_eq!(effect.duration(), 200);
+    assert_eq!(effect.amplifier(), 1);
+    restored_living.with_equipment_slot(EquipmentSlot::MainHand, &mut |item| {
+        assert_eq!(
+            item.item().key,
+            vanilla_items::DIAMOND_SWORD.key,
+            "equipment survives the region file"
+        );
+    });
+    assert_eq!(
+        restored_living.last_hurt_by_player_uuid(),
+        Some(player_uuid),
+        "the combat reference survives the region file as a UUID"
+    );
+
+    fs::remove_dir_all(dir).expect("temporary region directory is removed");
+}

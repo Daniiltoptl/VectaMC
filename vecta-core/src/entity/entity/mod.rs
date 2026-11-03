@@ -44,7 +44,7 @@ fn landing_particle_position(entity_position: DVec3, landing_pos: BlockPos) -> D
     )
 }
 
-fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
+pub(super) fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
     let values = read_nbt_collection(nbt, key)?;
     let [x, y, z, ..] = values.as_slice() else {
         return None;
@@ -75,7 +75,7 @@ fn read_nbt_collection(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Opti
     }
 }
 
-fn read_nbt_int(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<i32> {
+pub(super) fn read_nbt_int(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<i32> {
     let tag = nbt.get(key)?;
     tag.byte()
         .map(i32::from)
@@ -86,7 +86,19 @@ fn read_nbt_int(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<i32>
         .or_else(|| tag.double().map(|value| value.floor() as i32))
 }
 
-fn read_nbt_bool(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<bool> {
+/// Reads a numeric tag as `f32`, mirroring `TagValueInput.getFloatOr`.
+pub(super) fn read_nbt_f32(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<f32> {
+    let tag = nbt.get(key)?;
+    tag.byte()
+        .map(f32::from)
+        .or_else(|| tag.short().map(f32::from))
+        .or_else(|| tag.int().map(|value| value as f32))
+        .or_else(|| tag.long().map(|value| value as f32))
+        .or_else(|| tag.float())
+        .or_else(|| tag.double().map(|value| value as f32))
+}
+
+pub(super) fn read_nbt_bool(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<bool> {
     // TagValueInput.getBooleanOr uses NumericTag.byteValue, not Codec.BOOL.
     read_nbt_int(nbt, key).map(|value| value as i8 != 0)
 }
@@ -112,7 +124,7 @@ pub enum EntityNbtLoad {
 }
 
 /// Picks the value a load applies, honouring the load mode.
-fn load_value_or<T>(reset: bool, value: Option<T>, default: T) -> Option<T> {
+pub(super) fn load_value_or<T>(reset: bool, value: Option<T>, default: T) -> Option<T> {
     if reset {
         Some(value.unwrap_or(default))
     } else {
@@ -4076,6 +4088,9 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
             self.base().set_visual_fire(has_visual_fire);
         }
 
+        if let Some(living) = self.as_living_entity() {
+            living.load_living_data(nbt, reset);
+        }
         self.load_additional(nbt);
         self.set_old_position_to_current();
         self.base().set_old_rotation_to_current();

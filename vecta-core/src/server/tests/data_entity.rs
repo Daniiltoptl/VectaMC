@@ -2,7 +2,16 @@
 
 use super::data_command::{run, source, with_world};
 use super::*;
+use crate::entity::LivingEntity;
+use crate::inventory::equipment::EquipmentSlot;
+use vecta_registry::vanilla_mob_effects;
 use vecta_utils::WorldAabb;
+
+fn living(entity: &SharedEntity) -> &dyn LivingEntity {
+    entity
+        .as_living_entity()
+        .expect("the fixture is a living entity")
+}
 
 fn spawn_sheep(world: &Arc<World>, position: DVec3) -> SharedEntity {
     use crate::entity::entities::SheepEntity;
@@ -353,4 +362,155 @@ fn data_entity_preserves_damage_cooldown_and_uses_numeric_tag_conversions() {
         );
         assert_eq!(living.invulnerable_time(), 0);
     });
+}
+
+#[test]
+fn data_merge_writes_living_health_attributes_and_timers() {
+    with_world(
+        "data_entity_living_health",
+        |server, world, player, _packets| {
+            let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
+            let source = source(server, player);
+            assert_eq!(living(&sheep).get_health(), living(&sheep).get_max_health());
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {Health:5.0f,HurtTime:3s,AbsorptionAmount:2.0f}"
+                ),
+                (true, 1)
+            );
+            assert_eq!(
+                living(&sheep).get_health(),
+                5.0,
+                "`Health` reaches the live living entity, not just the NBT dump"
+            );
+            assert_eq!(living(&sheep).living_base().hurt_time(), 3);
+            assert_eq!(living(&sheep).get_absorption_amount(), 2.0);
+
+            // `setHealth` clamps against the loaded max-health attribute, so the
+            // attribute load has to happen first.
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {attributes:[{id:\"minecraft:max_health\",base:20.0d}]}"
+                ),
+                (true, 1)
+            );
+            assert_eq!(living(&sheep).get_max_health(), 20.0);
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {Health:50.0f}"
+                ),
+                (true, 1)
+            );
+            assert_eq!(
+                living(&sheep).get_health(),
+                20.0,
+                "health is clamped to the max-health attribute that was just loaded"
+            );
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data remove entity @e[type=minecraft:sheep,limit=1] Health"
+                ),
+                (true, 1)
+            );
+            assert_eq!(
+                living(&sheep).get_health(),
+                20.0,
+                "an omitted Health resets to max health"
+            );
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data remove entity @e[type=minecraft:sheep,limit=1] HurtTime"
+                ),
+                (true, 1)
+            );
+            assert_eq!(living(&sheep).living_base().hurt_time(), 0);
+        },
+    );
+}
+
+#[test]
+fn data_merge_writes_active_effects_and_equipment() {
+    with_world(
+        "data_entity_living_effects",
+        |server, world, player, _packets| {
+            let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
+            let source = source(server, player);
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {active_effects:[{id:\"minecraft:speed\",duration:200,amplifier:1b,show_particles:0b}]}"
+                ),
+                (true, 1)
+            );
+            let effect = living(&sheep)
+                .mob_effect(vanilla_mob_effects::SPEED)
+                .expect("the loaded effect is active");
+            assert_eq!(effect.duration(), 200);
+            assert_eq!(effect.amplifier(), 1);
+            assert!(
+                !effect.is_visible(),
+                "`show_particles:0b` survives the effect codec"
+            );
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data remove entity @e[type=minecraft:sheep,limit=1] active_effects"
+                ),
+                (true, 1)
+            );
+            assert!(
+                living(&sheep)
+                    .mob_effect(vanilla_mob_effects::SPEED)
+                    .is_none(),
+                "an omitted active_effects list clears every effect"
+            );
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {equipment:{mainhand:{id:\"minecraft:diamond_sword\",count:1}}}"
+                ),
+                (true, 1)
+            );
+            living(&sheep).with_equipment_slot(EquipmentSlot::MainHand, &mut |item| {
+                assert_eq!(
+                    item.item().key,
+                    vanilla_items::DIAMOND_SWORD.key,
+                    "the equipment compound reaches the live slot"
+                );
+            });
+
+            assert_eq!(
+                run(
+                    server,
+                    &source,
+                    "data remove entity @e[type=minecraft:sheep,limit=1] equipment"
+                ),
+                (true, 1)
+            );
+            living(&sheep).with_equipment_slot(EquipmentSlot::MainHand, &mut |item| {
+                assert!(
+                    item.is_empty(),
+                    "an omitted equipment compound clears every slot"
+                );
+            });
+        },
+    );
 }

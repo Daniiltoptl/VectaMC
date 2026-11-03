@@ -784,6 +784,7 @@ mod item_based_steering;
 mod item_frame;
 mod leash;
 mod living_base;
+mod living_data;
 mod living_entity;
 mod living_reference;
 mod manager;

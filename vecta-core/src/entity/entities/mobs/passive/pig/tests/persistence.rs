@@ -271,7 +271,10 @@ fn pig_saves_and_loads_saddle_equipment() {
         .set(EquipmentSlot::Saddle, saddle);
     assert!(pig.is_saddled());
 
+    // The chunk record is the living payload plus the mob payload, exactly like
+    // `LevelChunk` writing `saveWithFullMetadata`.
     let mut nbt = NbtCompound::new();
+    pig.save_living_data(&mut nbt);
     pig.save_additional(&mut nbt);
 
     let equipment = nbt
@@ -292,6 +295,7 @@ fn pig_saves_and_loads_saddle_equipment() {
 
     let loaded_pig = PigEntity::new(&vanilla_entities::PIG, 2, DVec3::ZERO, Weak::new());
     assert!(!loaded_pig.is_saddled());
+    loaded_pig.load_living_data((&borrowed).into(), true);
     loaded_pig.load_additional((&borrowed).into());
     assert!(loaded_pig.is_saddled());
     loaded_pig.with_equipment_slot(EquipmentSlot::Saddle, &mut |item| {
