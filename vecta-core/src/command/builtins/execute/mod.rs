@@ -59,6 +59,14 @@ fn source_scoreboard(
         })
 }
 
+/// Returns the domain scoreboard that entity NBT loads write team membership to.
+///
+/// An entity load cannot fail on a missing scoreboard: vanilla only logs a
+/// warning when the team cannot be resolved.
+pub(crate) fn domain_scoreboard(source: &CommandSource) -> Option<&Scoreboard> {
+    source.server().scoreboards.get(source.world().domain())
+}
+
 pub(crate) fn source_command_storage(
     source: &CommandSource,
 ) -> Result<&CommandStorage, CommandSyntaxError> {

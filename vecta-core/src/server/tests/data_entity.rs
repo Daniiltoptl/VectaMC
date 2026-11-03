@@ -4,6 +4,7 @@ use super::data_command::{run, source, with_world};
 use super::*;
 use crate::entity::LivingEntity;
 use crate::inventory::equipment::EquipmentSlot;
+use crate::scoreboard::ScoreHolder;
 use vecta_registry::vanilla_mob_effects;
 use vecta_utils::WorldAabb;
 
@@ -513,4 +514,75 @@ fn data_merge_writes_active_effects_and_equipment() {
             });
         },
     );
+}
+
+#[test]
+fn data_merge_team_uses_the_domain_scoreboard_and_the_loaded_uuid() {
+    with_world("data_entity_team", |server, world, player, _packets| {
+        let sheep = spawn_sheep(world, DVec3::new(30.5, 65.0, 30.5));
+        let source = source(server, player);
+        let domain = world.domain().to_owned();
+        let scoreboard = server
+            .scoreboards
+            .get(&domain)
+            .expect("the fixture domain has a scoreboard");
+        scoreboard.add_team("red").expect("team is created");
+        let holder = |uuid: uuid::Uuid| ScoreHolder::new(uuid.to_string());
+        let entity_uuid = sheep.uuid();
+
+        assert_eq!(
+            run(
+                server,
+                &source,
+                "data merge entity @e[type=minecraft:sheep,limit=1] {Team:\"red\"}"
+            ),
+            (true, 1)
+        );
+        assert_eq!(
+            scoreboard.holder_team_name(&holder(entity_uuid)),
+            Some("red".to_owned()),
+            "`Team` adds the entity to the domain scoreboard"
+        );
+
+        // Vanilla logs a warning and keeps the old membership instead of failing.
+        assert_eq!(
+            run(
+                server,
+                &source,
+                "data merge entity @e[type=minecraft:sheep,limit=1] {Team:\"blue\"}"
+            ),
+            (true, 1)
+        );
+        assert_eq!(
+            scoreboard.holder_team_name(&holder(entity_uuid)),
+            Some("red".to_owned()),
+            "an unknown team does not change membership"
+        );
+
+        // Vanilla adds the membership under the payload UUID and only then
+        // restores the original identity.
+        let payload_uuid = uuid::Uuid::from_u128(0xfeed_face);
+        let payload = payload_uuid.to_int_array();
+        assert_eq!(
+            run(
+                server,
+                &source,
+                &format!(
+                    "data merge entity @e[type=minecraft:sheep,limit=1] {{UUID:[I;{},{},{},{}],Team:\"red\"}}",
+                    payload[0], payload[1], payload[2], payload[3]
+                )
+            ),
+            (true, 1)
+        );
+        assert_eq!(
+            sheep.uuid(),
+            entity_uuid,
+            "a payload UUID cannot rename the live entity"
+        );
+        assert_eq!(
+            scoreboard.holder_team_name(&holder(payload_uuid)),
+            Some("red".to_owned()),
+            "the membership follows the UUID the payload carried"
+        );
+    });
 }

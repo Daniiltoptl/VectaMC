@@ -6,6 +6,7 @@ use super::*;
 use crate::entity::block_attached_entity::BlockAttachedEntity;
 use crate::entity::leash::Leashable;
 use crate::entity::shearable::Shearable;
+use crate::scoreboard::{ScoreHolder, Scoreboard};
 use rand::{RngExt, rng};
 use vecta_math::DEGREE_90;
 
@@ -96,6 +97,12 @@ pub(super) fn read_nbt_f32(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> 
         .or_else(|| tag.long().map(|value| value as f32))
         .or_else(|| tag.float())
         .or_else(|| tag.double().map(|value| value as f32))
+}
+
+/// Reads a UUID stored as the vanilla four-int array.
+pub(super) fn read_uuid(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Uuid> {
+    let values = nbt.int_array(key)?;
+    Uuid::from_int_array(&values)
 }
 
 pub(super) fn read_nbt_bool(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<bool> {
@@ -3940,7 +3947,7 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     /// and entity-specific state when the component only overrides one field.
     fn apply_spawn_data(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         // A merge load keeps the local position assignment and cannot fail.
-        let loaded = self.apply_entity_nbt(nbt, EntityNbtLoad::Merge);
+        let loaded = self.apply_entity_nbt(nbt, EntityNbtLoad::Merge, None);
         debug_assert!(loaded.is_ok(), "a merge load never reports a move failure");
     }
 
@@ -3953,12 +3960,57 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     fn load_command_data(
         &self,
         nbt: BorrowedNbtCompoundView<'_, '_>,
+        scoreboard: Option<&Scoreboard>,
     ) -> Result<(), EntityNbtLoadError> {
         if self.as_player().is_some() {
             return Err(EntityNbtLoadError::PlayerData);
         }
-        self.apply_entity_nbt(nbt, EntityNbtLoad::Reset)?;
+        self.apply_entity_nbt(nbt, EntityNbtLoad::Reset, scoreboard)?;
+        self.post_data_manipulated();
         Ok(())
+    }
+
+    /// Runs after `/data` rewrote this entity's NBT.
+    ///
+    /// Vanilla `EntityDataAccessor.setData` calls this after restoring the
+    /// original UUID. Only `Villager` overrides it (special prices for the
+    /// current trading player); Vecta has no villagers, so the default is the
+    /// whole contract for the supported entity set.
+    fn post_data_manipulated(&self) {}
+
+    /// Adds this entity to the team named by the loaded payload.
+    ///
+    /// Vanilla `Entity.load` resolves the team through the level scoreboard and
+    /// logs when it is missing; the entity keeps its previous membership, and the
+    /// holder name is the UUID the payload carried at that point.
+    fn load_team(
+        &self,
+        nbt: &BorrowedNbtCompoundView<'_, '_>,
+        scoreboard: Option<&Scoreboard>,
+        holder_uuid: Uuid,
+    ) {
+        let Some(team_name) = nbt.string("Team") else {
+            return;
+        };
+        let team_name = team_name.to_string();
+        let Some(scoreboard) = scoreboard else {
+            tracing::warn!(
+                team = %team_name,
+                "entity NBT names a team but this load path has no scoreboard"
+            );
+            return;
+        };
+        let Some(team) = scoreboard.team(&team_name) else {
+            tracing::warn!(
+                team = %team_name,
+                "unable to add entity to team: that team does not exist"
+            );
+            return;
+        };
+        let holder = ScoreHolder::new(holder_uuid.to_string());
+        if let Err(error) = scoreboard.add_holder_to_team(&holder, &team) {
+            tracing::warn!(team = %team_name, %error, "unable to add entity to team");
+        }
     }
 
     /// Applies the shared base entity fields for both load modes.
@@ -3975,6 +4027,7 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         &self,
         nbt: BorrowedNbtCompoundView<'_, '_>,
         mode: EntityNbtLoad,
+        scoreboard: Option<&Scoreboard>,
     ) -> Result<(), EntityMoveError> {
         let reset = mode == EntityNbtLoad::Reset;
 
@@ -4087,6 +4140,12 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         {
             self.base().set_visual_fire(has_visual_fire);
         }
+
+        // Vanilla reads `UUID` before `Team`, adds the membership under the
+        // loaded UUID and only then restores the original identity, so a payload
+        // that changes both leaves the membership on the payload UUID.
+        let team_holder = read_uuid(&nbt, "UUID").unwrap_or_else(|| self.uuid());
+        self.load_team(&nbt, scoreboard, team_holder);
 
         if let Some(living) = self.as_living_entity() {
             living.load_living_data(nbt, reset);

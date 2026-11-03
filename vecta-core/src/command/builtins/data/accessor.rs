@@ -12,7 +12,7 @@ use super::super::super::{
     brigadier::CommandSyntaxError,
     execution::{CommandSource, VectaArgumentType, VectaCommandContext},
 };
-use super::super::execute::{loaded_block_position, source_command_storage};
+use super::super::execute::{domain_scoreboard, loaded_block_position, source_command_storage};
 use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
 use crate::entity::{EntityNbtLoadError, SharedEntity};
 
@@ -148,7 +148,7 @@ impl DataAccessor {
                 // The base loader never reads `UUID`, so a payload cannot rename the
                 // entity identity; vanilla loads then restores the original id.
                 entity
-                    .load_command_data((&borrowed).into())
+                    .load_command_data((&borrowed).into(), domain_scoreboard(source))
                     .map_err(|error| match error {
                         EntityNbtLoadError::PlayerData => CommandSyntaxError::dynamic(
                             TextComponent::from(&translations::COMMANDS_DATA_ENTITY_INVALID),

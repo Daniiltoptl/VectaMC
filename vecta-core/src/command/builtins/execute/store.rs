@@ -158,9 +158,15 @@ fn store_entity_data(
     let path = parsed_path(context)?;
     let scale = parsed_scale(context)?;
     let source = context.source();
+    // The callback outlives this borrow, so resolve the domain scoreboard inside it.
+    let server = Arc::clone(source.server());
+    let domain = source.world().domain().to_owned();
     let callback = CommandResultCallback::new(move |success, result| {
         let value = stored_value(store_result, success, result);
-        if let Err(error) = store_entity_data_value(&entity, &path, data_type.tag(value, scale)) {
+        let scoreboard = server.scoreboards.get(&domain);
+        if let Err(error) =
+            store_entity_data_value(&entity, &path, data_type.tag(value, scale), scoreboard)
+        {
             tracing::debug!(entity = entity.id(), %error, "execute store entity was rejected");
         }
     });
@@ -172,6 +178,7 @@ fn store_entity_data_value(
     entity: &SharedEntity,
     path: &NbtPath,
     value: NbtTag,
+    scoreboard: Option<&Scoreboard>,
 ) -> Result<(), StoreDataMutationError> {
     let data = mutate_compound_path(entity.nbt_for_data_compare(), path, value)?;
     let mut bytes = Vec::new();
@@ -179,7 +186,7 @@ fn store_entity_data_value(
     let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
         .map_err(|_| StoreDataMutationError::InvalidWrittenNbt)?;
     entity
-        .load_command_data((&borrowed).into())
+        .load_command_data((&borrowed).into(), scoreboard)
         .map_err(StoreDataMutationError::EntityLoad)
 }
 

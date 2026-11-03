@@ -13,12 +13,13 @@
 use std::str::FromStr;
 
 use simdnbt::owned::{NbtList, NbtTag};
-use uuid::Uuid;
 use vecta_registry::REGISTRY;
 use vecta_registry::attribute::AttributeRef;
 use vecta_utils::{BlockPos, Identifier};
 
-use super::entity::{load_value_or, read_nbt_bool, read_nbt_dvec3, read_nbt_f32, read_nbt_int};
+use super::entity::{
+    load_value_or, read_nbt_bool, read_nbt_dvec3, read_nbt_f32, read_nbt_int, read_uuid,
+};
 use super::*;
 use crate::entity::attribute::{AttributeModifier, AttributeModifierOperation};
 use crate::entity::living_base::MobEffectInstance;
@@ -257,9 +258,4 @@ fn load_combat_references<E: LivingEntity + ?Sized>(
             .set_last_hurt_by_mob_uuid(None, entity.tick_count()),
         None => {}
     }
-}
-
-fn read_uuid(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Uuid> {
-    let values = nbt.int_array(key)?;
-    Uuid::from_int_array(&values)
 }
