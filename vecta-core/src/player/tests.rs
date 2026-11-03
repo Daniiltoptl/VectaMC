@@ -1836,3 +1836,40 @@ fn sword_does_not_destroy_blocks_in_creative() {
 
 #[path = "upstream_fixes_tests.rs"]
 mod upstream_fixes;
+
+#[test]
+fn a_broken_held_item_awards_the_break_stat_and_clears_the_hand() {
+    init_vanilla_registry();
+    let world = Arc::clone(test_world());
+    let player = test_player(Arc::clone(&world));
+    let shears_stat = vanilla_stat_types::ITEM_BROKEN.get(&vanilla_items::SHEARS);
+
+    let mut shears = ItemStack::new(&vanilla_items::SHEARS);
+    shears.set_damage_value(shears.get_max_damage() - 2);
+    player
+        .inventory
+        .lock()
+        .set_item_in_hand(InteractionHand::MainHand, shears);
+
+    player.hurt_item_in_hand(InteractionHand::MainHand, 1);
+    assert_eq!(
+        player.stats.lock().get(&shears_stat),
+        0,
+        "damage that does not destroy the stack runs no break callback"
+    );
+
+    player.hurt_item_in_hand(InteractionHand::MainHand, 1);
+    assert!(
+        player
+            .inventory
+            .lock()
+            .get_item_in_hand(InteractionHand::MainHand)
+            .is_empty(),
+        "the last point of durability removes the stack"
+    );
+    assert_eq!(
+        player.stats.lock().get(&shears_stat),
+        1,
+        "`onEquippedItemBroken` awards the break statistic"
+    );
+}

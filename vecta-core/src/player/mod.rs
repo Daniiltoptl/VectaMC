@@ -2179,6 +2179,23 @@ impl LivingEntity for Player {
     }
 }
 
+impl Player {
+    /// Damages the held item and runs vanilla's break callback for its slot.
+    ///
+    /// Vanilla `ItemStack.hurtAndBreak` calls `LivingEntity.onEquippedItemBroken`
+    /// with the broken stack, which broadcasts the break event, drops the item's
+    /// attribute modifiers and awards the break statistic.
+    pub fn hurt_item_in_hand(&self, hand: InteractionHand, amount: i32) {
+        let broken =
+            self.inventory
+                .lock()
+                .hurt_item_in_hand(hand, amount, self.has_infinite_materials());
+        if let Some(item) = broken {
+            self.on_equipped_item_broken(item, player_inventory::hand_to_equipment_slot(hand));
+        }
+    }
+}
+
 impl TextResolutor for Player {
     fn resolve_content(&self, _resolvable: &Resolvable) -> TextComponent {
         TextComponent::new()

@@ -15,6 +15,7 @@ pub use container::InvalidHotbarSlot;
 pub(crate) use container::armor_equipment;
 pub use core::PlayerInventory;
 pub use equipment::EquipmentSwapResult;
+pub(crate) use equipment::hand_to_equipment_slot;
 
 /// Inputs supplied when an external menu factory is safe to execute.
 pub struct MenuOpenContext<'a> {

@@ -22,7 +22,7 @@ pub enum EquipmentSwapResult {
     Fail,
 }
 
-const fn hand_to_equipment_slot(hand: InteractionHand) -> EquipmentSlot {
+pub(crate) const fn hand_to_equipment_slot(hand: InteractionHand) -> EquipmentSlot {
     match hand {
         InteractionHand::MainHand => EquipmentSlot::MainHand,
         InteractionHand::OffHand => EquipmentSlot::OffHand,
@@ -91,32 +91,39 @@ impl PlayerInventory {
     }
 
     /// Damages the held item and records inventory/equipment changes.
+    ///
+    /// Returns the broken item type when this damage destroyed the stack, so the
+    /// caller can run vanilla's `onEquippedItemBroken` for the slot.
     pub fn hurt_item_in_hand(
         &mut self,
         hand: InteractionHand,
         amount: i32,
         has_infinite_materials: bool,
-    ) {
+    ) -> Option<ItemRef> {
         if amount <= 0 || self.get_item_in_hand(hand).is_empty() {
-            return;
+            return None;
         }
 
-        let changed = {
+        let (changed, broken_item) = {
             let item = self.get_item_in_hand_mut(hand);
             let previous_item = item.item();
             let previous_count = item.count();
             let previous_damage = item.get_damage_value();
 
-            let _ = item.hurt_and_break(amount, has_infinite_materials);
+            let broke = item.hurt_and_break(amount, has_infinite_materials);
 
-            item.item() != previous_item
-                || item.count() != previous_count
-                || item.get_damage_value() != previous_damage
+            (
+                item.item() != previous_item
+                    || item.count() != previous_count
+                    || item.get_damage_value() != previous_damage,
+                broke.then_some(previous_item),
+            )
         };
 
         if changed {
             self.set_changed();
         }
+        broken_item
     }
 
     /// Mutates the held item and records inventory/equipment changes if its stack state changed.
