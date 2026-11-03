@@ -18,6 +18,7 @@
 | Сеанс 4 (G022) | `/data` для block/storage, foundation путей NBT; workspace **4273/0/18**, fmt/Clippy exit 0 |
 | Ревью G022 | `cd11aa81a`; workspace **4279/0/18**, utils 228, paths 31 |
 | Сеанс 5 | placement context, настоящий region I/O, `/data entity`; workspace **4285/0/18** |
+| Сеанс 6 | G024 living load/save + disk, Team/UUID, break callback; workspace **4293/0/18** |
 | Ревью сеанса5 | `1a8bb2457`: player guard, single target, numeric NBT, sync/cooldown; workspace **4288/0/18**, entity7, Clippy/fmt exit0 (Cargo warning см. review) |
 | Ревью G022, Codex | `cd11aa81a`; workspace **4279/0/18**, fmt/Clippy exit0; Cargo manifest warning см. review |
 | Статус G021 | gate, placement read context и реальный region I/O реализованы; live restart/ticket lifecycle не проверены |
@@ -29,7 +30,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **G024: полный living load/save**, Team/accessor contract, затем compute и направления3–12 |
+| Следующий consumer | **`modify … compute`** (отдельный срез: param-map LootContext + реестры провайдеров), затем направления 3–12 |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),

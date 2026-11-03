@@ -248,3 +248,34 @@ Modulus/Negate/Power/Product/Quotient/Round/Sine/SquareRoot/StorageValue/Sum/
 Truncate/Uniform/WeightedList`), плюс `LootContextSources` для источников
 контекста. Это отдельный крупный срез: типизированные провайдеры + источники +
 реальный command consumer. Половину узла команды не коммитил.
+
+## B-06-07 · уточнён повторно — `compute` требует param-map LootContext
+
+**Проверено по Java 26.3:**
+
+- `DataCommands` compute-ветка: `ResourceOrIdArgument.floatProvider/intProvider`
+  + `LootContextSources.addContextSources`.
+- `ContextFloatProviders.DIRECT_CODEC` — `BuiltInRegistries.CONTEXT_FLOAT_PROVIDER_TYPE.byNameCodec().dispatch(...)`
+  плюс inline `ConstantValue.INLINE_CODEC`; сами провайдеры — реестр
+  `Registries.CONTEXT_FLOAT_PROVIDER`, бутстрап кодом (4 float-ключа).
+- 27 float- и 22 int-реализации (полный список — в report-next-06.md), у каждой
+  codec и правила вычисления.
+- `LootContextSources` строит `LootParams` с
+  `LootContextParamSets.COMMAND_COMPUTE_DEFAULT/POSITION/ENTITY` и параметрами
+  `THIS_ENTITY/ORIGIN/BLOCK_STATE/BLOCK_ENTITY/TARGET_ENTITY`.
+
+**Чего не хватает в Vecta:** `LootContext` (`vecta-registry/src/loot_table/context.rs`)
+— плоская borrow-структура без param map/param sets. Compute на ней потребовал
+бы вторую контекст-модель рядом с существующей.
+
+**Решение:** отдельный срез «param-map LootContext + param sets + два реестра
+провайдеров с типовой диспетчеризацией (нужны extracted данные) + 49 реализаций
++ ResourceOrIdArgument», затем `compute float|integer`. Половину узла команды не
+коммитил.
+
+## B-06-10 · `ITEM_DURABILITY_CHANGED` criteria
+
+`ItemStack::hurt_and_break` по-прежнему содержит TODO на
+`CriteriaTriggers.ITEM_DURABILITY_CHANGED`: advancement-criteria foundation в
+Vecta отсутствует целиком. Само событие разрыва (`onEquippedItemBroken`) теперь
+вызывается — см. `0d29632d8`. Зависимые карточки: advancement-срез.

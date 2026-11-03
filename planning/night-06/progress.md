@@ -420,3 +420,29 @@ Placement context и два region I/O fixes сохраняются; их не �
 [Ревью](../reviews/night-06-session05-codex.md),
 [следующий большой запрос](../../WORKBUDDY_CONTINUE_06_06.md): закончить G024 и
 entity accessor, затем compute и направления3–12 файла05. Итог — report-next-06.
+
+## Сеанс 6: G024 living load/save, Team/UUID, разрыв предмета
+
+Полные детали — в [report-next-06.md](report-next-06.md).
+
+1. **G024 (`fc85be1ea`).** Новый `entity/living_data.rs` повторяет
+   `LivingEntity.readAdditionalSaveData`/`addAdditionalSaveData`: absorption,
+   packed attributes, active effects (свой декодер `MobEffectInstance.CODEC`),
+   clamped health, hurt/death timers, FallFlying, sleeping, combat references,
+   equipment, impulse context. Вызывается до subtype loader, поэтому порядок
+   Living → Mob → Ageable → Animal → subtype сохранён. Запись чанка и
+   registry-загрузка используют тот же payload, поэтому Health/effects/equipment
+   теперь реально переживают `.mca`.
+2. **Побочный дефект:** модификаторы атрибутов эффектов были transient, а Java
+   применяет их `addPermanentModifier`; из-за этого они не попадали в
+   сохраняемый `attributes` и эффект после reload не влиял на атрибуты. Исправлено.
+3. **Team (`ec23d33c0`).** `Entity::load_team` через domain scoreboard,
+   имя холдера — UUID из payload (как Java: UUID → Team → восстановление
+   identity в accessor), `post_data_manipulated` вызывается после load.
+4. **Разрыв предмета (`0d29632d8`).** `hurt_item_in_hand` возвращает сломанный
+   `ItemRef`, `Player::hurt_item_in_hand` вызывает `on_equipped_item_broken`
+   (entity event, refresh модификаторов, статистика).
+
+Проверки: workspace **4293 passed / 0 failed / 18 ignored**, fmt exit 0.
+`modify … compute` не начат: это отдельная подсистема (param-map LootContext,
+2 реестра, 49 провайдеров), детали в отчёте и blockers.

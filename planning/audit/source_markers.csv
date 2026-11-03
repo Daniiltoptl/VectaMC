@@ -94,34 +94,34 @@ vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: 
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1474,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2674,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,4150,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
-vecta-core/src/entity/living_entity.rs,717,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
-vecta-core/src/entity/living_entity.rs,725,// TODO: apply helmet damage once those equipment hooks exist.
-vecta-core/src/entity/living_entity.rs,763,// TODO: Play secondary hurt sounds once equipment effects expose them.
-vecta-core/src/entity/living_entity.rs,1022,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
-vecta-core/src/entity/living_entity.rs,1062,// TODO: Create wither rose for killer
-vecta-core/src/entity/living_entity.rs,1117,/// equal to the base reward (see TODO).
-vecta-core/src/entity/living_entity.rs,1119,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
-vecta-core/src/entity/living_entity.rs,1138,// TODO: Drop non-mob equipment overrides once those foundations exist.
-vecta-core/src/entity/living_entity.rs,1427,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
-vecta-core/src/entity/living_entity.rs,1870,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/entity/living_entity.rs,2592,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
-vecta-core/src/entity/living_entity.rs,3201,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
+vecta-core/src/entity/entity/mod.rs,1490,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2686,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,4217,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/living_entity.rs,683,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
+vecta-core/src/entity/living_entity.rs,691,// TODO: apply helmet damage once those equipment hooks exist.
+vecta-core/src/entity/living_entity.rs,729,// TODO: Play secondary hurt sounds once equipment effects expose them.
+vecta-core/src/entity/living_entity.rs,988,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
+vecta-core/src/entity/living_entity.rs,1028,// TODO: Create wither rose for killer
+vecta-core/src/entity/living_entity.rs,1083,/// equal to the base reward (see TODO).
+vecta-core/src/entity/living_entity.rs,1085,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
+vecta-core/src/entity/living_entity.rs,1104,// TODO: Drop non-mob equipment overrides once those foundations exist.
+vecta-core/src/entity/living_entity.rs,1393,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
+vecta-core/src/entity/living_entity.rs,1836,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/entity/living_entity.rs,2558,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
+vecta-core/src/entity/living_entity.rs,3167,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
 vecta-core/src/entity/mob/mod.rs,698,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
 vecta-core/src/entity/mob/mod.rs,785,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
 vecta-core/src/entity/mob/mod.rs,1068,// TODO: Apply EquipmentDrops enchantment value effects once damage
-vecta-core/src/entity/mob/mod.rs,1480,// TODO: Use the held item's ATTACK_RANGE component once it has typed component data.
+vecta-core/src/entity/mob/mod.rs,1478,// TODO: Use the held item's ATTACK_RANGE component once it has typed component data.
 vecta-core/src/entity/mob_effect/bad_omen.rs,8,// TODO: `applyEffectTick` checks the mob is a non-spectator `ServerPlayer`
 vecta-core/src/entity/mob_effect/infested.rs,5,"// TODO: Vanilla `InfestedMobEffect.onMobHurt` has a chance, whenever the"
 vecta-core/src/entity/mob_effect/oozing.rs,5,// TODO: Vanilla `OozingMobEffect.onMobRemoved` spawns 2-4 size-2 `Slime`
 vecta-core/src/entity/mob_effect/raid_omen.rs,8,// TODO: `applyEffectTick` checks the mob is a non-spectator `ServerPlayer`
 vecta-core/src/entity/mob_effect/weaving.rs,5,// TODO: Vanilla `WeavingMobEffect.onMobRemoved` scatters a handful of cobweb
 vecta-core/src/entity/mob_effect/wind_charged.rs,5,"// TODO: Vanilla `WindChargedMobEffect.onMobRemoved` triggers a small,"
-vecta-core/src/entity/mod.rs,966,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
-vecta-core/src/entity/mod.rs,1389,// TODO: Read live equipment once loot contexts can do so safely.
-vecta-core/src/entity/mod.rs,1414,// TODO: Include custom name once loot contexts can snapshot entity data.
+vecta-core/src/entity/mod.rs,967,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
+vecta-core/src/entity/mod.rs,1390,// TODO: Read live equipment once loot contexts can do so safely.
+vecta-core/src/entity/mod.rs,1415,// TODO: Include custom name once loot contexts can snapshot entity data.
 vecta-core/src/entity/projectile/thrown_potion.rs,105,// TODO: rehydrate nearby Axolotl entities for `REHYDRATES_AXOLOTLS` once
 vecta-core/src/fluid/collision.rs,19,// TODO: Add occlusion cache for performance (vanilla uses 200-entry ThreadLocal LRU)
 vecta-core/src/fluid/mod.rs,7,"//! - TODO: Remaining entity fluid side effects: drowning, splash particles/sounds."
