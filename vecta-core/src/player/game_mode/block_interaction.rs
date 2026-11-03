@@ -402,6 +402,7 @@ mod tests {
         use vecta_registry::{vanilla_blocks, vanilla_items};
         use vecta_utils::types::UpdateFlags;
 
+        use crate::block_entity::BlockEntityLoadContext;
         use crate::block_entity::entities::BarrelBlockEntity;
         use crate::bootstrap::init_globals;
         use crate::inventory::lock::ContainerLockGuard;
@@ -423,7 +424,7 @@ mod tests {
         let mut lock = NbtCompound::new();
         lock.insert("items", "minecraft:diamond");
         identity.insert("lock", lock);
-        assert!(block_entity.load_item_custom_data(&identity));
+        assert!(block_entity.load_item_custom_data(&identity, &BlockEntityLoadContext::detached()));
 
         let container = block_entity.container_ref().expect("barrel container");
         let id = container.container_id();

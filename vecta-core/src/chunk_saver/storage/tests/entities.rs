@@ -577,8 +577,8 @@ fn a_saved_barrel_restores_identity_and_contents_through_the_storage_decoder() {
 
     use vecta_utils::Downcast as _;
 
-    use crate::block_entity::BlockEntity as _;
     use crate::block_entity::entities::BarrelBlockEntity;
+    use crate::block_entity::{BlockEntity as _, BlockEntityLoadContext};
     use crate::inventory::lock::ContainerLockGuard;
 
     init_globals();
@@ -590,7 +590,7 @@ fn a_saved_barrel_restores_identity_and_contents_through_the_storage_decoder() {
     let mut lock = NbtCompound::new();
     lock.insert("items", "minecraft:diamond");
     identity.insert("lock", lock);
-    assert!(barrel.load_item_custom_data(&identity));
+    assert!(barrel.load_item_custom_data(&identity, &BlockEntityLoadContext::detached()));
     let container = barrel.container_ref().expect("barrel container");
     let id = container.container_id();
     {

@@ -582,7 +582,7 @@ mod tests {
         let mut payload = NbtCompound::new();
         payload.insert("Items", NbtList::Compound(vec![entry]));
 
-        assert!(barrel.load_item_custom_data(&payload));
+        assert!(barrel.load_item_custom_data(&payload, &BlockEntityLoadContext::detached()));
         assert_eq!(
             barrel.container.lock().get_item(3),
             &ItemStack::with_count(&vanilla_items::DIAMOND, 5)
@@ -603,7 +603,7 @@ mod tests {
             Some(42)
         );
         assert!(
-            !barrel.load_item_custom_data(&payload),
+            !barrel.load_item_custom_data(&payload, &BlockEntityLoadContext::detached()),
             "an unchanged payload is a no-op"
         );
     }

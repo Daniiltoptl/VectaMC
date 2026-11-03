@@ -11,6 +11,8 @@ use crate::command::{
     execution::{CommandSource, CommandTextResolver},
     sender::CommandSender,
 };
+use crate::server::Server;
+use crate::world::World;
 
 /// Scoped, read-only access to server text resolution during block-entity loading.
 ///
@@ -31,8 +33,21 @@ impl BlockEntityLoadContext {
     pub(crate) fn for_source(source: &CommandSource) -> Result<Self, CommandSyntaxError> {
         // A live NBT load has no resolution player, even when a player ran the
         // command. Its world is the command's effective world, not the console's.
-        let source = CommandSource::new(CommandSender::Console, Arc::clone(source.server()))
-            .with_world(Arc::clone(source.world()))?;
+        Self::for_server_world(source.server(), source.world())
+    }
+
+    /// The live placement phase: the block entity is already attached to `world`.
+    ///
+    /// Mirrors `LecternBlockEntity.resolveBook` after `setLevel`: text resolves
+    /// from the block center with no source entity. Playerless placement keeps
+    /// [`Self::detached`], because Vanilla only resolves for a server level and
+    /// Vecta has no server reference without a placing player.
+    pub(crate) fn for_server_world(
+        server: &Arc<Server>,
+        world: &Arc<World>,
+    ) -> Result<Self, CommandSyntaxError> {
+        let source = CommandSource::new(CommandSender::Console, Arc::clone(server))
+            .with_world(Arc::clone(world))?;
         Ok(Self {
             source: Some(source),
         })

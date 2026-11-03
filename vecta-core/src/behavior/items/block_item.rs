@@ -15,6 +15,7 @@ use crate::fluid::{FluidStateExt as _, get_fluid_state};
 use crate::world::game_event::GameEventContext;
 use crate::{
     behavior::context::{BlockPlaceContext, InteractionResult, UseOnContext},
+    block_entity::BlockEntityLoadContext,
     player::Player,
 };
 
@@ -137,14 +138,24 @@ impl BlockItem {
                 // Loading and component callbacks may enter world/container code;
                 // retain a placement snapshot instead of the player's inventory lock.
                 let item = context.with_item(|item| item.copy_with_count(item.count()));
-                if let Some(data) = item.get(BLOCK_ENTITY_DATA)
+                // The entity is already attached, so an authorized payload resolves
+                // server-dependent text exactly like Vanilla's attached
+                // `loadAdditional`. Playerless placement has no server reference.
+                let load_context = context.player().map_or_else(
+                    || Ok(BlockEntityLoadContext::detached()),
+                    |player| {
+                        BlockEntityLoadContext::for_server_world(&player.server(), &context.world)
+                    },
+                );
+                if let Ok(load_context) = load_context
+                    && let Some(data) = item.get(BLOCK_ENTITY_DATA)
                     && data.block_entity_type().key == block_entity.get_type().key
                     && (!block_entity.get_type().only_op_can_set_nbt
                         || context
                             .player()
                             .is_some_and(Player::can_use_game_master_blocks))
                 {
-                    block_entity.load_item_custom_data(data.data().as_compound());
+                    block_entity.load_item_custom_data(data.data().as_compound(), &load_context);
                 }
                 block_entity.apply_components_from_item(&item);
                 block_entity.set_changed();
