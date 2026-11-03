@@ -1,5 +1,11 @@
 # Отчёт сеанса 4: G022 — живой `/data`
 
+> Последующее ревью Codex от 2026-11-03 исправило ошибки NBT paths/string sources
+> и сняло ложную диагностику B-06-08. Актуальные выводы и проверки:
+> [night-06-g022-codex.md](../reviews/night-06-g022-codex.md).
+> Следующая очередь: [WORKBUDDY_CONTINUE_06_05.md](../../WORKBUDDY_CONTINUE_06_05.md).
+> Текст ниже сохранён как исходный отчёт исполнителя.
+
 Дата: 2026-11-02. Ветка `codex/night-vanilla-03`, вход `6e6726fc0`.
 Target `0.16.1+mc26.3`, local source 26.3 (5037 Java files).
 

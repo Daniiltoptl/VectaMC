@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление после ревью сеанса 3 (G021), 2026-11-02.
+Обновление после ревью сеанса 4 (G022), 2026-11-03.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -16,6 +16,7 @@
 | Ревью сеанса 2, workspace | **4245 passed / 0 failed / 18 ignored**, exit 0 |
 | Сеанс 3 (G021) | `69bcdde45`; workspace **4252 passed / 0 failed / 18 ignored**, fmt/Clippy exit 0 |
 | Сеанс 4 (G022) | `/data` для block/storage, foundation путей NBT; workspace **4273/0/18**, fmt/Clippy exit 0 |
+| Ревью G022, Codex | `cd11aa81a`; workspace **4279/0/18**, fmt/Clippy exit0; Cargo manifest warning см. review |
 | Статус G021 после ревью | gate реализован после produced output; W06-105 без region I/O/unload/restart, lectern item text context для G022 |
 | Первый срез ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
 | Authorization slice | workspace **4254/0/18**, gate tests 2 passed, ordinary/type-mismatch 1 passed; Clippy/fmt exit 0 |
@@ -25,7 +26,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **G023 / W06-111…115: NBT рамок** |
+| Следующий consumer | **Item placement read context → G024/entity NBT → большая очередь из 12 направлений** |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -35,7 +36,10 @@
 [новый запрос](../../WORKBUDDY_CONTINUE_06_03.md).
 
 [Ревью G021](../reviews/night-06-g021-codex.md),
-[актуальный запрос](../../WORKBUDDY_CONTINUE_06_04.md).
+[запрос после G021](../../WORKBUDDY_CONTINUE_06_04.md).
+
+[Ревью G022](../reviews/night-06-g022-codex.md),
+[актуальный большой запрос](../../WORKBUDDY_CONTINUE_06_05.md).
 B-06-05 снят: produced block_entities output уже получен, 26.3 / 49 типов.
 Не повторять диагностические попытки и не подменять данные ручным списком.
 
@@ -48,8 +52,8 @@ commits и не доказывает 600 missing features. Если путь у�
 Крупные подтверждённые ограничения: большинство special dispenser consumers,
 arrows/оружие, maps/recipe book, mobs/AI и full survival остаются частичными.
 TNT engine, containers/menus, shared RNG/world order и перечисленные в reviews
-fixes сохранять. Runtime scoreboard/team read access требует архитектурного
-решения после проверки по AGENTS. EULA/client/Linux и собственный Mojang server
+fixes сохранять. Существующие read contexts и scoreboard/team callers сначала
+проверять; задавать вопрос только о реально неясном контракте. EULA/client/Linux и собственный Mojang server
 comparison не проверялись.
 
 Открытые partial этого сеанса: W06-042 (body slot, нет волка/лошади),
@@ -58,12 +62,16 @@ W06-057 (bee release, B-06-03), W06-062 (соты, B-06-03).
 G021 закрыта матрицей тестов W06-101…105: disk save без дублей, borrowed/owned
 load, placement payload в настоящую BE, pick→item→block, декодер ChunkStorage.
 B-06-04 снят: Java тоже хранит корневые имя/lock и не применяет item components
-при обычном reload; формат контейнеров не менялся. Открыт гейт
-`onlyOpCanSetNbt` (нет системы прав) и реальный chunk save через `ChunkMap`.
+при обычном reload; формат контейнеров не менялся. Гейт `onlyOpCanSetNbt`
+реализован на produced metadata и существующем OP contract. Реальный chunk save
+через `ChunkMap` остаётся открытым acceptance-сценарием.
 G022 реализована как builtin `/data` для block/storage (`get`/`merge`/`remove`/
 `modify` × `from`/`string`/`value`). Partial: провайдер `entity` (B-06-06),
-`modify … compute` (B-06-07), comparator-половина W06-108 (B-06-08),
-item custom-data context кафедры (B-06-09). Дополнительно открыты water
+`modify … compute` (B-06-07), item custom-data context кафедры (B-06-09).
+B-06-08 оказался ложной диагностикой: comparator input для контейнера уже есть,
+добавлен сквозной regression; см. ревью G022 и его результаты проверок.
+`Player::server()` уже позволяет провести read context без World→Server pointer.
+Дополнительно открыты water
 evaporation, underwater coral selection и SulfurCube ignition; см. blockers.
 
 Foreign dirty file: `planning/night-01/report.md`; не трогать.

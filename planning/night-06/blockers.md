@@ -140,17 +140,17 @@ loopback failure. Владелец получил точные CMD-команд�
 
 ## B-06-06 · G022 — `/data entity` требует общего entity NBT load
 
-**Проверено:** `vecta-core/src/entity/` не имеет общего NBT-сериализатора.
-`Entity::save_additional` заполняет только типо-специфичные поля,
-`Entity::nbt_for_data_compare` собирает `saveWithoutId`-подобный compound для
-предикатов, но обратной загрузки Pos/Motion/Rotation/UUID/Air/Fire/Passengers/
-data нет: `ChunkStorage` восстанавливает сущности из типизированного
-`PersistentEntity`, а не из NBT. Тот же гейт уже записан как TODO в
-`/execute store entity` (`command/builtins/execute/store.rs`).
+**Уточнено Codex:** subtype load/save, typed `PersistentEntity` и disk factories
+существуют; `nbt_for_data_compare` собирает command-visible compound.
+`Entity::apply_spawn_data` уже читает Pos/Motion/Rotation/Air/Fire/tags/data и
+часть флагов. Утверждение, что обратной загрузки этих полей совсем нет, неверно.
+Но spawn partial-update не равен полному live load: отсутствующие поля сохраняют
+старые значения, position меняется локально; UUID/passengers и world tracking
+нужно проверить отдельно. `/execute store entity` пока имеет соответствующий TODO.
 
-**Чего не хватает:** `Entity::load`-эквивалент (общая загрузка base-полей) плюс
-`EntityDataAccessor.setData` с живым контекстом. Без него `/data entity`
-был бы get-only, поэтому провайдер не зарегистрирован вовсе.
+**Чего не хватает:** полный `Entity::load` contract с live world tracking и
+`EntityDataAccessor.setData`, переиспользующий существующие base/subtype readers.
+Без него `/data entity` был бы get-only, поэтому провайдер пока не зарегистрирован.
 
 **Риск догадки:** порядок/набор base-полей и правила «player data restricted»
 (`commands.data.entity.invalid`) — это shared foundation для всех сущностей,
@@ -175,21 +175,18 @@ functions/context, но не `ContextFloatProvider`/`ContextIntProvider`, а
 (`from`, `string`, `value`) и все манипуляторы работают. Зависимые карточки:
 G022 (compute), G027/G028 (loot-driven автоматизация).
 
-## B-06-08 · G022/W06-108 — компаратор не видит содержимое контейнера
+## B-06-08 · Ошибочная диагностика контейнерного comparator input
 
-**Проверено:** `vecta-core/src/world/redstone.rs` не обращается к block entity
-или `Container` ни в одной ветке `get_signal`; `ComparatorBlock::calculate_output`
-через `DiodeBlock::get_input_signal` получает 0 для бочки с предметами.
-`BlockEntity::set_changed` при этом корректно вызывает
-`update_neighbor_for_output_signal`, и компаратор получает neighbor update.
+**Перепроверено Codex, 2026-11-03:** `world/redstone.rs` хранит torch bookkeeping,
+а не логику comparator input. `behavior/blocks/redstone/diode/comparator.rs`
+читает `BlockBehavior::get_analog_output_signal`; `container/barrel_block.rs`
+считает fullness настоящего контейнера. `BlockEntity::set_changed` уже вызывает
+`world/block_updates/mod.rs::update_neighbor_for_output_signal`.
 
-**Следствие:** проверена только половина W06-108 (dirty flag + neighbor
-notification); фактическое изменение output signal компаратора после `/data`
-не воспроизводится, пока нет контейнерного redstone-сигнала
-(`Container.getRedstoneSignal` / `AbstractContainerMenu`-независимый расчёт).
-
-**Решение:** W06-108 остаётся partial. Отдельный срез редстоуна: сигнал из
-контейнера в `get_signal`, затем тест comparator поверх `/data`.
+Общая foundation существует. Новый расчёт в `get_signal` не нужен и создал бы
+вторую реализацию. Регрессионный сценарий ревью: `/data` заполняет бочку,
+компаратор получает отложенный tick и выдаёт 15; удаление Items возвращает 0.
+Результаты проверок и точные границы — в `../reviews/night-06-g022-codex.md`.
 
 ## B-06-09 · G022 — item custom-data load без resolution context
 
@@ -198,12 +195,14 @@ notification); фактическое изменение output signal комп�
 установке предмета с `minecraft:block_entity_data`. Ревью G021 отметило, что
 Java разрешает книгу для уже прикреплённой кафедры при `loadCustomOnly`.
 
-**Чего не хватает:** resolution context в `BlockItem::place`. `for_source`
-требует `CommandSource` (а значит `Arc<Server>`), а вводить ссылку
-`World → Server` запрещено запросом. У `UseOnContext` есть только игрок и мир.
+**Уточнение Codex, 2026-11-03:** `Player::server()` уже предоставляет `Arc<Server>`;
+новая ссылка World→Server не нужна. Явный read-only контекст загрузки ранее
+согласован владельцем. Ветка авторизованной установки protected-NBT кафедры
+уже требует игрока. Не ограничивать разрешение только `@s`/координатами и не
+передавать detached как подмену отсутствующего live consumer.
 
-**Решение:** не угадывать. Нужно решение: либо контекст разрешения строится из
-игрока размещения без `Server` (например, разрешать только `@s`/`~ ~ ~`), либо
-`load_item_custom_data` получает `Option<&BlockEntityLoadContext>` и placement
-передаёт `None` с явным отказом от резолва. Зависимые карточки: G022 (item
-context), G024.
+**Осталось реализовать:** провести существующий контекст от placement caller
+к custom-only loader с сохранением OP/type gates, item snapshot и порядка
+custom-data → components → setPlacedBy. Для playerless callers отдельно
+проверить фактические зависимости. Это открытая реализация, а не подтверждённый
+внешний архитектурный блокер; следующий пакет начинается с неё.

@@ -356,3 +356,26 @@ Partial: `/data entity` (нет общего entity NBT load), `modify … compu
 (нет loot Context*Provider), comparator-половина W06-108 (нет контейнерного
 redstone-сигнала), item custom-data context для кафедры (нет World→Server).
 Следующий ID: **G023 / W06-111…115**.
+
+## Codex review G022 · 2026-11-03
+
+Входящий `7a7f68e41` проверен по локальной Java26.3. Исправлены wildcard result
+counts, пропуск несовместимых array sources, обход неоднородных родителей,
+depth check для merge source, float string conversion и UTF-16 substring без
+замены unpaired surrogate. NBT path tests вынесены в отдельный модуль.
+Убран фиктивный rollback: owned bridge может вернуть ошибку только до BE load.
+
+B-06-08 снят как неверная диагностика существующего comparator capability;
+добавлен `/data` → заполненная бочка → scheduler → output15 → remove → output0.
+B-06-09 — задача передачи явного контекста: Player::server уже доступен,
+World→Server pointer не нужен. Entity provider/compute и реальный region I/O
+остаются незавершёнными.
+
+Проверки и границы: [ревью](../reviews/night-06-g022-codex.md).
+Codex workspace **4279 passed /0 failed /18 ignored**, utils228, paths31;
+fmt/Clippy exit0, Python4 OK, audit3105 objects/49 BE/232 markers. При all-features
+Cargo предупредил о mimalloc/dhat cfg; dependency сохранена, см. review.
+Код исправлений — `cd11aa81a`.
+Следующий ID: placement read context, затем G024/entity NBT и
+[большая очередь](../../WORKBUDDY_CONTINUE_06_05.md) из12 направлений (>150 карточек).
+G023 без карт не делать главным объёмом следующего сеанса.
