@@ -1310,7 +1310,7 @@ pub trait BlockBehavior: Send + Sync {
     fn get_analog_output_signal(
         &self,
         state: BlockStateId,
-        world: &dyn LevelReader,
+        world: &World,
         pos: BlockPos,
         direction: Direction,
     ) -> i32 {
