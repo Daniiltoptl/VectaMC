@@ -3,6 +3,27 @@
 Проверенные блокеры. Формат: что проверено → чего не хватает → риск догадки →
 точный path/output/decision → зависимые карточки.
 
+## Актуализация после ревью сеанса6, 2026-11-03
+
+Ниже сохранена история диагнозов. Актуальные уточнения имеют приоритет:
+
+- B-06-06: supported living loader, disk round-trip, Team/UUID и accessor
+  реализованы. Ревью исправило numeric/partial codecs, Packed.apply, raw effects,
+  sleeping и combat references. Brain/locator-bar icon остаются без foundations;
+  это открытый объём G024, а не отсутствие всего LivingEntity loader.
+- B-06-07: пользователь поручил выбрать путь; выбран единый typed ContextMap
+  внутри существующего LootContext и миграция всех loot callers. Сохраняются
+  shared seeded RNG/domains, второй контекст не вводится. Архитектурный выбор
+  закрыт, реализация context map/providers/compute ещё не выполнена.
+- Старое «providers только inline, extractor не нужен» неверно как общий
+  контракт: TYPE и configured registries существуют. Inline constants не
+  отменяют registry dispatch; missing данные извлекать SteelExtractor.
+- B-06-10 остаётся: критерий durability требует реального trigger engine;
+  существующий advancement state/ручные команды сначала проверить.
+
+Доказательства и границы: [ревью](../reviews/night-06-session06-codex.md).
+Следующий большой пакет: [запрос07](../../WORKBUDDY_CONTINUE_06_07.md).
+
 ## B-06-01 · G011/W06-052 — у саженцев нет bonemeal-роста
 
 **Проверено:** `vecta-core/src/behavior/blocks/vegetation/sapling_block.rs`

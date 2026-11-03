@@ -74,7 +74,7 @@ vecta-core/src/command/execution/item_predicate.rs,1150,// TODO: Support attribu
 vecta-core/src/command/sender.rs,135,// TODO: Implement Rcon message sending
 vecta-core/src/entity/ai/goal/hurt_by_target.rs,88,//TODO tamable animal owner check is required here
 vecta-core/src/entity/animal.rs,308,// TODO: Award the animals-bred stat and advancement once those foundations exist.
-vecta-core/src/entity/attribute.rs,282,// TODO: Add AttributeSupplier for lazy instantiation when mob entities are implemented
+vecta-core/src/entity/attribute.rs,323,// TODO: Add AttributeSupplier for lazy instantiation when mob entities are implemented
 vecta-core/src/entity/block_attached_entity.rs,216,// TODO: Add a default implementation for `thunderHit` and `ignoreExplosion`
 vecta-core/src/entity/consume_effect/teleport_randomly.rs,30,// TODO(26.3): Vanilla snapshot 26.3 adds the block tag
 vecta-core/src/entity/consume_effect/teleport_randomly.rs,67,// TODO: Play `FOX_TELEPORT` on `SoundSource::Neutral` instead once Fox
@@ -94,21 +94,21 @@ vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,557,// TODO: 
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,662,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,905,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
-vecta-core/src/entity/entity/mod.rs,1490,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
-vecta-core/src/entity/entity/mod.rs,2686,// TODO: Recursively reposition this entity's passengers (vanilla
-vecta-core/src/entity/entity/mod.rs,4217,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
-vecta-core/src/entity/living_entity.rs,683,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
-vecta-core/src/entity/living_entity.rs,691,// TODO: apply helmet damage once those equipment hooks exist.
-vecta-core/src/entity/living_entity.rs,729,// TODO: Play secondary hurt sounds once equipment effects expose them.
-vecta-core/src/entity/living_entity.rs,988,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
-vecta-core/src/entity/living_entity.rs,1028,// TODO: Create wither rose for killer
-vecta-core/src/entity/living_entity.rs,1083,/// equal to the base reward (see TODO).
-vecta-core/src/entity/living_entity.rs,1085,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
-vecta-core/src/entity/living_entity.rs,1104,// TODO: Drop non-mob equipment overrides once those foundations exist.
-vecta-core/src/entity/living_entity.rs,1393,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
-vecta-core/src/entity/living_entity.rs,1836,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
-vecta-core/src/entity/living_entity.rs,2558,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
-vecta-core/src/entity/living_entity.rs,3167,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
+vecta-core/src/entity/entity/mod.rs,1501,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
+vecta-core/src/entity/entity/mod.rs,2697,// TODO: Recursively reposition this entity's passengers (vanilla
+vecta-core/src/entity/entity/mod.rs,4228,// TODO: Trigger advancement criterion ENTITY_KILLED_PLAYER if the victim is a player.
+vecta-core/src/entity/living_entity.rs,686,// TODO: apply item blocking before actually_hurt once shield/use-item hooks exist.
+vecta-core/src/entity/living_entity.rs,694,// TODO: apply helmet damage once those equipment hooks exist.
+vecta-core/src/entity/living_entity.rs,732,// TODO: Play secondary hurt sounds once equipment effects expose them.
+vecta-core/src/entity/living_entity.rs,991,// TODO: trigger the `used_totem` advancement criterion once advancements exist.
+vecta-core/src/entity/living_entity.rs,1031,// TODO: Create wither rose for killer
+vecta-core/src/entity/living_entity.rs,1086,/// equal to the base reward (see TODO).
+vecta-core/src/entity/living_entity.rs,1088,// TODO: Apply EnchantmentHelper.processMobExperience once enchantment
+vecta-core/src/entity/living_entity.rs,1107,// TODO: Drop non-mob equipment overrides once those foundations exist.
+vecta-core/src/entity/living_entity.rs,1396,"// TODO: Trigger CriteriaTriggers.EFFECTS_CHANGED with `source` when `changed`,"
+vecta-core/src/entity/living_entity.rs,1839,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/entity/living_entity.rs,2561,// TODO: FlyingAnimal uses horizontal friction here once animal types exist.
+vecta-core/src/entity/living_entity.rs,3196,// TODO: WAYPOINT_TRANSMIT_RANGE → waypoint manager
 vecta-core/src/entity/mob/mod.rs,698,// TODO: Apply USE_REMAINDER components once item use-remainder support exists.
 vecta-core/src/entity/mob/mod.rs,785,"// TODO(advancements): vanilla calls LivingEntity.onItemPickup here, before"
 vecta-core/src/entity/mob/mod.rs,1068,// TODO: Apply EquipmentDrops enchantment value effects once damage

@@ -9,9 +9,12 @@ Dispenser consumers G006/G007/G009…G013 прошли
 [ревью](../reviews/night-06-g021-codex.md); region I/O и attached lectern context
 теперь реализованы в сеансе05. Live restart/tickets не проверены. B-06-05 снят.
 G022 block/storage и общие NBT paths прошли [ревью](../reviews/night-06-g022-codex.md).
-Следующий slice: **полный G024 living load/save**, оставшийся entity accessor,
-compute и остальные направления [запроса06](../../WORKBUDDY_CONTINUE_06_06.md).
-Основание: [ревью сеанса05](../reviews/night-06-session05-codex.md).
+Supported G024 living load/save, Team/UUID и break callback реализованы и прошли
+[ревью сеанса06](../reviews/night-06-session06-codex.md) с исправлениями codecs,
+attributes, effects, сна и references. Brain/locator-bar icon ещё не готовы.
+Следующий slice: **единый typed ContextMap в existing LootContext** и миграция
+всех loot callers (путь уже согласован), providers/compute, затем остальные
+направления [запроса07](../../WORKBUDDY_CONTINUE_06_07.md).
 Не возвращаться к готовым рамкам вместо открытых shared consumers.
 B-06-04 снят: новый apply hook на обычном reload не нужен.
 Строки завершённых групп ниже сохраняют исторический порядок,

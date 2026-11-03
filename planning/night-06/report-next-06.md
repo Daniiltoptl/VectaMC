@@ -1,5 +1,10 @@
 # Сеанс 06: живая загрузка G024, Team/UUID, разрыв предмета
 
+> После этого отчёта выполнено [ревью Codex](../reviews/night-06-session06-codex.md)
+> и исправлены numeric/partial codecs, packed attributes, raw effects, sleeping,
+> UUID и combat references. Итоговые проверки смотреть в review. Ниже сохранён
+> исходный отчёт исполнителя. Следующая очередь — [запрос07](../../WORKBUDDY_CONTINUE_06_07.md).
+
 Вход `65716df85` (ветка `codex/night-vanilla-03`), код ревью `1a8bb2457`.
 Полностью прочитаны `AGENTS.md`, `planning/reviews/night-06-session05-codex.md`,
 `WORKBUDDY_CONTINUE_06_06.md` и `WORKBUDDY_CONTINUE_06_05.md`.

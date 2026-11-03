@@ -1,5 +1,25 @@
 # Night 06 — progress
 
+## Актуальное ревью сеанса6
+
+Проверен incoming `65716df85..e1efc174b`; общий living loader, region I/O,
+Team/UUID и break callback сохранены. Исправлены numeric/partial codec semantics,
+Packed.apply с независимыми operation indices, raw NBT effect load без gameplay
+packet hooks, setPosToBed вместо startSleeping, numeric UUID streams и combat
+references/expiry в пределах domain. Добавлены5 сквозных server tests и1
+attribute regression; старые attribute tests вынесены в отдельный модуль.
+
+Код `a91820a33`: workspace **4299/0/18**, Clippy/fmt exit0, Python4,
+audit3105/49/230. Cargo manifest warning mimalloc сохранён и объяснён в
+[ревью](../reviews/night-06-session06-codex.md).
+Brain/locator-bar icon и durability criteria остаются открытыми; это не full
+vanilla LivingEntity parity. Полное ядро vanilla всё ещё не готово.
+
+Следующий [большой запрос07](../../WORKBUDDY_CONTINUE_06_07.md): согласованный
+единый typed ContextMap в existing LootContext, миграция всех loot callers,
+реальные provider registries и compute, затем вся очередь направлений3–12.
+Новый вопрос о выборе этой архитектуры не требуется. Seeded RNG/domains сохранять.
+
 Ветка `codex/night-vanilla-03`. Стартовый HEAD `3a79ec57f`
 (`docs: expand vanilla implementation specification to 600 work items`).
 Эталон: локальная Java 26.3, `minecraft-src/.vecta-reference.json`, 5037 файлов,

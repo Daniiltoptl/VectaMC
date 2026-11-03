@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление после ревью сеанса5, 2026-11-03.
+Обновление после ревью сеанса6, 2026-11-03.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -19,6 +19,7 @@
 | Ревью G022 | `cd11aa81a`; workspace **4279/0/18**, utils 228, paths 31 |
 | Сеанс 5 | placement context, настоящий region I/O, `/data entity`; workspace **4285/0/18** |
 | Сеанс 6 | G024 living load/save + disk, Team/UUID, break callback; workspace **4293/0/18** |
+| Ревью сеанса6 | `a91820a33`: numeric/partial codecs, packed attributes, raw effects, sleeping, UUID/combat refs; workspace **4299/0/18**, Clippy/fmt exit0, Python4, audit3105/49/230 |
 | Ревью сеанса5 | `1a8bb2457`: player guard, single target, numeric NBT, sync/cooldown; workspace **4288/0/18**, entity7, Clippy/fmt exit0 (Cargo warning см. review) |
 | Ревью G022, Codex | `cd11aa81a`; workspace **4279/0/18**, fmt/Clippy exit0; Cargo manifest warning см. review |
 | Статус G021 | gate, placement read context и реальный region I/O реализованы; live restart/ticket lifecycle не проверены |
@@ -30,7 +31,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **`modify … compute`** (отдельный срез: param-map LootContext + реестры провайдеров), затем направления 3–12 |
+| Следующий consumer | **Единый typed ContextMap в existing LootContext** (путь согласован), миграция всех loot callers, providers и `modify … compute`, затем направления 3–12 |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -70,9 +71,12 @@ B-06-04 снят: Java тоже хранит корневые имя/lock и н�
 реализован на produced metadata и существующем OP contract. Реальный chunk save
 через `ChunkMap` остаётся открытым acceptance-сценарием.
 G022 реализована как builtin `/data` для block/storage (`get`/`merge`/`remove`/
-`modify` × `from`/`string`/`value`). Entity provider зарегистрирован, но полный
-living load отсутствует (B-06-06 partial); compute отсутствует (B-06-07).
+`modify` × `from`/`string`/`value`). Entity provider и supported living load
+реализованы; Brain/locator-bar icon остаются partial, compute отсутствует (B-06-07).
 B-06-09 снят: placement read context реализован. Team API уже есть в scoreboard.
+Актуализация сеанса6: общий supported living loader и disk путь реализованы,
+ревью исправило codecs/partial results, operation indices атрибутов, raw effect
+load, sleep и combat refs. Полной G024 ещё нет: Brain/locator-bar icon не готовы.
 B-06-08 оказался ложной диагностикой: comparator input для контейнера уже есть,
 добавлен сквозной regression; см. ревью G022 и его результаты проверок.
 `Player::server()` уже позволяет провести read context без World→Server pointer.
@@ -97,3 +101,9 @@ experience bottle, splash potion; fire charge ждёт G047, wind charge ждё�
 
 Актуальное [ревью сеанса5](../reviews/night-06-session05-codex.md) и
 [большой запрос06](../../WORKBUDDY_CONTINUE_06_06.md) уточняют приоритеты файла05.
+
+Актуальные [ревью сеанса6](../reviews/night-06-session06-codex.md) и
+[большой запрос07](../../WORKBUDDY_CONTINUE_06_07.md) имеют приоритет над старыми
+диагнозами отсутствующего living loader и запрета extractor для providers.
+TYPE/configured provider registries реальны; данные получать штатным extractor.
+Единая context-map архитектура уже согласована; реализация ещё впереди.
