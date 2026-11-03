@@ -146,7 +146,7 @@ impl BlockItem {
                     Some(player) => player.server.upgrade().map_or_else(
                         BlockEntityLoadContext::detached,
                         |server| {
-                            BlockEntityLoadContext::for_server_world(&server, &context.world)
+                            BlockEntityLoadContext::for_server_world(&server, context.world)
                                 .unwrap_or_else(|error| {
                                     log::warn!("placement NBT load has no read context: {error}");
                                     BlockEntityLoadContext::detached()

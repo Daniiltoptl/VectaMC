@@ -14,7 +14,7 @@ use super::super::super::{
 };
 use super::super::execute::{loaded_block_position, source_command_storage};
 use crate::block_entity::{BlockEntityLoadContext, SharedBlockEntity};
-use crate::entity::{Entity as _, SharedEntity};
+use crate::entity::SharedEntity;
 
 /// A vanilla `/data` target provider.
 #[derive(Clone, Copy, Debug)]

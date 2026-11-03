@@ -26,6 +26,7 @@ use crate::scoreboard::{ScoreHolder, Scoreboard, ScoreboardError, ScoreboardObje
 use crate::{
     block_entity::{BlockEntityLoadContext, SharedBlockEntity},
     command::storage::CommandStorage,
+    entity::SharedEntity,
 };
 
 type Builder = CommandNodeBuilder<CommandSource, VectaCommandRuntime>;
@@ -173,12 +174,10 @@ fn store_entity_data(
 }
 
 fn store_entity_data_value(
-    entity: &crate::entity::SharedEntity,
+    entity: &SharedEntity,
     path: &NbtPath,
     value: NbtTag,
 ) -> Result<(), StoreDataMutationError> {
-    use crate::entity::Entity as _;
-
     let data = mutate_compound_path(entity.nbt_for_data_compare(), path, value)?;
     let mut bytes = Vec::new();
     data.write(&mut bytes);

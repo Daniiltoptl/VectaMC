@@ -82,7 +82,7 @@ fn with_world(
         }
         // Reserve a real id from the global allocator so spawned entities cannot
         // collide with the fixture player.
-        let player_id = crate::entity::next_entity_id();
+        let player_id = next_entity_id();
         let (player, packets) = test_player_with_uuid_and_packets(
             &server,
             Arc::clone(world),

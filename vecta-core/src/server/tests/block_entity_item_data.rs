@@ -13,6 +13,7 @@ use crate::behavior::items::BlockItem;
 use crate::behavior::{
     BlockHitResult, BlockPlaceContext, InteractionResult, ItemBehavior, UseOnContext,
 };
+use crate::block_entity::BlockEntityLoadContext;
 use crate::bootstrap::init_globals;
 
 fn lectern_item() -> ItemStack {
@@ -163,6 +164,10 @@ fn lectern_item_with_book(book: ItemStack) -> ItemStack {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one server-backed test keeps the placement and reload assertions in one narrative"
+)]
 fn authorized_placement_resolves_a_written_book_through_the_live_context() {
     use text_components::content::NbtSource;
     use vecta_registry::data_components::components::WrittenBookContent;
@@ -265,7 +270,7 @@ fn authorized_placement_resolves_a_written_book_through_the_live_context() {
         placed
             .load_with_owned_components(
                 &placed.save_with_full_metadata(),
-                &crate::block_entity::BlockEntityLoadContext::detached(),
+                &BlockEntityLoadContext::detached(),
             )
             .expect("detached reload");
         assert_eq!(

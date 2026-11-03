@@ -60,7 +60,7 @@ fn read_nbt_rotation(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option
 
 /// How an entity NBT load treats fields the payload omits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum EntityNbtLoad {
+pub enum EntityNbtLoad {
     /// Spawn-item data: keep the entity's current value for absent fields.
     Merge,
     /// Command data: reset absent fields to their vanilla default.
@@ -3883,7 +3883,9 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     /// is loaded. Keeping that merge at the entity boundary preserves defaults
     /// and entity-specific state when the component only overrides one field.
     fn apply_spawn_data(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
-        self.apply_entity_nbt(nbt, EntityNbtLoad::Merge);
+        // A merge load keeps the local position assignment and cannot fail.
+        let loaded = self.apply_entity_nbt(nbt, EntityNbtLoad::Merge);
+        debug_assert!(loaded.is_ok(), "a merge load never reports a move failure");
     }
 
     /// Applies command-written NBT with vanilla `Entity.load` reset semantics.
@@ -3899,6 +3901,16 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         self.apply_entity_nbt(nbt, EntityNbtLoad::Reset)
     }
 
+    /// Applies the shared base entity fields for both load modes.
+    ///
+    /// `Merge` keeps the entity's current value for an absent key and assigns the
+    /// position locally; `Reset` mirrors vanilla `Entity.load`, where an absent
+    /// key returns to its default and the position is committed through world
+    /// entity tracking.
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one field-by-field pass keeps the two load modes auditable side by side"
+    )]
     fn apply_entity_nbt(
         &self,
         nbt: BorrowedNbtCompoundView<'_, '_>,

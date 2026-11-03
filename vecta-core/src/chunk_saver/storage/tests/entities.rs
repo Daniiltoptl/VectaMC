@@ -635,10 +635,17 @@ fn a_saved_barrel_restores_identity_and_contents_through_the_storage_decoder() {
 }
 
 #[test]
+#[expect(
+    clippy::too_many_lines,
+    reason = "one test walks the whole write/read path so the region file assertions stay together"
+)]
 fn a_barrel_survives_a_real_region_file_round_trip() {
     use std::env::temp_dir;
+    use std::slice;
     use std::sync::Weak;
     use std::time::{SystemTime, UNIX_EPOCH};
+
+    use tokio::runtime::Builder;
 
     use simdnbt::owned::NbtCompound;
     use text_components::TextComponent;
@@ -655,6 +662,7 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
     use crate::chunk_saver::region_manager::RegionManager;
     use crate::inventory::lock::ContainerLockGuard;
     use crate::test_support::{fresh_test_world, insert_ready_full_chunk};
+    use std::fs;
 
     init_globals();
     let fixture = fresh_test_world("region_barrel_roundtrip");
@@ -681,7 +689,7 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
     let container = barrel.container_ref().expect("barrel container");
     let id = container.container_id();
     {
-        let mut guard = ContainerLockGuard::lock_all(std::slice::from_ref(&container));
+        let mut guard = ContainerLockGuard::lock_all(slice::from_ref(&container));
         assert!(guard.set_item(id, 7, ItemStack::with_count(&vanilla_items::DIAMOND, 5)));
     }
     let mut stored = DataComponentMap::new();
@@ -701,7 +709,7 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
         .flatten()
         .expect("the dirty chunk prepares for saving");
 
-    let runtime = tokio::runtime::Builder::new_current_thread()
+    let runtime = Builder::new_current_thread()
         .enable_all()
         .build()
         .expect("test runtime");
@@ -762,7 +770,7 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
 
     let restored_container = restored_barrel.container_ref().expect("restored container");
     let restored_id = restored_container.container_id();
-    let guard = ContainerLockGuard::lock_all(std::slice::from_ref(&restored_container));
+    let guard = ContainerLockGuard::lock_all(slice::from_ref(&restored_container));
     assert_eq!(
         guard
             .get(restored_id)
@@ -781,5 +789,5 @@ fn a_barrel_survives_a_real_region_file_round_trip() {
         "an explicit component survives the region file"
     );
 
-    std::fs::remove_dir_all(dir).expect("temporary region directory is removed");
+    fs::remove_dir_all(dir).expect("temporary region directory is removed");
 }
