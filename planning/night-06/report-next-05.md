@@ -1,5 +1,11 @@
 # Отчёт сеанса 5: живая загрузка, region I/O и `/data entity`
 
+> Ревью Codex: [session05](../reviews/night-06-session05-codex.md).
+> Исправлены player bypass/selector/NBT conversions/sync; полный living load
+> ещё отсутствует, B-06-06 остаётся partial. Актуальный следующий запрос:
+> [WORKBUDDY_CONTINUE_06_06.md](../../WORKBUDDY_CONTINUE_06_06.md).
+> Ниже сохранён исходный отчёт исполнителя.
+
 Дата: 2026-11-03. Ветка `codex/night-vanilla-03`, вход `77bd4142c`.
 Target `0.16.1+mc26.3`, local source 26.3.
 

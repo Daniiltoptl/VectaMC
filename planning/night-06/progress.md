@@ -403,3 +403,20 @@ Partial: `modify … compute` (нужны типизированные `ContextF
 recipe-book award при взятии результата печи (нужен `ServerRecipeBook`).
 
 Проверки: workspace **4285 passed / 0 failed / 18 ignored**, fmt и Clippy exit 0.
+
+## Codex review сеанса05 · 2026-11-03
+
+Исправлены player NBT bypass через execute store, множественный target вместо
+одиночного, numeric vector/array и scalar conversions, velocity sync marker и
+command invulnerable_time. Entity tests вынесены в отдельный файл, добавлены3
+regression tests. Workspace **4288/0/18**, Clippy/fmt exit0; Cargo warning
+mimalloc/dhat сохранён и объяснён в review. Python scripts4 OK.
+
+B-06-06 возвращён в partial: регистрация provider не закрывает отсутствующий
+общий living loader. Health/attributes/effects/timers/absorption и disk living
+state требуют G024. Team API уже есть, отсутствие UX команд не внешний blocker.
+Placement context и два region I/O fixes сохраняются; их не реализовывать заново.
+
+[Ревью](../reviews/night-06-session05-codex.md),
+[следующий большой запрос](../../WORKBUDDY_CONTINUE_06_06.md): закончить G024 и
+entity accessor, затем compute и направления3–12 файла05. Итог — report-next-06.

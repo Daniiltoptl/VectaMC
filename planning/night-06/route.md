@@ -7,10 +7,11 @@ Dispenser consumers G006/G007/G009…G013 прошли
 [ревью сеанса 2](../reviews/night-06-g006-g013-codex.md); открытые partial — в blockers.
 Основной G021 item-data путь и authorization gate прошли
 [ревью](../reviews/night-06-g021-codex.md); region I/O и attached lectern context
-остаются открытыми проверками/интеграцией. B-06-05 снят после успешной extraction.
+теперь реализованы в сеансе05. Live restart/tickets не проверены. B-06-05 снят.
 G022 block/storage и общие NBT paths прошли [ревью](../reviews/night-06-g022-codex.md).
-Следующий slice: **item placement read context**, затем G024/entity NBT и
-остальные 12 направлений [большого запроса](../../WORKBUDDY_CONTINUE_06_05.md).
+Следующий slice: **полный G024 living load/save**, оставшийся entity accessor,
+compute и остальные направления [запроса06](../../WORKBUDDY_CONTINUE_06_06.md).
+Основание: [ревью сеанса05](../reviews/night-06-session05-codex.md).
 Не возвращаться к готовым рамкам вместо открытых shared consumers.
 B-06-04 снят: новый apply hook на обычном reload не нужен.
 Строки завершённых групп ниже сохраняют исторический порядок,

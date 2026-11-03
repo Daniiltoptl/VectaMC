@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление после ревью сеанса 4 (G022), 2026-11-03.
+Обновление после ревью сеанса5, 2026-11-03.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -18,8 +18,9 @@
 | Сеанс 4 (G022) | `/data` для block/storage, foundation путей NBT; workspace **4273/0/18**, fmt/Clippy exit 0 |
 | Ревью G022 | `cd11aa81a`; workspace **4279/0/18**, utils 228, paths 31 |
 | Сеанс 5 | placement context, настоящий region I/O, `/data entity`; workspace **4285/0/18** |
+| Ревью сеанса5 | `1a8bb2457`: player guard, single target, numeric NBT, sync/cooldown; workspace **4288/0/18**, entity7, Clippy/fmt exit0 (Cargo warning см. review) |
 | Ревью G022, Codex | `cd11aa81a`; workspace **4279/0/18**, fmt/Clippy exit0; Cargo manifest warning см. review |
-| Статус G021 после ревью | gate реализован после produced output; W06-105 без region I/O/unload/restart, lectern item text context для G022 |
+| Статус G021 | gate, placement read context и реальный region I/O реализованы; live restart/ticket lifecycle не проверены |
 | Первый срез ревью G021 | workspace **4252/0/18**, block_item 1 passed, item_block_entity_data 2 passed; Clippy/fmt exit 0 |
 | Authorization slice | workspace **4254/0/18**, gate tests 2 passed, ordinary/type-mismatch 1 passed; Clippy/fmt exit 0 |
 | Код authorization slice | `673c7a558`, produced metadata + generator + реальные gates/tests |
@@ -28,7 +29,7 @@
 | Исправления Codex | `df47b146e`; документы следуют отдельно, продолжать actual tip |
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
-| Следующий consumer | **`modify … compute`**, затем направление 3 (раздатчик/durability/equip) |
+| Следующий consumer | **G024: полный living load/save**, Team/accessor contract, затем compute и направления3–12 |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
@@ -61,15 +62,16 @@ comparison не проверялись.
 Открытые partial этого сеанса: W06-042 (body slot, нет волка/лошади),
 W06-046 (fire charge → G047), W06-052 (`TreeGrower`, B-06-01),
 W06-057 (bee release, B-06-03), W06-062 (соты, B-06-03).
-G021 закрыта матрицей тестов W06-101…105: disk save без дублей, borrowed/owned
-load, placement payload в настоящую BE, pick→item→block, декодер ChunkStorage.
+G021 дополнена placement book context и настоящим RegionManager round-trip:
+явные компоненты сохраняются и читаются. Live restart/unload/tickets не проверены.
 B-06-04 снят: Java тоже хранит корневые имя/lock и не применяет item components
 при обычном reload; формат контейнеров не менялся. Гейт `onlyOpCanSetNbt`
 реализован на produced metadata и существующем OP contract. Реальный chunk save
 через `ChunkMap` остаётся открытым acceptance-сценарием.
 G022 реализована как builtin `/data` для block/storage (`get`/`merge`/`remove`/
-`modify` × `from`/`string`/`value`). Partial: провайдер `entity` (B-06-06),
-`modify … compute` (B-06-07), item custom-data context кафедры (B-06-09).
+`modify` × `from`/`string`/`value`). Entity provider зарегистрирован, но полный
+living load отсутствует (B-06-06 partial); compute отсутствует (B-06-07).
+B-06-09 снят: placement read context реализован. Team API уже есть в scoreboard.
 B-06-08 оказался ложной диагностикой: comparator input для контейнера уже есть,
 добавлен сквозной regression; см. ревью G022 и его результаты проверок.
 `Player::server()` уже позволяет провести read context без World→Server pointer.
@@ -91,3 +93,6 @@ experience bottle, splash potion; fire charge ждёт G047, wind charge ждё�
 
 Продолжать существующие progress.md/blockers.md. Исторический `report.md` не
 переписывать. Не делать сотни placeholder отчётов.
+
+Актуальное [ревью сеанса5](../reviews/night-06-session05-codex.md) и
+[большой запрос06](../../WORKBUDDY_CONTINUE_06_06.md) уточняют приоритеты файла05.

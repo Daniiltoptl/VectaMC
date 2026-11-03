@@ -218,7 +218,7 @@ detached. Server-backed тест: OP+creative ставит кафедру с unr
 страница резолвится из storage и не переразрешается после смены storage.
 Зависимые карточки: G021/G022 (item context).
 
-## B-06-06 · СНЯТ для провайдера `/data entity`
+## B-06-06 · PARTIAL: провайдер есть, полный living load отсутствует
 
 Общий reset-load реализован: `Entity::apply_entity_nbt(nbt, EntityNbtLoad)`
 переиспользует существующие readers `apply_spawn_data` (Pos/Motion/Rotation/
@@ -227,9 +227,15 @@ Air/Fire/tags/флаги/subtype loader) и различается только 
 entity). `/data entity` и `/execute store entity` используют
 `Entity::load_command_data`; UUID загрузчиком не читается.
 
-Остаток: `postDataManipulated` (в vanilla переопределён только Villager —
-в Vecta нет villagers) и `Team` (нет scoreboard-команд). Зависимые карточки:
-G024 (living persistence), G022 (compute).
+Ревью Codex выявило больший остаток: общий LivingEntity loader не вызывается.
+Health/attributes/effects/hurt/death/absorption и прочие living fields
+экспортируются, но не загружаются. Disk путь также сохраняет subtype NBT
+отдельно от command dump. Не считать провайдер полной foundation. Сначала G024.
+
+Player bypass через execute store, single target и numeric conversions/sync
+исправлены в ревью. Team API в scoreboard.rs уже существует; отсутствие UX
+команд не внешний блокер. Нужны Team/UUID order, postDataManipulated и оставшийся
+общий load contract. Детали: `../reviews/night-06-session05-codex.md`.
 
 ## B-06-07 · уточнён — `compute` это типизированные providers, не extractor
 
