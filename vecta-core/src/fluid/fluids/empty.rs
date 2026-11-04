@@ -7,7 +7,8 @@ use std::sync::Arc;
 
 use vecta_registry::blocks::properties::Direction;
 use vecta_registry::fluid::FluidRef;
-use vecta_registry::vanilla_fluids;
+use vecta_registry::items::ItemRef;
+use vecta_registry::{vanilla_blocks, vanilla_fluids, vanilla_items};
 use vecta_utils::types::{BlockPos, BlockStateId};
 
 use crate::fluid::FluidBehavior;
@@ -18,6 +19,14 @@ use crate::world::World;
 pub struct EmptyFluid;
 
 impl FluidBehavior for EmptyFluid {
+    fn create_legacy_block(&self, _fluid_state: FluidState) -> BlockStateId {
+        vanilla_blocks::AIR.default_state()
+    }
+
+    fn bucket(&self) -> ItemRef {
+        &vanilla_items::AIR
+    }
+
     fn fluid_type(&self) -> FluidRef {
         &vanilla_fluids::EMPTY
     }
