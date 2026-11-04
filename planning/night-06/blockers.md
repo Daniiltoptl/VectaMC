@@ -11,17 +11,19 @@
 
 Java StoredNumberAccess требует level→server command storage; ScoreboardValue
 требует scoreboard. Проверены World и server-owned DomainScoreboards/
-DomainCommandStorage: у World нет доступа к этим сервисам. Предложен отдельный
-read context домена с shared Arc владением живыми данными и без World→Server
-ссылки. Пользователь **одобрил общий контекст чтения домена** с Arc данными;
-новый выбор владения закрыт, следующий шаг — реализация. Повторно не спрашивать.
-EntityRef также пока содержит predicate/equipment view без score-holder identity;
-для score consumer нельзя подставлять entity type вместо личности сущности.
+DomainCommandStorage. Согласованный read context домена реализован в
+`70f27a545`: shared Arc backend, без World→Server ссылки. EntityRef передаёт
+profile name/UUID как отдельную score-holder identity. Live Score/Storage и
+EntityScores подключены и проверены; workspace4308/0/18. Этот доступ больше не
+блокирует providers/compute. Повторно согласовывать владение не надо.
 
 Из local SteelExtractor уже получен type catalog:28float+23int=51, включая
 number_dispatcher в обеих группах. Output лежит в checkout, source/reproduction
 сохранены в scripts/steel-extractor/loot-contexts.md. Configured provider values
-пока не извлечены. Не заменять отсутствующие consumers no-op variants.
+тоже извлечены:4float+26int, RegistryOps codec round-trip прошёл; файл остаётся
+в extractor output до реализации typed consumer. Недостающий extractor output
+больше не блокер, factory/codecs и foundations consumers ещё открыты.
+Не заменять отсутствующие consumers no-op variants.
 Подробности: [сеанс07](report-next-07.md).
 
 ## Актуализация после ревью сеанса6, 2026-11-03

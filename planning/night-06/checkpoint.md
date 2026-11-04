@@ -1,6 +1,6 @@
 # Checkpoint пакета 06
 
-Обновление сеанса7, 2026-11-03. Проверки/код текущего среза — в report-next-07.
+Обновление сеанса7, 2026-11-04. Проверки/код текущего среза — в report-next-07.
 Продолжать actual tip `codex/night-vanilla-03`, не откатываться к историческим SHA.
 
 | Поле | Состояние |
@@ -32,7 +32,9 @@
 | Новый пакет | 120 направлений / 600 карточек |
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
 | Сеанс7, первый срез | `2a0ef1daf`: typed ContextMap,16keys/31sets, все текущие callers; workspace **4304/0/18**, Clippy/fmt exit0, Python4, audit3105/49/230 |
-| Следующий consumer | **Одобренный общий domain read context** с Arc scoreboard/storage, затем providers/compute и направления 3–12 |
+| Сеанс7, второй срез | `70f27a545`: shared domain reader, live Score/Storage/EntityScores; workspace **4308/0/18**, Clippy/fmt exit0, Python4, audit3105/49/227 |
+| Подготовка следующего среза | `8b8140b35`: configured values4float+26int извлечены, generator не подменяет неизвестный тип константой; loot37/0/0, registry Clippy/fmt exit0 |
+| Следующий consumer | 51 provider types/codecs, configured values и compute, затем направления 3–12; общий domain read context уже реализован |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),

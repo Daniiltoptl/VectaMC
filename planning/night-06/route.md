@@ -16,7 +16,8 @@ Typed ContextMap, generated parameter sets и миграция текущих lo
 реализованы в [сеансе07](report-next-07.md). Не повторять этот срез.
 Следующий slice: **providers/compute**, затем остальные направления
 [запроса07](../../WORKBUDDY_CONTINUE_06_07.md). Пользователь одобрил общий
-domain read context с shared Arc scoreboard/storage; реализовывать его. Actual
+domain read context с shared Arc scoreboard/storage; он реализован в `70f27a545`
+вместе с live Score/Storage/EntityScores (workspace4308/0/18). Actual
 каталог извлечён:28float+23int=51тип, NumberDispatcher есть в обеих группах.
 Не возвращаться к готовым рамкам вместо открытых shared consumers.
 B-06-04 снят: новый apply hook на обычном reload не нужен.

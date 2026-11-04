@@ -1,6 +1,6 @@
 path,line,marker
 vecta-core/src/behavior/block/mod.rs,78,// TODO: Add the block entity to the context when it can be done.
-vecta-core/src/behavior/block/mod.rs,260,// TODO: extract the correct rules from block spawn rule
+vecta-core/src/behavior/block/mod.rs,261,// TODO: extract the correct rules from block spawn rule
 vecta-core/src/behavior/blocks/building/bed_block.rs,28,/// TODO: Mirror vanilla `BedBlock.useWithoutItem` invalid-dimension explosion
 vecta-core/src/behavior/blocks/building/bed_block.rs,31,/// TODO: Mirror vanilla `BedBlock.kickVillagerOutOfBed` once villager sleeping
 vecta-core/src/behavior/blocks/building/bed_block.rs,329,// TODO: When WOrld::explode foundation exists display the bedrule error remove both halves and create the bad respawn point explosion
@@ -90,9 +90,9 @@ vecta-core/src/entity/entities/objects/explosives/end_crystal.rs,99,"// TODO: Im
 vecta-core/src/entity/entities/objects/items/item_entity.rs,713,// TODO: Check isInvulnerableToBase once the shared non-living entity hook is ported.
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,188,"// FIXME: `lure_speed` and `luck` are taken from the existing rod, but auto generation fails when doing this, refer to: https://mcsrc.dev/2/26.2/net/minecraft/world/entity/projectile/FishingHook#L75"
 vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,525,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,571,// TODO: criteria triggers (advancements)
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,676,// TODO: check if passing a lock is better here
-vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,919,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,572,// TODO: criteria triggers (advancements)
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,677,// TODO: check if passing a lock is better here
+vecta-core/src/entity/entities/objects/projectiles/fishing_hook.rs,920,// TODO: check if passing a lock is better here
 vecta-core/src/entity/entities/objects/technical/interaction.rs,157,// TODO: Trigger PLAYER_HURT_ENTITY advancement criterion trigger
 vecta-core/src/entity/entity/mod.rs,1501,// TODO: Trigger PLAYER_SHEARED_EQUIPMENT once advancement criteria exist.
 vecta-core/src/entity/entity/mod.rs,2697,// TODO: Recursively reposition this entity's passengers (vanilla
@@ -121,7 +121,7 @@ vecta-core/src/entity/mob_effect/weaving.rs,5,// TODO: Vanilla `WeavingMobEffect
 vecta-core/src/entity/mob_effect/wind_charged.rs,5,"// TODO: Vanilla `WindChargedMobEffect.onMobRemoved` triggers a small,"
 vecta-core/src/entity/mod.rs,967,// TODO: Emit ENTITY_MOUNT game event and riding advancement trigger once those foundations exist.
 vecta-core/src/entity/mod.rs,1390,// TODO: Read live equipment once loot contexts can do so safely.
-vecta-core/src/entity/mod.rs,1415,// TODO: Include custom name once loot contexts can snapshot entity data.
+vecta-core/src/entity/mod.rs,1420,// TODO: Include custom name once loot contexts can snapshot entity data.
 vecta-core/src/entity/projectile/thrown_potion.rs,105,// TODO: rehydrate nearby Axolotl entities for `REHYDRATES_AXOLOTLS` once
 vecta-core/src/fluid/collision.rs,19,// TODO: Add occlusion cache for performance (vanilla uses 200-entry ThreadLocal LRU)
 vecta-core/src/fluid/mod.rs,7,"//! - TODO: Remaining entity fluid side effects: drowning, splash particles/sounds."
@@ -132,7 +132,7 @@ vecta-core/src/inventory/slots/crafting_slots.rs,89,// TODO: Unlock the recipe a
 vecta-core/src/inventory/slots/furnace_slots.rs,135,// TODO: Award crafted stats/recipes and trigger RECIPE_CRAFTED once supported.
 vecta-core/src/player/advancement/mod.rs,64,//TODO: register advancement listener
 vecta-core/src/player/advancement/mod.rs,97,//TODO: unregister advancement listener
-vecta-core/src/player/advancement/rewards.rs,61,//TODO grant recipes and functions when implemented
+vecta-core/src/player/advancement/rewards.rs,64,//TODO grant recipes and functions when implemented
 vecta-core/src/player/chat/message_validator.rs,163,// TODO: Verify checksum if needed (checksum == 0 means skip validation)
 vecta-core/src/player/chat/mod.rs,129,// TODO: Also exempt the singleplayer owner once Vecta models that state.
 vecta-core/src/player/connection/mod.rs,214,// TODO: Centralize the minimum with config validation when zero view distance is supported.
@@ -214,12 +214,9 @@ vecta-registry/src/item_stack.rs,1008,// TODO: Implement book cover setting
 vecta-registry/src/item_stack.rs,1018,// TODO: Implement written book pages setting
 vecta-registry/src/item_stack.rs,1028,// TODO: Implement writable book pages setting
 vecta-registry/src/loot_table/conditions.rs,307,// TODO: Implement when world position data is available in context
-vecta-registry/src/loot_table/conditions.rs,340,// TODO: Implement when scoreboard system is available
-vecta-registry/src/loot_table/conditions.rs,344,// TODO: Implement condition registry lookup
-vecta-registry/src/loot_table/context.rs,106,// TODO: Read the domain scoreboard through the loot level context.
-vecta-registry/src/loot_table/context.rs,111,// TODO: Read domain command storage through the loot level context.
-vecta-registry/src/loot_table/entries.rs,474,// TODO: Implement when block entity system supports inventory retrieval
-vecta-registry/src/loot_table/entries.rs,485,// TODO: Implement when block entity system supports slot access
+vecta-registry/src/loot_table/conditions.rs,358,// TODO: Implement condition registry lookup
+vecta-registry/src/loot_table/entries.rs,475,// TODO: Implement when block entity system supports inventory retrieval
+vecta-registry/src/loot_table/entries.rs,486,// TODO: Implement when block entity system supports slot access
 vecta-registry/src/loot_table/functions.rs,399,// TODO: Implement when enchantment system is ready
 vecta-registry/src/loot_table/functions.rs,403,// TODO: Implement when enchantment system is ready
 vecta-registry/src/loot_table/functions.rs,408,// TODO: Implement when block entity system is ready
@@ -227,5 +224,5 @@ vecta-registry/src/loot_table/functions.rs,412,// TODO: Implement block state co
 vecta-registry/src/loot_table/functions.rs,416,// TODO: Implement component setting from JSON
 vecta-registry/src/loot_table/functions.rs,431,// TODO: Implement exploration map creation
 vecta-registry/src/loot_table/functions.rs,435,// TODO: Implement name setting
-vecta-registry/src/loot_table/functions.rs,533,// TODO: Implement function registry lookup
+vecta-registry/src/loot_table/functions.rs,538,// TODO: Implement function registry lookup
 vecta-registry/src/recipe/crafting/matching.rs,383,// TODO: Populate this from saved map data once maps are implemented.

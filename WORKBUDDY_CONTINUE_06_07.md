@@ -7,6 +7,13 @@
 > scoreboard/storage и отдельный read context без World→Server ссылки.
 > Оба архитектурных решения согласованы, повторно не спрашивать.
 > Actual catalog:28float+23int=51тип. Первый код `2a0ef1daf`, workspace4304/0/18.
+> Общий domain reader уже реализован: `70f27a545`, workspace4308/0/18,
+> Clippy/fmt exit0, Python4. Live Score/Storage/EntityScores работают;
+> следующий срез — полная provider factory/configured values/compute.
+> Подготовка `8b8140b35`: configured values4float+26int уже извлечены,
+> output/воспроизведение в scripts/steel-extractor/loot-contexts.md.
+> Последний loot suite37/0/0, registry Clippy/fmt exit0; неизвестные
+> provider types больше не подменяются генератором константой.
 > Исходный объём задания ниже сохраняется для оставшейся очереди.
 
 Работай в `C:\Users\My comp\Desktop\Vecta`, ветка `codex/night-vanilla-03`.

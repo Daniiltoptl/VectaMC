@@ -10,11 +10,18 @@ KilledByPlayer по LAST_DAMAGE_PLAYER и block origin/empty tool.
 
 Код `2a0ef1daf`: workspace4304/0/18, Clippy/fmt exit0, Python4,
 audit3105/49/230. Детали: [report-next-07.md](report-next-07.md).
-Score/Storage legacy stubs и SlotProvider consumer не объявляются готовыми.
-Общий read context домена с shared Arc scoreboard/storage **одобрен
-пользователем**; это следующий срез, повторно разрешение не спрашивать.
+Код второго среза `70f27a545`: общий read context домена с shared Arc
+scoreboard/storage реализован. Live Score/Storage/EntityScores и все текущие
+числовые loot consumers используют полный контекст; identity profile/UUID,
+изоляция доменов и boxed numeric casts проверены сквозными tests.
+Workspace4308/0/18, Clippy/fmt exit0, Python4, audit3105/49/227.
+SlotProvider consumer ещё не реализован. Повторно согласовывать владение не надо.
 Provider type output уже
 получен:28float+23int=51, а не49; новая factory/compute ещё не реализована.
+Код `8b8140b35` добавил extractor configured values (4float+26int, Mojang codec
+round-trip) и убрал silent fallback генератора на Constant. Output остаётся
+в SteelExtractor до consumer. Последний узкий loot suite37/0/0,
+registry Clippy/fmt exit0; полный4308/0/18 был перед этой правкой generator.
 
 ## Актуальное ревью сеанса6
 

@@ -1,7 +1,10 @@
-# Сеанс07: единый typed ContextMap и миграция loot
+# Сеанс07: typed ContextMap и живые данные домена для loot
 
 Дата:2026-11-03. Вход `fb9e96dfa`, ветка `codex/night-vanilla-03`.
 Код первого среза: `2a0ef1daf`. Workspace **4304/0/18**, Clippy/fmt exit0.
+
+Продолжение 2026-11-04: код `70f27a545`, workspace **4308/0/18**.
+Общий контекст чтения домена реализован по согласованному решению.
 
 ## Реализованный срез
 
@@ -53,15 +56,18 @@ source-file launch и подготовленные 26.3 classes/libraries. Minec
 Независимо подготовлен output типов number providers: **28float+23int=51**,
 а не49. NumberDispatcher был пропущен в обеих группах прежнего списка.
 Этот output остаётся в `D:\CodexBuilds\SteelExtractor\run\steel_extractor_output\steel-registry\build_assets\context_number_provider_types.json`;
-он не зарегистрирован как работающая provider factory. Configured provider
-values ещё не извлечены. Полная реализация providers/compute не выполнена.
+он не зарегистрирован как работающая provider factory. В продолжении 2026-11-04
+отдельным entry point извлечены4float+26int configured values с registry-aware
+codec round-trip. Они также остаются в output до реализации consumer, см.
+scripts/steel-extractor/loot-contexts.md. Полная providers/compute не выполнена.
 
 CONTAINER сейчас описывает реальную metadata SlotProvider в param sets. Fake
-SlotProvider/value consumer не добавлен. Прежние Score/Storage provider stubs,
-LocationCheck и `_interacted_block_entity` TODO этим срезом не объявляются
-исправленными. Новый transport не является полным loot parity.
+SlotProvider/value consumer не добавлен. LocationCheck, Reference и
+`_interacted_block_entity` TODO не объявляются исправленными. Новый transport
+не является полным loot parity. Score/Storage и EntityScores подключены во
+втором срезе ниже; это не реализация всей современной provider factory.
 
-## Следующий архитектурный вопрос
+## Согласованное владение данными домена
 
 Проверены World, DomainScoreboards/DomainCommandStorage, helpers execute и Java
 StoredNumberAccess. Scoreboard/storage живут у Server по domain, World имеет
@@ -71,7 +77,73 @@ World, с shared Arc владением живыми scoreboard/storage, без 
 ссылки/копий состояния. Пользователь выбрал «Общий контекст чтения домена
 (рекомендую)»: **решение одобрено, можно реализовывать**. Это согласование
 владения domain services дополняет прежнее согласование единой ContextMap;
-оба выбора повторно не спрашивать.
+оба выбора повторно не спрашивать. Решение реализовано во втором срезе.
+
+## Второй срез: live scoreboard/storage и настоящие consumers
+
+DomainScoreboards и DomainCommandStorage хранят Arc существующих backend-объектов.
+При инициализации production Server и тестового Server все миры получают
+read context своего домена. У миров одного домена общие данные; разные домены
+изолированы. Ссылка World→Server не добавлена, формат сохранения не изменён.
+Read context не кэширует вторую копию scoreboard/storage. Чтение NBT использует
+существующий CommandStorage API с временным значением для NbtPath.
+
+EntityRef теперь передаёт отдельный score-holder: profile name для игрока и
+UUID для остальных сущностей. Display name и тип сущности не подставляются.
+Lookup не создаёт отсутствующий score. Добавлены TARGET_ENTITY и актуальные
+26.3 имена ролей. Все текущие игровые constructors передают live reader.
+
+Score/Storage number providers, EntityScores, loot functions, ranges, rolls и
+entries используют полный LootContext. Целочисленные значения не проходят
+через f32: scoreboard сохраняет точность i32, storage использует Java boxed
+Number-семантику существующего NbtNumeric (long narrowing, truncation double).
+Storage требует ровно один numeric result NbtPath. Missing score/objective не
+считается настоящим нулём при EntityScores; fallback provider остаётся нулевым.
+Чтения не расходуют RNG. Scale удалён из Score: в ScoreboardValue 26.3 его нет.
+
+Сверены локальные StoredNumberAccess, ScoreboardValue, StorageValue,
+EntityHasScoreCondition, IntRangePredicate и score-holder имена Entity/Player.
+Новая LootDataReader capability не содержит no-op методов.
+
+Четыре сквозных Rust server tests проверяют live update между двумя мирами,
+изоляцию другого домена, отсутствие побочных score entries, неизменность RNG,
+`/data merge/modify/remove storage` → SetCount, boxed casts, multi-match и
+non-numeric paths, profile/UUID identity и EntityScores с отсутствующим objective.
+
+Проверки окончательного кода второго среза:
+
+- `cargo test --locked --workspace -j 1`: **4308passed/0failed/18ignored**;
+  `D:\CodexBuilds\logs\codex-session07-domain-workspace.log`.
+- `cargo test --locked -p vecta-core --lib server::tests::loot_data -j 1`:
+  **4passed/0failed**; `D:\CodexBuilds\logs\codex-session07-domain-tests.log`.
+- `cargo clippy --locked --workspace --all-targets --all-features -j 1 -- -D warnings`:
+  exit0; `D:\CodexBuilds\logs\codex-session07-domain-clippy.log`.
+- `cargo fmt --all --check`: exit0; Python4tests OK.
+- Audit после code commit: **3105objects/49BE/227markers**.
+
+Следующий срез — реальные 51 provider types/codecs, configured provider values
+и compute, затем оставшиеся направления большого ТЗ. Старый NumberProvider
+ещё не заменён полной ContextFloatProvider/ContextIntProvider системой.
+Context-free helpers не являются контекстными consumers. Reference/location
+predicate foundations, SlotProvider и environment readers остаются открытыми;
+их нельзя заменять permissive predicates ради Conditional provider.
+
+При подготовке следующего среза найден старый fallback build generator:
+неизвестный тип NumberProvider превращался в Constant(value_or_1). Теперь
+неизвестный тип и отсутствие обязательных полей дают ошибку сборки с причиной.
+Текущие assets используют766uniform и18binomial объектов; их поддержка
+сохранена. Современные неподдержанные типы не маскируются готовыми константами.
+Это проверка extracted input, а не новый полный codec dispatch.
+
+Код подготовки/генератора `8b8140b35`. После этой последней правки:
+`cargo test --locked -p vecta-registry --lib loot_table -j 1` — **37/0/0**,
+`cargo clippy --locked -p vecta-registry --all-targets --all-features -j 1 -- -D warnings`
+и `cargo fmt --all --check` — exit0. Логи:
+`D:\CodexBuilds\logs\codex-session07-provider-generator-tests.log` и
+`codex-session07-provider-generator-clippy.log`.
+Полный workspace4308/0/18 относится к второму срезу `70f27a545`; после guard
+генератора повторён затронутый loot suite, весь workspace заново не запускался.
+Audit после последнего code commit:3105objects/49BE/227markers.
 
 ## Проверки и границы
 
