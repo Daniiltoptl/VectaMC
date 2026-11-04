@@ -9,11 +9,13 @@ pub use mobs::passive::*;
 pub use objects::display_ui::{
     BlockDisplayEntity, GlowItemFrameEntity, ItemFrameEntity, LeashFenceKnotEntity,
 };
+pub use objects::effects::AreaEffectCloudEntity;
 pub use objects::explosives::{EndCrystalEntity, PrimedTntEntity};
 pub use objects::items::{ExperienceOrbEntity, FallingBlockEntity, ItemEntity};
 pub use objects::projectiles::{
-    EnderPearlEntity, EyeOfEnderEntity, FireworkRocketEntity, FishingHookEntity, SnowballEntity,
-    SplashPotionEntity, ThrownEggEntity, ThrownExperienceBottleEntity,
+    EnderPearlEntity, EyeOfEnderEntity, FireworkRocketEntity, FishingHookEntity,
+    LingeringPotionEntity, SnowballEntity, SplashPotionEntity, ThrownEggEntity,
+    ThrownExperienceBottleEntity,
 };
 pub use objects::technical::{InteractionEntity, MarkerEntity};
 pub use objects::vehicles::ChestMinecartEntity;
