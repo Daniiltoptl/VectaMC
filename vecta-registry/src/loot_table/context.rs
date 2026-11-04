@@ -1,10 +1,13 @@
 use super::{DyeColor, Identifier, ItemStack, REGISTRY, RegistryExt};
 use crate::equipment::EquipmentSlot;
+use vecta_utils::nbt::NbtPath;
 
+mod data;
 mod map;
 mod parameter_sets;
 mod parameters;
 pub use crate::vanilla_context_key_sets::params as loot_context_params;
+pub use data::*;
 pub use map::*;
 pub use parameter_sets::*;
 pub use parameters::*;
@@ -23,6 +26,8 @@ pub enum LootContextEntity {
     KillerPlayer,
     /// The entity interacting with a block/entity.
     Interacting,
+    /// The explicit command/interaction target.
+    Target,
 }
 
 /// The type of loot table, determining when/how it's used.
@@ -59,12 +64,11 @@ pub enum NumberProvider {
     Score {
         target: ScoreboardTarget,
         score: &'static str,
-        scale: f32,
     },
     /// Get value from command storage.
     Storage {
         storage: Identifier,
-        path: &'static str,
+        path: NbtPath,
     },
     /// Get enchantment level from context tool.
     EnchantmentLevel {
@@ -83,44 +87,26 @@ pub enum ScoreboardTarget {
     DirectKiller,
     /// The player who dealt the last damage.
     KillerPlayer,
+    Target,
+    Interacting,
     /// A fixed entity name.
     Fixed(&'static str),
 }
 
 impl NumberProvider {
-    /// Get a value from this provider using the given RNG.
-    pub fn get(&self, rng: &mut RandomSource, ctx: Option<&ContextMap<'_>>) -> f32 {
-        match self {
-            Self::Constant(v) => *v,
-            Self::Uniform { min, max } => next_float(rng, *min, *max),
-            Self::Binomial { n, p } => {
-                let mut count = 0;
-                for _ in 0..*n {
-                    if rng.next_f32() < *p {
-                        count += 1;
-                    }
-                }
-                count as f32
-            }
-            Self::Score { .. } => {
-                // TODO: Read the domain scoreboard through the loot level context.
-                let _ = ctx;
-                0.0
-            }
-            Self::Storage { .. } => {
-                // TODO: Read domain command storage through the loot level context.
-                let _ = ctx;
-                0.0
-            }
-            Self::EnchantmentLevel { enchantment } => ctx
-                .and_then(|c| c.get(loot_context_params::TOOL))
-                .map_or(0.0, |t| t.get_enchantment_level(enchantment) as f32),
-        }
-    }
-
-    /// Get a value using the loot context's RNG and parameters.
+    /// Evaluates against the same parameters and live level services as the table.
     pub fn get_float(&self, ctx: &mut LootContext<'_>) -> f32 {
-        self.get(ctx.rng, Some(&ctx.params))
+        match self {
+            Self::Score { target, score } => target.get_score(ctx, score).unwrap_or(0) as f32,
+            Self::Storage { storage, path } => ctx
+                .data
+                .and_then(|data| data.storage_float(storage, path))
+                .unwrap_or(0.0),
+            Self::EnchantmentLevel { enchantment } => {
+                ctx.get_enchantment_level_by_id(enchantment) as f32
+            }
+            other => other.get_simple(ctx.rng),
+        }
     }
 
     /// Get a value without context (for backwards compatibility).
@@ -150,12 +136,41 @@ impl NumberProvider {
         }
     }
 
-    /// Get the value as an integer with context.
-    pub fn get_int_with_ctx(&self, rng: &mut RandomSource, ctx: Option<&ContextMap<'_>>) -> i32 {
+    /// Keeps integer score/storage values out of a lossy intermediate float.
+    pub fn get_int_with_context(&self, ctx: &mut LootContext<'_>) -> i32 {
         match self {
-            Self::Uniform { min, max } => uniform_int(rng, math_round(*min), math_round(*max)),
-            other => math_round(other.get(rng, ctx)),
+            Self::Uniform { min, max } => uniform_int(ctx.rng, math_round(*min), math_round(*max)),
+            Self::Score { target, score } => target.get_score(ctx, score).unwrap_or(0),
+            Self::Storage { storage, path } => ctx
+                .data
+                .and_then(|data| data.storage_int(storage, path))
+                .unwrap_or(0),
+            other => math_round(other.get_float(ctx)),
         }
+    }
+}
+
+impl ScoreboardTarget {
+    fn get_score(self, ctx: &LootContext<'_>, objective: &str) -> Option<i32> {
+        let holder = match self {
+            Self::Fixed(name) => LootScoreHolder::Name(name),
+            Self::This => ctx.get_entity(LootContextEntity::This)?.score_holder?,
+            Self::Killer => ctx.get_entity(LootContextEntity::Killer)?.score_holder?,
+            Self::DirectKiller => {
+                ctx.get_entity(LootContextEntity::DirectKiller)?
+                    .score_holder?
+            }
+            Self::KillerPlayer => {
+                ctx.get_entity(LootContextEntity::KillerPlayer)?
+                    .score_holder?
+            }
+            Self::Target => ctx.get_entity(LootContextEntity::Target)?.score_holder?,
+            Self::Interacting => {
+                ctx.get_entity(LootContextEntity::Interacting)?
+                    .score_holder?
+            }
+        };
+        ctx.data?.score(holder, objective)
     }
 }
 
@@ -198,15 +213,30 @@ pub struct NumberProviderRange {
 }
 
 impl NumberProviderRange {
-    /// Check if a value is within this range.
-    pub fn test(&self, value: f32, rng: &mut RandomSource) -> bool {
+    /// Integer predicates retain exact scoreboard values and boxed-NBT casts.
+    pub fn test_int(&self, value: i32, ctx: &mut LootContext<'_>) -> bool {
         if let Some(min) = &self.min
-            && value < min.get_simple(rng)
+            && value < min.get_int_with_context(ctx)
         {
             return false;
         }
         if let Some(max) = &self.max
-            && value > max.get_simple(rng)
+            && value > max.get_int_with_context(ctx)
+        {
+            return false;
+        }
+        true
+    }
+
+    /// Check if a value is within this range.
+    pub fn test(&self, value: f32, ctx: &mut LootContext<'_>) -> bool {
+        if let Some(min) = &self.min
+            && value < min.get_float(ctx)
+        {
+            return false;
+        }
+        if let Some(max) = &self.max
+            && value > max.get_float(ctx)
         {
             return false;
         }
@@ -255,6 +285,7 @@ pub struct LootContext<'a> {
     pub rng: &'a mut RandomSource,
     pub luck: f32,
     pub params: ContextMap<'a>,
+    pub data: Option<&'a dyn LootDataReader>,
     pub game_time: Option<i64>,
     pub weather: Option<WeatherState>,
 }
@@ -272,6 +303,8 @@ pub struct WeatherState {
 pub struct EntityRef<'a> {
     /// Type identifier for the entity.
     pub entity_type: Option<&'a Identifier>,
+    /// Score identity is separate from the entity's type and display name.
+    pub score_holder: Option<LootScoreHolder<'a>>,
     /// Entity flags for predicate checking.
     pub flags: EntityRefFlags,
     /// Equipment slots for equipment predicates. `None` for non-living entities.
@@ -362,9 +395,16 @@ impl<'a> LootContext<'a> {
             rng,
             luck: 0.0,
             params: ContextMap::default(),
+            data: None,
             game_time: None,
             weather: None,
         }
+    }
+
+    #[must_use]
+    pub fn with_data(mut self, data: &'a dyn LootDataReader) -> Self {
+        self.data = Some(data);
+        self
     }
 
     #[must_use]
@@ -428,6 +468,7 @@ impl<'a> LootContext<'a> {
             LootContextEntity::DirectKiller => loot_context_params::DIRECT_ATTACKING_ENTITY,
             LootContextEntity::KillerPlayer => loot_context_params::LAST_DAMAGE_PLAYER,
             LootContextEntity::Interacting => loot_context_params::INTERACTING_ENTITY,
+            LootContextEntity::Target => loot_context_params::TARGET_ENTITY,
         };
         self.params.get(key)
     }

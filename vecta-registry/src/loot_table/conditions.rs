@@ -322,11 +322,11 @@ impl LootCondition {
                 } else {
                     game_time
                 };
-                value.test(time as f32, ctx.rng)
+                value.test(time as f32, ctx)
             }
             LootCondition::ValueCheck { value, range } => {
-                let v = value.get_simple(ctx.rng);
-                range.test(v, ctx.rng)
+                let v = value.get_float(ctx);
+                range.test(v, ctx)
             }
             LootCondition::EnchantmentActiveCheck {
                 enchantment,
@@ -336,8 +336,22 @@ impl LootCondition {
                 let is_active = level > 0;
                 is_active == *active
             }
-            LootCondition::EntityScores { .. } => {
-                // TODO: Implement when scoreboard system is available
+            LootCondition::EntityScores { entity, scores } => {
+                let Some(entity) = ctx.get_entity(*entity) else {
+                    return false;
+                };
+                for (objective, range) in *scores {
+                    let Some(holder) = entity.score_holder else {
+                        return false;
+                    };
+                    let Some(data) = ctx.data else { return false };
+                    let Some(value) = data.score(holder, objective) else {
+                        return false;
+                    };
+                    if !range.test_int(value, ctx) {
+                        return false;
+                    }
+                }
                 true
             }
             LootCondition::Reference(_name) => {

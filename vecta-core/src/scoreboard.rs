@@ -8,7 +8,10 @@
 use std::{
     collections::{BTreeMap, BTreeSet, btree_map::Entry},
     io,
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use serde::{Deserialize, Serialize};
@@ -513,7 +516,7 @@ fn ensure_writable_objective(
 
 /// Loaded command scoreboards keyed by Vecta domain.
 pub struct DomainScoreboards {
-    scoreboards: BTreeMap<String, Scoreboard>,
+    scoreboards: BTreeMap<String, Arc<Scoreboard>>,
     save_lock: AsyncMutex<()>,
 }
 
@@ -536,7 +539,7 @@ impl DomainScoreboards {
                     format!("invalid scoreboard for domain '{domain}': {error}"),
                 )
             })?;
-            scoreboards.insert(domain.to_owned(), scoreboard);
+            scoreboards.insert(domain.to_owned(), Arc::new(scoreboard));
         }
         Ok(Self {
             scoreboards,
@@ -547,7 +550,12 @@ impl DomainScoreboards {
     /// Returns the scoreboard for a domain.
     #[must_use]
     pub fn get(&self, domain: &str) -> Option<&Scoreboard> {
-        self.scoreboards.get(domain)
+        self.scoreboards.get(domain).map(AsRef::as_ref)
+    }
+
+    /// Shares ownership of the live state used by commands and persistence.
+    pub(crate) fn shared(&self, domain: &str) -> Option<Arc<Scoreboard>> {
+        self.scoreboards.get(domain).map(Arc::clone)
     }
 
     /// Saves every dirty domain scoreboard and returns the number written.
@@ -592,6 +600,7 @@ fn scoreboard_io_error(domain: &str, error: io::Error) -> io::Error {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
     use std::{
         env::temp_dir,
         time::{SystemTime, UNIX_EPOCH},
@@ -735,8 +744,8 @@ mod tests {
     fn domains_keep_independent_scoreboards() {
         let scoreboards = DomainScoreboards {
             scoreboards: [
-                ("alpha".to_owned(), Scoreboard::new()),
-                ("beta".to_owned(), Scoreboard::new()),
+                ("alpha".to_owned(), Arc::new(Scoreboard::new())),
+                ("beta".to_owned(), Arc::new(Scoreboard::new())),
             ]
             .into_iter()
             .collect(),

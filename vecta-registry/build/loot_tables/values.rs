@@ -42,9 +42,12 @@ pub(super) fn generate_loot_context_entity(entity: &str) -> TokenStream {
         "this" => quote! { LootContextEntity::This },
         "killer" | "attacker" => quote! { LootContextEntity::Killer },
         "direct_killer" | "direct_attacker" => quote! { LootContextEntity::DirectKiller },
-        "killer_player" | "last_damage_player" => quote! { LootContextEntity::KillerPlayer },
+        "killer_player" | "last_damage_player" | "attacking_player" => {
+            quote! { LootContextEntity::KillerPlayer }
+        }
+        "target_entity" => quote! { LootContextEntity::Target },
         "interacting_entity" => quote! { LootContextEntity::Interacting },
-        _ => quote! { LootContextEntity::This },
+        other => panic!("Unsupported loot entity target: {other}"),
     }
 }
 

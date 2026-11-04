@@ -40,6 +40,7 @@ use crate::entity::damage::DamageHistory;
 use crate::entity::{
     Entity, EntityBase, PendingWorldChangeToken, RemovalReason, SharedEntity, change_entity_world,
 };
+use crate::world::DomainLootData;
 
 use crate::chunk_saver::{ChunkStorage, PersistentEntity, registry::WorldStorageRegistry};
 use crate::level_data::{GameTimeSource, LevelDataManager, RespawnData, WorldGenerationSettings};
@@ -205,6 +206,7 @@ pub async fn test_server_with_worlds_and_config(
     let command_storage = DomainCommandStorage::load(&worlds)
         .await
         .map_err(|error| format!("test command storage should load: {error}"))?;
+    DomainLootData::bind(&worlds, &scoreboards, &command_storage)?;
     let random_sequences = random_sequences::RandomSequences::load_and_bind(&worlds)
         .await
         .map_err(|error| format!("test random sequences should load: {error}"))?;
@@ -815,6 +817,7 @@ impl Server {
         let command_storage = DomainCommandStorage::load(&worlds)
             .await
             .map_err(|error| format!("failed to load domain command storage: {error}"))?;
+        DomainLootData::bind(&worlds, &scoreboards, &command_storage)?;
         let random_sequences = random_sequences::RandomSequences::load_and_bind(&worlds)
             .await
             .map_err(|error| format!("failed to load server random sequences: {error}"))?;

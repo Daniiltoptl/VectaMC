@@ -223,7 +223,8 @@ impl BrushableBlockEntity {
                 // TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
                 let equipment = living_loot_equipment(player);
                 let pos = self.get_block_pos();
-                with_loot_source(self.base.level().as_deref(), table, seed, |rng| {
+                let level = self.base.level();
+                with_loot_source(level.as_deref(), table, seed, |rng| {
                     let mut ctx = LootContext::new(rng)
                         .with_luck(player.get_luck())
                         .with_parameter(loot_context_params::TOOL, brush)
@@ -239,6 +240,9 @@ impl BrushableBlockEntity {
                             loot_context_params::THIS_ENTITY,
                             entity_loot_ref(player, Some(&equipment)),
                         );
+                    if let Some(world) = level.as_deref() {
+                        ctx = ctx.with_data(world);
+                    }
                     let validation = ctx.params.validate(&loot_context_param_sets::ARCHAEOLOGY);
                     assert!(
                         validation.is_ok(),

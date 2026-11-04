@@ -33,6 +33,9 @@ pub fn grant_reward(player: &Player, reward: &AdvancementRewards) {
                     loot_context_params::ORIGIN,
                     (position.x, position.y, position.z),
                 );
+            if let Some(world) = level.as_deref() {
+                ctx = ctx.with_data(world);
+            }
             let validation = ctx
                 .params
                 .validate(&loot_context_param_sets::ADVANCEMENT_REWARD);

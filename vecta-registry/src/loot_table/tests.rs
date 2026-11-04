@@ -107,6 +107,7 @@ fn test_pig_loot_drops_raw_porkchop_when_not_on_fire() {
     let pig_key = Identifier::vanilla_static("pig");
     let pig = EntityRef {
         entity_type: Some(&pig_key),
+        score_holder: None,
         flags: EntityRefFlags::default(),
         equipment: None,
         custom_name: None,
@@ -213,6 +214,7 @@ fn chicken_lay_drops_the_egg_matching_the_chicken_variant() {
         let mut rng = test_rng();
         let chicken = EntityRef {
             entity_type: Some(&Identifier::vanilla_static("chicken")),
+            score_holder: None,
             flags: EntityRefFlags::default(),
             equipment: None,
             custom_name: None,
@@ -245,6 +247,7 @@ fn sheared_predicate_rejects_non_sheep_entities() {
     let pig_key = Identifier::vanilla_static("pig");
     let pig = EntityRef {
         entity_type: Some(&pig_key),
+        score_holder: None,
         flags: EntityRefFlags::default(),
         equipment: None,
         custom_name: None,
@@ -278,6 +281,7 @@ fn test_pig_loot_smelt_condition_uses_entity_fire_flag() {
     let pig_key = Identifier::vanilla_static("pig");
     let pig = EntityRef {
         entity_type: Some(&pig_key),
+        score_holder: None,
         flags: EntityRefFlags {
             is_on_fire: true,
             ..EntityRefFlags::default()
@@ -320,6 +324,7 @@ fn living_entity_ref<'a>(
 ) -> EntityRef<'a> {
     EntityRef {
         entity_type: Some(entity_type),
+        score_holder: None,
         flags: EntityRefFlags::default(),
         equipment: Some(EntityEquipmentRef::new(equipment)),
         custom_name: None,

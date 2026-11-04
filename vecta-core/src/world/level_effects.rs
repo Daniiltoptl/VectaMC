@@ -431,6 +431,7 @@ impl World {
         let empty_tool = ItemStack::empty();
         context.world().random().with_loot(loot_table, 0, |rng| {
             let mut ctx = LootContext::new(rng)
+                .with_data(context.world().as_ref())
                 .with_luck(context.luck())
                 .with_parameter(loot_context_params::BLOCK_STATE, state)
                 .with_parameter(

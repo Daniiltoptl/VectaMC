@@ -375,7 +375,8 @@ impl ChickenEntity {
         let position = self.position();
         let equipment = living_loot_equipment(self);
         // Vanilla `LootContextParamSets.GIFT` carries only ORIGIN and THIS_ENTITY.
-        let items = with_loot_source(self.level().as_deref(), loot_table, 0, |rng| {
+        let level = self.level();
+        let items = with_loot_source(level.as_deref(), loot_table, 0, |rng| {
             let mut context = LootContext::new(rng)
                 .with_parameter(
                     loot_context_params::ORIGIN,
@@ -385,6 +386,9 @@ impl ChickenEntity {
                     loot_context_params::THIS_ENTITY,
                     entity_loot_ref(self, Some(&equipment)),
                 );
+            if let Some(world) = level.as_deref() {
+                context = context.with_data(world);
+            }
             let validation = context.params.validate(&loot_context_param_sets::GIFT);
             assert!(
                 validation.is_ok(),

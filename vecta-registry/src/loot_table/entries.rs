@@ -324,7 +324,8 @@ impl LootPool {
         if !self.conditions.iter().all(|condition| condition.test(ctx)) {
             return;
         }
-        let roll_count = self.rolls.get_int(ctx.rng) + (self.bonus_rolls * ctx.luck).floor() as i32;
+        let roll_count =
+            self.rolls.get_int_with_context(ctx) + (self.bonus_rolls * ctx.luck).floor() as i32;
         let mut decorated = |mut item: ItemStack, context: &mut LootContext<'ctx>| {
             ConditionalLootFunction::apply_all(self.functions, &mut item, context);
             output(item, context);

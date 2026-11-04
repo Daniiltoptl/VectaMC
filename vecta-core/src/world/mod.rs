@@ -122,6 +122,7 @@ pub mod explosion;
 pub mod game_event;
 mod level_effects;
 mod level_reader;
+mod loot_data;
 mod player_index;
 pub(crate) mod player_spawn_finder;
 mod portals;
@@ -159,6 +160,7 @@ pub use explosion::{
 };
 pub(crate) use explosion::{ExplosionBlockReader, ImmutableExplosionBlockCalculator};
 pub use level_reader::{LevelAccessor, LevelReader, ScheduledTickAccess};
+pub(crate) use loot_data::DomainLootData;
 pub use player_index::{PlayerAreaMap, PlayerMap};
 pub use raycast::{ClipBlockShape, ClipFluid, ClipHitResult, RaytraceAction};
 #[cfg(test)]
@@ -295,6 +297,7 @@ pub struct World {
     /// Central runtime entity ownership and lookup.
     entity_manager: WorldEntityManager,
     domain_entity_directory: SyncRwLock<Option<Arc<DomainEntityDirectory>>>,
+    loot_data: SyncRwLock<Option<Arc<DomainLootData>>>,
     /// World-global ordered block-entity ticker phase.
     block_entity_tickers: block_entity_ticker::WorldBlockEntityTickers,
     /// Physical entries retained by this world's chunk-owned game-event registries.
@@ -466,6 +469,7 @@ impl World {
                 neighbor_updater: CollectingNeighborUpdater::new(max_chained_neighbor_updates),
                 entity_manager: WorldEntityManager::new(),
                 domain_entity_directory: SyncRwLock::new(None),
+                loot_data: SyncRwLock::new(None),
                 block_entity_tickers: block_entity_ticker::WorldBlockEntityTickers::new(),
                 game_event_listener_count: GameEventListenerCount::shared(),
                 entity_tracker: EntityTracker::new(),

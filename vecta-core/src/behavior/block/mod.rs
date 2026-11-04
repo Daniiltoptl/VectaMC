@@ -80,6 +80,7 @@ pub(crate) fn drop_from_block_interact_loot_table(
     let interacting_equipment = interacting_entity.and_then(loot_equipment);
     world.random().with_loot(key, 0, |rng| {
         let mut ctx = LootContext::new(rng)
+            .with_data(world.as_ref())
             .with_parameter(loot_context_params::BLOCK_STATE, interacted_block_state)
             .with_parameter(
                 loot_context_params::ORIGIN,

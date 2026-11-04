@@ -344,7 +344,7 @@ impl LootFunction {
                 count: provider,
                 add,
             } => {
-                let value = provider.get_int(ctx.rng);
+                let value = provider.get_int_with_context(ctx);
                 if *add {
                     item.count += value;
                 } else {
@@ -393,7 +393,7 @@ impl LootFunction {
                 }
             }
             LootFunction::SetDamage { damage, add } => {
-                item.set_damage_fraction(damage.get_simple(ctx.rng), *add);
+                item.set_damage_fraction(damage.get_float(ctx), *add);
             }
             LootFunction::EnchantRandomly { options } => {
                 // TODO: Implement when enchantment system is ready
@@ -401,7 +401,7 @@ impl LootFunction {
             }
             LootFunction::EnchantWithLevels { levels, options } => {
                 // TODO: Implement when enchantment system is ready
-                let level = levels.get_int(ctx.rng);
+                let level = levels.get_int_with_context(ctx);
                 item.enchant_with_levels(level, options, ctx.rng);
             }
             LootFunction::CopyComponents { source, include } => {
@@ -436,7 +436,7 @@ impl LootFunction {
                 item.set_name(name, *target);
             }
             LootFunction::SetOminousBottleAmplifier { amplifier } => {
-                let amp = amplifier.get_int(ctx.rng).clamp(
+                let amp = amplifier.get_int_with_context(ctx).clamp(
                     crate::data_components::OminousBottleAmplifier::MIN_AMPLIFIER,
                     crate::data_components::OminousBottleAmplifier::MAX_AMPLIFIER,
                 );
@@ -461,7 +461,12 @@ impl LootFunction {
             LootFunction::SetEnchantments { enchantments, add } => {
                 let resolved: Vec<(Identifier, u32)> = enchantments
                     .iter()
-                    .map(|(key, provider)| (key.clone(), provider.get_int(ctx.rng).max(0) as u32))
+                    .map(|(key, provider)| {
+                        (
+                            key.clone(),
+                            provider.get_int_with_context(ctx).max(0) as u32,
+                        )
+                    })
                     .collect();
                 item.set_enchantments(&resolved, *add);
             }

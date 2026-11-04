@@ -12,6 +12,7 @@ use vecta_utils::{DowncastType, DowncastTypeKey, Identifier};
 fn entity_ref(key: &Identifier) -> EntityRef<'_> {
     EntityRef {
         entity_type: Some(key),
+        score_holder: None,
         flags: EntityRefFlags::default(),
         equipment: None,
         custom_name: None,

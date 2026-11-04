@@ -3291,6 +3291,7 @@ fn death_loot_items<E: LivingEntity + ?Sized>(
 
     world.random().with_loot(loot_table, seed, |rng| {
         let mut context = LootContext::new(rng)
+            .with_data(world)
             .with_parameter(
                 loot_context_params::ORIGIN,
                 (position.x, position.y, position.z),
@@ -3341,6 +3342,9 @@ pub(crate) fn shearing_loot_items<E: LivingEntity + ?Sized>(
             .with_parameter(loot_context_params::TOOL, tool);
         if let Some(game_time) = game_time {
             context = context.with_game_time(game_time);
+        }
+        if let Some(world) = level.as_deref() {
+            context = context.with_data(world);
         }
         let validation = context.params.validate(&loot_context_param_sets::SHEARING);
         assert!(

@@ -547,6 +547,7 @@ impl FishingHookEntity {
                             0,
                             |rng| {
                                 let mut loot_ctx = LootContext::new(rng)
+                                    .with_data(world.as_ref())
                                     .with_parameter(
                                         loot_context_params::ORIGIN,
                                         (self.position().x, self.position().y, self.position().z),

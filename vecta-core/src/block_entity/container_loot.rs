@@ -162,6 +162,9 @@ impl ContainerLoot {
         let roll = |rng: &mut RandomSource| {
             let mut ctx = LootContext::new(rng)
                 .with_parameter(loot_context_params::ORIGIN, (center.x, center.y, center.z));
+            if let Some(world) = world {
+                ctx = ctx.with_data(world);
+            }
             if let Some(player) = player {
                 ctx = ctx.with_luck(player.get_luck()).with_parameter(
                     loot_context_params::THIS_ENTITY,

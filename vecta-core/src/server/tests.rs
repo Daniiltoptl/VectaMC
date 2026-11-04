@@ -237,6 +237,7 @@ mod connection_lifecycle;
 mod data_command;
 mod data_entity;
 mod living_load;
+mod loot_data;
 mod player_limit;
 
 #[test]

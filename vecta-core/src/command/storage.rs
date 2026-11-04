@@ -3,7 +3,10 @@
 use std::{
     collections::BTreeMap,
     io::{self, Cursor},
-    sync::atomic::{AtomicU64, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
 };
 
 use rustc_hash::FxHashMap;
@@ -141,7 +144,7 @@ impl Default for CommandStorage {
 
 /// Loaded command storages keyed by Vecta domain.
 pub(crate) struct DomainCommandStorage {
-    storages: BTreeMap<String, CommandStorage>,
+    storages: BTreeMap<String, Arc<CommandStorage>>,
     save_lock: AsyncMutex<()>,
 }
 
@@ -160,7 +163,7 @@ impl DomainCommandStorage {
                 .map_err(|error| storage_io_error(domain, error))?;
             let storage = CommandStorage::from_persistent(persistent)
                 .map_err(|error| storage_io_error(domain, error))?;
-            storages.insert(domain.to_owned(), storage);
+            storages.insert(domain.to_owned(), Arc::new(storage));
         }
         Ok(Self {
             storages,
@@ -171,7 +174,12 @@ impl DomainCommandStorage {
     /// Returns command storage for a domain.
     #[must_use]
     pub(crate) fn get(&self, domain: &str) -> Option<&CommandStorage> {
-        self.storages.get(domain)
+        self.storages.get(domain).map(AsRef::as_ref)
+    }
+
+    /// Shares the same state that command writes and saved data use.
+    pub(crate) fn shared(&self, domain: &str) -> Option<Arc<CommandStorage>> {
+        self.storages.get(domain).map(Arc::clone)
     }
 
     /// Saves every dirty domain storage and returns the number written.
@@ -307,8 +315,8 @@ mod tests {
     fn domains_keep_independent_command_storage() {
         let storages = DomainCommandStorage {
             storages: [
-                ("alpha".to_owned(), CommandStorage::new()),
-                ("beta".to_owned(), CommandStorage::new()),
+                ("alpha".to_owned(), Arc::new(CommandStorage::new())),
+                ("beta".to_owned(), Arc::new(CommandStorage::new())),
             ]
             .into_iter()
             .collect(),

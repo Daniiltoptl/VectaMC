@@ -37,7 +37,7 @@ use vecta_registry::item_stack::ItemStack;
 use vecta_registry::items::ItemRef;
 use vecta_registry::loot_table::{
     DamageSourceInfo, EntityEquipmentRef, EntityEquipmentSlots, EntityRef, EntityRefFlags,
-    LootContext, LootTableRef,
+    LootContext, LootScoreHolder, LootTableRef,
 };
 use vecta_registry::mob_effect::MobEffectRef;
 use vecta_registry::particle_type::{BlockParticleOption, ParticleData};
@@ -1404,6 +1404,11 @@ pub(crate) fn entity_loot_ref<'a>(
     let sheep = living_entity.and_then(LivingEntity::sheep_loot_state);
     EntityRef {
         entity_type: Some(&entity.entity_type().key),
+        score_holder: Some(if let Some(player) = entity.as_player() {
+            LootScoreHolder::Name(player.gameprofile.name())
+        } else {
+            LootScoreHolder::Entity(entity.uuid())
+        }),
         flags: EntityRefFlags {
             is_on_fire: entity.is_on_fire(),
             is_sneaking: entity.is_crouching(),
