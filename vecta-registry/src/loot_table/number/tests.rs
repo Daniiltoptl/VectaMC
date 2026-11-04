@@ -339,3 +339,34 @@ fn configured_registry_matches_the_extracted_catalog_size() {
         "vanilla registers twenty-six configured int providers"
     );
 }
+
+#[test]
+fn every_configured_provider_evaluates() {
+    use crate::init_vanilla_registry;
+    use crate::loot_table::loot_context_params;
+    use crate::vanilla_blocks;
+
+    init_vanilla_registry();
+
+    // A smoker exercises the fast-cooking branch of every configured value.
+    let mut rng = seed();
+    let mut ctx = LootContext::new(&mut rng).with_parameter(
+        loot_context_params::BLOCK_STATE,
+        vanilla_blocks::SMOKER.default_state(),
+    );
+
+    let mut evaluated = 0;
+    for (key, provider) in crate::REGISTRY.context_float_providers.iter() {
+        let value = provider.get_float(&mut ctx);
+        assert!(value.is_finite(), "{key} produced {value}");
+        evaluated += 1;
+    }
+    for (key, provider) in crate::REGISTRY.context_int_providers.iter() {
+        // The compostable chances legitimately roll zero; this only proves the
+        // generated payload evaluates without an error.
+        let value = provider.get_int(&mut ctx);
+        assert!(value >= 0, "{key} produced {value}");
+        evaluated += 1;
+    }
+    assert_eq!(evaluated, 30, "4 float and 26 int configured values");
+}
