@@ -4,6 +4,7 @@ use vecta_registry::{Registry, feature::BlockStateData};
 use vecta_utils::BlockStateId;
 use vecta_worldgen::state_resolver::WorldgenStateResolver;
 
+mod noise_cache;
 mod predicates;
 mod providers;
 
