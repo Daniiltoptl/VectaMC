@@ -23,8 +23,8 @@ use crate::entity::damage::DamageSource;
 
 use crate::behavior::ITEM_BEHAVIORS;
 use crate::entity::{
-    DEFAULT_AIR_DRAG, Entity, EntityBase, EntityBaseLoad, EntityBaseState, EntityMovementEmission,
-    EntitySyncedData, RemovalReason,
+    DEFAULT_AIR_DRAG, DefaultEntityPush, Entity, EntityBase, EntityBaseLoad, EntityBaseState,
+    EntityMovementEmission, EntitySyncedData, RemovalReason,
 };
 use crate::inventory::container::Container;
 use crate::physics::MoverType;
@@ -526,7 +526,17 @@ impl ItemEntity {
     }
 }
 
+impl DefaultEntityPush for ItemEntity {}
+
 impl Entity for ItemEntity {
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        Some(self)
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }

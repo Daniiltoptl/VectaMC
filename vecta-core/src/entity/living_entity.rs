@@ -12,6 +12,7 @@ use crate::behavior::{BLOCK_BEHAVIORS, InventoryTickContext, MOB_EFFECT_BEHAVIOR
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::RecentDamageSource;
 use crate::world::random::with_loot_source;
+use crate::entity::pushing::EntityPush;
 
 const BED_SLEEP_POSITION_OFFSET: f64 = 0.125;
 
@@ -2450,24 +2451,12 @@ pub trait LivingEntity: Entity {
 
     /// Pushes nearby colliding entities away from this one.
     fn push_entities(&self) {
-        let Some(world) = self.level() else {
-            return;
-        };
-        if !world.tick_runs_normally() {
-            return;
-        }
+        EntityPush::push_entities(self);
+    }
 
-        let pusher = self.as_entity_event_source();
-        let pushable_entities = world.get_pushable_entities(pusher, &self.bounding_box());
-        if pushable_entities.is_empty() {
-            return;
-        }
-
-        self.apply_entity_cramming_damage(&world, &pushable_entities);
-
-        for entity in pushable_entities {
-            entity.push_entity(pusher);
-        }
+    /// Pushes against `entities` in the given order. The caller applies cramming damage first.
+    fn push_entities_in_order(&self, entities: &[SharedEntity]) {
+        EntityPush::push_entities_in_order(self.as_entity_event_source(), entities);
     }
 
     /// Applies vanilla max entity cramming damage from `LivingEntity.pushEntities()`.
