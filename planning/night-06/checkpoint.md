@@ -33,8 +33,9 @@
 | Реализованные пути | G001–G003, G006/G007 и consumers G009…G013; все partial см. blockers/review |
 | Сеанс7, первый срез | `2a0ef1daf`: typed ContextMap,16keys/31sets, все текущие callers; workspace **4304/0/18**, Clippy/fmt exit0, Python4, audit3105/49/230 |
 | Сеанс7, второй срез | `70f27a545`: shared domain reader, live Score/Storage/EntityScores; workspace **4308/0/18**, Clippy/fmt exit0, Python4, audit3105/49/227 |
+| Сеанс8 | `9190929d2` providers+configured values, `9efa4655a` furnace consumer; см. report-next-08 |
 | Подготовка следующего среза | `8b8140b35`: configured values4float+26int извлечены, generator не подменяет неизвестный тип константой; loot37/0/0, registry Clippy/fmt exit0 |
-| Следующий consumer | 51 provider types/codecs, configured values и compute, затем направления 3–12; общий domain read context уже реализован |
+| Следующий consumer | **`modify … compute`**: protocol ids 55/56, argument parsers, context sources; компостер как потребитель `compostable/*` |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),

@@ -323,3 +323,20 @@ Truncate/Uniform/WeightedList`), плюс `LootContextSources` для источ
 `CriteriaTriggers.ITEM_DURABILITY_CHANGED`: advancement-criteria foundation в
 Vecta отсутствует целиком. Само событие разрыва (`onEquippedItemBroken`) теперь
 вызывается — см. `0d29632d8`. Зависимые карточки: advancement-срез.
+
+## B-06-11 · `environment_attribute`, owned `LevelBasedValue` и inline-условия
+
+Три типа/формы из каталога провайдеров не имеют foundation в Vecta и поэтому
+честно отвергаются (генератор паникует, парсер даёт ошибку):
+
+- `environment_attribute` — нужен настоящий API environment attributes и
+  origin/context, который Java использует; постоянным значением не заменяется.
+- `enchantment_level` — payload это `LevelBasedValue`, а существующий тип хранит
+  `'static`-внутренности; для command payloads нужен owned-вариант.
+- Inline-условия в command payloads — `LootCondition::MatchBlock` хранит
+  `&'static [PropertyCheck]`; owned-представление ещё не сделано. Registry
+  предикаты (`block/fast_cooking`, `tool/can_shear`, `tool/can_silk_touch`)
+  работают.
+
+Пока это так, `compute` не может принять эти payload-формы; отсутствие не
+маскируется значениями по умолчанию.

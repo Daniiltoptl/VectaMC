@@ -489,3 +489,23 @@ entity accessor, затем compute и направления3–12 файла05
 Проверки: workspace **4293 passed / 0 failed / 18 ignored**, fmt exit 0.
 `modify … compute` не начат: это отдельная подсистема (param-map LootContext,
 2 реестра, 49 провайдеров), детали в отчёте и blockers.
+
+## Сеанс 8: настоящие context number providers и потребитель-печь
+
+Полные детали — в [report-next-08.md](report-next-08.md).
+
+1. **Providers (`9190929d2`).** `loot_table/number`: `FloatProvider` (27 типов) и
+   `IntProvider` (22 типа) с `ProviderRef`/`ConditionRef`/`WeightedList`, две
+   точки входа Java (safe wrapper → 0 при ошибке, unsafe → проброс),
+   арифметика по конкретным Java implementation (проверено JDK 25 oracle),
+   configured values 4 float + 26 int, скомпилированные build script'ом из
+   побайтовой копии extractor output, и три код-бутстрапнутых предиката Java
+   для `conditional`/`number_dispatcher`.
+2. **Печь (`9efa4655a`).** Burn time и speed multiplier теперь читаются из
+   `minecraft:cooking_fuel` предмета и вычисляются против block state;
+   `total_cook_time = ceil(рецепт / множитель)`, порядок тика и NBT приведены к
+   26.3 (`speed_multiplier` сохраняется, таймеры int), `consume_fuel` выбрасывает
+   remainder в мир.
+3. **Границы:** `environment_attribute`, inline `enchantment_level` и
+   inline-условия честно отвергаются; компостер без взаимодействия, поэтому
+   `compostable/*` пока без потребителя; `compute` не начат (объём в отчёте).

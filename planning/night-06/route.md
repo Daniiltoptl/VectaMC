@@ -150,3 +150,18 @@ B-06-04 снят: новый apply hook на обычном reload не нуже
 | 120 | G100 | W06-496…500 | Длинный survival сценарий |
 
 Не ждать блокированную группу, когда есть независимый slice. Не объявлять неизвестный контракт понятным из-за места в очереди.
+
+## Обновление сеанса 8 (2026-11-04)
+
+Приоритет 6 (§B файла 06_07) выполнен частично и проверенно:
+
+- typed `FloatProvider`/`IntProvider` (27 + 22 типов) в
+  `vecta-registry/src/loot_table/number/` с registry dispatch, configured
+  values 4 float + 26 int из extractor output и тремя код-предикатами Java;
+- потребитель: печь читает `minecraft:cooking_fuel` и вычисляет providers против
+  block state (G027 частично).
+
+Следующий маршрут: **`/data modify … compute`** (protocol ids 55/56, два
+argument parser'а, три context source-ветки, проводка в существующий
+manipulator), затем компостер (`compostable/*`), затем приоритеты 9–12 файла 05.
+Точные границы — B-06-11.
