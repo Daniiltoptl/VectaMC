@@ -19,19 +19,25 @@ pub(super) fn generate_number_provider(value: &NumberProviderJson) -> TokenStrea
             p,
         } => match provider_type.as_str() {
             "minecraft:uniform" => {
-                let min = min.unwrap_or(0.0);
-                let max = max.unwrap_or(1.0);
+                let (Some(min), Some(max)) = (min, max) else {
+                    panic!("Uniform loot provider requires both min and max: {value:?}");
+                };
                 quote! { NumberProvider::Uniform { min: #min, max: #max } }
             }
             "minecraft:binomial" => {
-                let n = n.unwrap_or(1.0) as i32;
-                let p = p.unwrap_or(0.5);
+                let (Some(n), Some(p)) = (n, p) else {
+                    panic!("Binomial loot provider requires both n and p: {value:?}");
+                };
+                let n = *n as i32;
                 quote! { NumberProvider::Binomial { n: #n, p: #p } }
             }
-            _ => {
-                let v = value.unwrap_or(1.0);
+            "minecraft:constant" => {
+                let Some(v) = value else {
+                    panic!("Constant loot provider requires value");
+                };
                 quote! { NumberProvider::Constant(#v) }
             }
+            other => panic!("Unsupported loot number provider type: {other}"),
         },
     }
 }

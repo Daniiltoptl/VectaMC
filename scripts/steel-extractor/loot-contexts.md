@@ -1,11 +1,12 @@
 # Loot context extraction — Minecraft Java 26.3
 
-The adjacent `LootContexts.java` and `LootNumberProviderTypes.java` are the exact
+The adjacent `LootContexts.java`, `LootNumberProviderTypes.java` and
+`LootNumberProviderValues.java` are the exact
 source entry points added to the local SteelExtractor checkout at
 `D:\CodexBuilds\SteelExtractor\src\main\java\com\steelextractor\extractors`.
 Existing slot-display and block-entity extractor changes were preserved.
 
-Both entry points bootstrap built-in registries and exit without starting
+The entry points bootstrap built-in registries and exit without starting
 MinecraftServer, loading a world, opening a server port or accepting an EULA.
 They use actual registry IDs/keys; none are transcribed from registration order.
 
@@ -26,6 +27,7 @@ $vanilla26 = 'C:\Users\My comp\Desktop\Vecta\.vecta-cache\vanilla\26.3'
 $extractorClasspath = "$vanilla26\minecraft-server.jar;$vanilla26\libraries\*"
 & $java25 -cp $extractorClasspath '..\src\main\java\com\steelextractor\extractors\LootContexts.java'
 & $java25 -cp $extractorClasspath '..\src\main\java\com\steelextractor\extractors\LootNumberProviderTypes.java'
+& $java25 -cp $extractorClasspath '..\src\main\java\com\steelextractor\extractors\LootNumberProviderValues.java'
 ```
 
 Keep the prepared jar and libraries together and verify the target through
@@ -53,9 +55,20 @@ Logs: `D:\CodexBuilds\logs\codex-session07-loot-extractor.log` and
   not an active provider factory or a claim that51providers work. The older
   27+22 catalog omitted `number_dispatcher` in both registries.
 
-The provider-type extractor does not extract configured provider values from
-`Registries.CONTEXT_FLOAT_PROVIDER` / `CONTEXT_INT_PROVIDER`; these require their
-actual bootstrap/lookup when the corresponding consumer is implemented.
+On 2026-11-04 `LootNumberProviderValues.java` also ran successfully. It builds
+the actual VanillaRegistries world/reloadable lookup and serializes configured
+providers through their DIRECT_CODEC with registry-aware RegistryOps. Every
+value is decoded and encoded again; mismatches fail extraction. No server,
+world save, network listener or EULA acceptance is involved.
+
+- `steel-registry/build_assets/context_number_provider_values.json`:4float
+  and26int configured providers, including registry references, conditional
+  predicates and weighted distributions. Keys are sorted for reproducibility;
+  no numeric IDs are invented from a lookup that does not expose them. SHA256
+  `53a9763a67c5e7c5c58a5d2d239455309b3ea8223d1134e8d53f317247fef9ad`.
+  This file remains in the extractor output until the real typed factory and
+  its consumer need it. It is not registered as a functioning provider registry.
+  Log: `D:\CodexBuilds\logs\codex-session07-provider-values-extractor.log`.
 
 Copy only produced files needed by the change. Do not edit extracted JSON by
 hand or manually recreate missing registry data.
