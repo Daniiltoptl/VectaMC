@@ -239,6 +239,11 @@ pub mod vanilla_particle_types;
 
 #[expect(warnings)]
 #[rustfmt::skip]
+#[path = "generated/vanilla_context_number_providers.rs"]
+pub mod vanilla_context_number_providers;
+
+#[expect(warnings)]
+#[rustfmt::skip]
 #[path = "generated/vanilla_position_source_types.rs"]
 pub mod vanilla_position_source_types;
 

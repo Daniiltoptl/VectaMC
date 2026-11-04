@@ -151,7 +151,7 @@ impl NumberProvider {
 }
 
 impl ScoreboardTarget {
-    fn get_score(self, ctx: &LootContext<'_>, objective: &str) -> Option<i32> {
+    pub(crate) fn get_score(self, ctx: &LootContext<'_>, objective: &str) -> Option<i32> {
         let holder = match self {
             Self::Fixed(name) => LootScoreHolder::Name(name),
             Self::This => ctx.get_entity(LootContextEntity::This)?.score_holder?,

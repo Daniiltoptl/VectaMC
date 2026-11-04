@@ -58,6 +58,7 @@ mod fluids;
 
 mod cat_sound_variants;
 mod chicken_sound_variants;
+mod context_number_providers;
 mod cow_sound_variants;
 mod custom_stats;
 mod frog_variants;
@@ -239,6 +240,10 @@ pub fn main() {
         (menu_types::build(), MENU_TYPES),
         (slot_displays::build(), SLOT_DISPLAYS),
         (loot_contexts::build(), "context_key_sets"),
+        (
+            context_number_providers::build(),
+            "context_number_providers",
+        ),
         (mob_effects::build(), MOB_EFFECTS),
         (map_decoration_types::build(), MAP_DECORATION_TYPES),
         (potions::build(), POTIONS),

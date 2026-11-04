@@ -1,0 +1,211 @@
+{
+  "minecraft_version": "26.3",
+  "float_types": [
+    {
+      "id": 0,
+      "key": "minecraft:abs"
+    },
+    {
+      "id": 1,
+      "key": "minecraft:avg"
+    },
+    {
+      "id": 2,
+      "key": "minecraft:ceil"
+    },
+    {
+      "id": 3,
+      "key": "minecraft:conditional"
+    },
+    {
+      "id": 4,
+      "key": "minecraft:constant"
+    },
+    {
+      "id": 5,
+      "key": "minecraft:cos"
+    },
+    {
+      "id": 6,
+      "key": "minecraft:sub"
+    },
+    {
+      "id": 7,
+      "key": "minecraft:enchantment_level"
+    },
+    {
+      "id": 8,
+      "key": "minecraft:environment_attribute"
+    },
+    {
+      "id": 9,
+      "key": "minecraft:floor"
+    },
+    {
+      "id": 10,
+      "key": "minecraft:from_int"
+    },
+    {
+      "id": 11,
+      "key": "minecraft:length"
+    },
+    {
+      "id": 12,
+      "key": "minecraft:max"
+    },
+    {
+      "id": 13,
+      "key": "minecraft:min"
+    },
+    {
+      "id": 14,
+      "key": "minecraft:mod"
+    },
+    {
+      "id": 15,
+      "key": "minecraft:negate"
+    },
+    {
+      "id": 16,
+      "key": "minecraft:number_dispatcher"
+    },
+    {
+      "id": 17,
+      "key": "minecraft:pow"
+    },
+    {
+      "id": 18,
+      "key": "minecraft:mul"
+    },
+    {
+      "id": 19,
+      "key": "minecraft:div"
+    },
+    {
+      "id": 20,
+      "key": "minecraft:round"
+    },
+    {
+      "id": 21,
+      "key": "minecraft:sin"
+    },
+    {
+      "id": 22,
+      "key": "minecraft:sqrt"
+    },
+    {
+      "id": 23,
+      "key": "minecraft:storage"
+    },
+    {
+      "id": 24,
+      "key": "minecraft:add"
+    },
+    {
+      "id": 25,
+      "key": "minecraft:truncate"
+    },
+    {
+      "id": 26,
+      "key": "minecraft:uniform"
+    },
+    {
+      "id": 27,
+      "key": "minecraft:weighted_list"
+    }
+  ],
+  "int_types": [
+    {
+      "id": 0,
+      "key": "minecraft:abs"
+    },
+    {
+      "id": 1,
+      "key": "minecraft:avg"
+    },
+    {
+      "id": 2,
+      "key": "minecraft:binomial"
+    },
+    {
+      "id": 3,
+      "key": "minecraft:conditional"
+    },
+    {
+      "id": 4,
+      "key": "minecraft:constant"
+    },
+    {
+      "id": 5,
+      "key": "minecraft:sub"
+    },
+    {
+      "id": 6,
+      "key": "minecraft:environment_attribute"
+    },
+    {
+      "id": 7,
+      "key": "minecraft:from_float"
+    },
+    {
+      "id": 8,
+      "key": "minecraft:max"
+    },
+    {
+      "id": 9,
+      "key": "minecraft:min"
+    },
+    {
+      "id": 10,
+      "key": "minecraft:floor_mod"
+    },
+    {
+      "id": 11,
+      "key": "minecraft:floor_div"
+    },
+    {
+      "id": 12,
+      "key": "minecraft:mod"
+    },
+    {
+      "id": 13,
+      "key": "minecraft:div"
+    },
+    {
+      "id": 14,
+      "key": "minecraft:negate"
+    },
+    {
+      "id": 15,
+      "key": "minecraft:number_dispatcher"
+    },
+    {
+      "id": 16,
+      "key": "minecraft:pow"
+    },
+    {
+      "id": 17,
+      "key": "minecraft:mul"
+    },
+    {
+      "id": 18,
+      "key": "minecraft:score"
+    },
+    {
+      "id": 19,
+      "key": "minecraft:storage"
+    },
+    {
+      "id": 20,
+      "key": "minecraft:add"
+    },
+    {
+      "id": 21,
+      "key": "minecraft:uniform"
+    },
+    {
+      "id": 22,
+      "key": "minecraft:weighted_list"
+    }
+  ]
+}

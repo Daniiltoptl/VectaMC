@@ -282,6 +282,8 @@ pub struct Registry {
     pub menu_types: MenuTypeRegistry,
     pub slot_displays: crate::recipe::SlotDisplayTypeRegistry,
     pub context_key_sets: crate::loot_table::ContextKeySetRegistry,
+    pub context_float_providers: crate::loot_table::FloatProviderRegistry,
+    pub context_int_providers: crate::loot_table::IntProviderRegistry,
     pub mob_effects: MobEffectRegistry,
     pub map_decoration_types: MapDecorationTypeRegistry,
     pub potions: PotionRegistry,
@@ -398,6 +400,12 @@ impl Registry {
         vanilla_menu_types::register_menu_types(&mut registry.menu_types);
         crate::vanilla_slot_displays::register_slot_displays(&mut registry.slot_displays);
         crate::vanilla_context_key_sets::register_context_key_sets(&mut registry.context_key_sets);
+        crate::vanilla_context_number_providers::register_context_float_providers(
+            &mut registry.context_float_providers,
+        );
+        crate::vanilla_context_number_providers::register_context_int_providers(
+            &mut registry.context_int_providers,
+        );
         vanilla_mob_effects::register_mob_effects(&mut registry.mob_effects);
         vanilla_map_decoration_types::register_map_decoration_types(
             &mut registry.map_decoration_types,
@@ -501,6 +509,8 @@ impl Registry {
         self.menu_types.freeze();
         self.slot_displays.freeze();
         self.context_key_sets.freeze();
+        self.context_float_providers.freeze();
+        self.context_int_providers.freeze();
         self.mob_effects.freeze();
         self.map_decoration_types.freeze();
         self.potions.freeze();
@@ -768,6 +778,8 @@ impl Registry {
             menu_types: MenuTypeRegistry::new(),
             slot_displays: crate::recipe::SlotDisplayTypeRegistry::new(),
             context_key_sets: crate::loot_table::ContextKeySetRegistry::new(),
+            context_float_providers: crate::loot_table::FloatProviderRegistry::new(),
+            context_int_providers: crate::loot_table::IntProviderRegistry::new(),
             mob_effects: MobEffectRegistry::new(),
             map_decoration_types: MapDecorationTypeRegistry::new(),
             potions: PotionRegistry::new(),
