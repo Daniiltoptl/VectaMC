@@ -165,3 +165,14 @@ B-06-04 снят: новый apply hook на обычном reload не нуже
 argument parser'а, три context source-ветки, проводка в существующий
 manipulator), затем компостер (`compostable/*`), затем приоритеты 9–12 файла 05.
 Точные границы — B-06-11.
+
+## Обновление 2 сеанса 8 (2026-11-04)
+
+Приоритет C (§C файла 06_07) выполнен: `/data modify … compute` работает
+сквозным путём с `default`/`block`/`entity` context sources и настоящими
+provider argument'ами (protocol 55/56). Проверено командными тестами на живом
+сервере fixture: constants, configured resource, вложенная арифметика, score
+provider, негативные пути без мутации.
+
+Следующий маршрут: **компостер** (`compostable/*` — вертикальный срез
+interaction/уровни/bone meal/dispenser-hopper), затем приоритеты 9–12 файла 05.

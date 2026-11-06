@@ -1,12 +1,12 @@
-# Сеанс 8: реальные context number providers, configured values и печь
+# Сеанс 8: context number providers, configured values, печь и `/data compute`
 
 Дата: 2026-11-04. Вход `cd73000d2`, ветка `codex/night-vanilla-03`.
 Входящий workspace **4308 passed / 0 failed / 18 ignored**.
 
-Реализовано главное из `WORKBUDDY_CONTINUE_06_07.md` §B: настоящие
+Реализовано главное из `WORKBUDDY_CONTINUE_06_07.md` §B и §C: настоящие
 `ContextFloatProvider` / `ContextIntProvider` с registry dispatch, configured
-values из extractor output и первый игровой consumer (печь). `compute` (§C) в
-этом сеансе не начат — см. «Незавершённое».
+values из extractor output, игровой consumer (печь) и настоящий
+`/data modify … compute` с `default`/`block`/`entity` context sources.
 
 ## Срез 1: typed provider model + configured values (`9190929d2`)
 
@@ -120,39 +120,56 @@ parity, rejection-пути парсера, inline-арифметика, и ск�
 | `cargo test -p vecta-registry --lib loot_table -j 1` | **46 passed / 0 failed** |
 | `cargo clippy --locked -p vecta-registry --all-targets --all-features -j 1 -- -D warnings` | exit 0 |
 | `cargo test -p vecta-core --lib abstract_furnace -j 1` | **5 passed / 0 failed** |
+| `cargo test -p vecta-core --lib data_compute -j 1` | **5 passed / 0 failed** |
+| `cargo test -p vecta-core --lib context_provider_argument -j 1` | **1 passed / 0 failed** |
 | `cargo clippy --locked -p vecta-core --all-targets -j 1 -- -D warnings` | exit 0 |
-| `cargo test --locked --workspace -j 1` | **4320 passed / 0 failed / 18 ignored**, exit 0; `D://CodexBuilds//logs//session08-workspace.log` |
-| `cargo clippy --locked --workspace --all-targets --all-features -j 1 -- -D warnings` | exit 0; `D://CodexBuilds//logs//session08-clippy.log` |
+| `cargo test --locked --workspace -j 1` | **4326 passed / 0 failed / 18 ignored**, exit 0; `D://CodexBuilds//logs//session09-workspace.log` |
+| `cargo clippy --locked --workspace --all-targets --all-features -j 1 -- -D warnings` | exit 0; `D://CodexBuilds//logs//session08-clippy.log`, `session09-*` |
 | `cargo fmt --all --check` | exit 0 |
 | `python -m unittest discover -s scripts` | 4 tests OK |
 | `python scripts/audit_vanilla.py` | 3105 objects / 49 BE / **227** markers (минус снятые TODO furnace), provenance обновлён |
 
 ## Незавершённое
 
-### `modify … compute` — не начат
+### `modify … compute` — реализован
 
-Проверено по Java 26.3 для следующего среза:
+Сквозной путь работает: parsing → provider/reference → общий context →
+evaluation → NBT result → существующий manipulator → setData → dirty/sync.
 
-- Аргументы — `ResourceOrIdArgument.ContextFloatProviderArgument` /
-  `ContextIntProviderArgument`, зарегистрированные как
-  `minecraft:context_float_provider` (id 55) и `minecraft:context_int_provider`
-  (id 56) — соседние `slot_source`=57, `dialog`=58 подтверждают нумерацию.
-  Вариантов в `vecta-protocol/src/packets/game/c_commands.rs` пока нет
-  (`LootModifier`=54, `Dialog`=58).
-- `ResourceOrIdArgument` читает либо resource location, либо inline
-  SNBT-значение (`ERROR_FAILED_TO_PARSE`, `ERROR_NO_SUCH_ELEMENT`).
-- Дерево: `compute` — узел уровня manipulator, под ним `default` /
-  `block <pos>` / `entity <target>`, затем `float|integer <provider>`
-  (`LootContextSources.addContextSources`).
-- Параметры: `COMMAND_COMPUTE_DEFAULT` (`ORIGIN`, optional `THIS_ENTITY`),
-  `COMMAND_COMPUTE_POSITION` (+`BLOCK_STATE`, optional `BLOCK_ENTITY`),
-  `COMMAND_COMPUTE_ENTITY` (+`TARGET_ENTITY`). Все три набора уже
-  сгенерированы в `vanilla_context_key_sets`.
+- **Аргументы** (`vecta-protocol/src/packets/game/c_commands.rs`):
+  `minecraft:context_float_provider` = 55 и `minecraft:context_int_provider` = 56,
+  размещённые по реальному порядку регистрации Java (`slot_source` = 57 остаётся
+  без Vecta-аргумента). Никаких вручную придуманных id.
+- **Парсеры** (`command/execution/argument.rs`): `parse_context_provider`
+  повторяет `ResourceOrIdArgument` — resource key, inline SNBT compound или
+  голое число (`ConstantValue.INLINE_CODEC`, `Codec.FLOAT`/`Codec.INT` принимают
+  любой numeric tag через `NbtNumeric`). Unknown resource падает на parse с
+  `argument.resource_or_id.no_such_element`, неоцениваемый inline payload — с
+  `argument.resource_or_id.failed_to_parse`, как в Java.
+- **Дерево** (`command/builtins/data/mod.rs`): `<manipulator> compute` →
+  `default` / `block <computePos>` / `entity <computeTarget>` →
+  `float|integer <provider>` — по `LootContextSources.addContextSources`.
+- **Context sources**: `ORIGIN` = позиция источника команд (Java не двигает её
+  для block source), `THIS_ENTITY` из command source, `BLOCK_STATE`/опциональный
+  `BLOCK_ENTITY` для block, отдельный `TARGET_ENTITY` для entity (не THIS).
+  Требуемые/допустимые наборы проверяются настоящим `ContextMap` с
+  `COMMAND_COMPUTE_DEFAULT/POSITION/ENTITY`.
+- **Данные**: live domain reader (`with_data(world)`), оценка внутри mutable
+  level RNG (как `LootContext.Builder.create(Optional.empty())`), никакой
+  World→Server ссылки и никаких снапшотов.
+- **Запись**: результат — один `NbtTag`, идущий в существующий manipulator
+  (`set`/`insert`/`append`/`prepend`/`merge`) через общий `apply_source`:
+  прежний single-target guard, запрет записи в players, rollback и
+  `SetChanged` сохранены.
+- **Парсер провайдеров**: numeric slot'ы (`fallback`, `on_true`, `value`,
+  `data`, `inputs`) теперь тоже принимают голые числа — это `INLINE_CODEC`.
 
-Что осталось: два protocol-варианта аргумента, два parser'а, три context
-source-ветки, ветки `float|integer`, проводка результата в существующий
-manipulator. Без этого `/data modify … compute` не существует; половину узла не
-коммитил.
+Тесты (`server/tests/data_compute.rs`, 5) и юнит-тест парсера:
+inline float/int constants, inline compound payload, configured resource на
+smoker (2.0) против furnace (1.0), вложенная арифметика (`div(7,2)` = 3.5 через
+scale), score provider с живым scoreboard (fallback 42 → живая 5),
+unknown resource / unsupported type / malformed SNBT / unloaded block → ошибка
+и **нет мутации**.
 
 ### Прочие открытые границы
 
@@ -161,6 +178,8 @@ manipulator. Без этого `/data modify … compute` не существу�
 - owned-представление inline-условий (сейчас только registry-предикаты).
 - Компостер: у Vecta нет взаимодействия вообще (только comparator level),
   поэтому `compostable/*` провайдеры пока без игрового потребителя.
+- `slot_source` argument (protocol id 57) и `CONTAINER` context parameter без
+  value type остаются открытыми.
 - `CONTAINER` parameter не имеет value type → `CONTAINER_PROCESS` контекст не
   валидируется набором; печь передаёт три из четырёх параметров.
 - `ITEM_DURABILITY_CHANGED` criteria — B-06-10 без изменений.

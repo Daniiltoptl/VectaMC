@@ -509,3 +509,24 @@ entity accessor, затем compute и направления3–12 файла05
 3. **Границы:** `environment_attribute`, inline `enchantment_level` и
    inline-условия честно отвергаются; компостер без взаимодействия, поэтому
    `compostable/*` пока без потребителя; `compute` не начат (объём в отчёте).
+
+## Дополнение сеанса 8: `/data modify … compute`
+
+Реализован сквозной путь приоритета C из `WORKBUDDY_CONTINUE_06_07.md`:
+
+1. **Protocol**: `context_float_provider` (55) и `context_int_provider` (56) в
+   `c_commands.rs` по реальному порядку регистрации Java.
+2. **Аргументы**: `parse_context_provider` — resource key / inline SNBT compound
+   / голое число (`INLINE_CODEC`), ошибки `no_such_element` / `failed_to_parse`
+   как в Java, unknown resource падает на parse.
+3. **Дерево и context sources**: `<manipulator> compute` → `default` /
+   `block <pos>` / `entity <target>` → `float|integer <provider>`;
+   `ORIGIN`/`THIS_ENTITY`/`BLOCK_STATE`/`BLOCK_ENTITY`/`TARGET_ENTITY` с
+   валидацией `COMMAND_COMPUTE_*` через настоящий `ContextMap`; оценка внутри
+   mutable level RNG и live domain reader.
+4. **Запись**: результат идёт в существующий manipulator через общий
+   `apply_source` — single-target guard, запрет players, rollback сохранены.
+
+Тесты: constants (float/int/inline compound), configured resource на smoker
+против furnace, вложенная арифметика, score provider (fallback 42 → живая 5),
+и четыре негативных пути без мутации. Workspace **4326/0/18**, Clippy/fmt exit0.
