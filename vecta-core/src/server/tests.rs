@@ -235,6 +235,7 @@ mod block_entity_item_data;
 mod book_resolution;
 mod connection_lifecycle;
 mod data_command;
+mod data_compute;
 mod data_entity;
 mod living_load;
 mod loot_data;

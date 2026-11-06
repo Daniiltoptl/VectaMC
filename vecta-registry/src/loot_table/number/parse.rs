@@ -74,8 +74,12 @@ pub fn parse_float_provider(nbt: &NbtCompound) -> Result<FloatProvider, Provider
         "minecraft:mod" => FloatProvider::Mod(float_ref(nbt, "left")?, float_ref(nbt, "right")?),
         "minecraft:negate" => FloatProvider::Negate(float_ref(nbt, "input")?),
         "minecraft:number_dispatcher" => {
-            let (cases, default) =
-                dispatcher(nbt, parse_float_provider, || FloatProvider::Constant(0.0))?;
+            let (cases, default) = dispatcher(
+                nbt,
+                parse_float_provider,
+                |value| FloatProvider::Constant(value as f32),
+                || FloatProvider::Constant(0.0),
+            )?;
             FloatProvider::NumberDispatcher { cases, default }
         }
         "minecraft:pow" => FloatProvider::Pow {
@@ -102,7 +106,9 @@ pub fn parse_float_provider(nbt: &NbtCompound) -> Result<FloatProvider, Provider
             max: float_ref(nbt, "max")?,
         },
         "minecraft:weighted_list" => {
-            FloatProvider::WeightedList(weighted_list(nbt, parse_float_provider)?)
+            FloatProvider::WeightedList(weighted_list(nbt, parse_float_provider, |value| {
+                FloatProvider::Constant(value as f32)
+            })?)
         }
         other => return Err(ProviderParseError::UnsupportedType(other.to_owned())),
     };
@@ -139,8 +145,12 @@ pub fn parse_int_provider(nbt: &NbtCompound) -> Result<IntProvider, ProviderPars
         "minecraft:div" => IntProvider::Div(int_ref(nbt, "left")?, int_ref(nbt, "right")?),
         "minecraft:negate" => IntProvider::Negate(int_ref(nbt, "input")?),
         "minecraft:number_dispatcher" => {
-            let (cases, default) =
-                dispatcher(nbt, parse_int_provider, || IntProvider::Constant(0))?;
+            let (cases, default) = dispatcher(
+                nbt,
+                parse_int_provider,
+                |value| IntProvider::Constant(value as i32),
+                || IntProvider::Constant(0),
+            )?;
             IntProvider::NumberDispatcher { cases, default }
         }
         "minecraft:pow" => IntProvider::Pow {
@@ -177,7 +187,9 @@ pub fn parse_int_provider(nbt: &NbtCompound) -> Result<IntProvider, ProviderPars
             max: int_ref(nbt, "max")?,
         },
         "minecraft:weighted_list" => {
-            IntProvider::WeightedList(weighted_list(nbt, parse_int_provider)?)
+            IntProvider::WeightedList(weighted_list(nbt, parse_int_provider, |value| {
+                IntProvider::Constant(value as i32)
+            })?)
         }
         other => return Err(ProviderParseError::UnsupportedType(other.to_owned())),
     };
@@ -212,10 +224,18 @@ fn provider_ref<T>(
     nbt: &NbtCompound,
     field: &'static str,
     parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError>,
+    from_number: impl Fn(f64) -> T,
 ) -> Result<ProviderRef<T>, ProviderParseError> {
     match tag(nbt, field)? {
         NbtTag::String(key) => Ok(ProviderRef::Reference(identifier(&key.to_string())?)),
         NbtTag::Compound(compound) => Ok(ProviderRef::inline(parse(compound)?)),
+        // `ConstantValue.INLINE_CODEC`: any numeric tag is an inline constant.
+        NbtTag::Byte(value) => Ok(ProviderRef::inline(from_number(f64::from(*value)))),
+        NbtTag::Short(value) => Ok(ProviderRef::inline(from_number(f64::from(*value)))),
+        NbtTag::Int(value) => Ok(ProviderRef::inline(from_number(f64::from(*value)))),
+        NbtTag::Long(value) => Ok(ProviderRef::inline(from_number(*value as f64))),
+        NbtTag::Float(value) => Ok(ProviderRef::inline(from_number(f64::from(*value)))),
+        NbtTag::Double(value) => Ok(ProviderRef::inline(from_number(*value))),
         _ => Err(ProviderParseError::InvalidField(field)),
     }
 }
@@ -224,18 +244,20 @@ fn optional_ref<T>(
     nbt: &NbtCompound,
     field: &'static str,
     parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError>,
+    from_number: impl Fn(f64) -> T + Copy,
     default: T,
 ) -> Result<ProviderRef<T>, ProviderParseError> {
     if nbt.get(field).is_none() {
         return Ok(ProviderRef::inline(default));
     }
-    provider_ref(nbt, field, parse)
+    provider_ref(nbt, field, parse, from_number)
 }
 
 fn refs<T>(
     nbt: &NbtCompound,
     field: &'static str,
     parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError>,
+    from_number: impl Fn(f64) -> T + Copy,
 ) -> Result<Vec<ProviderRef<T>>, ProviderParseError> {
     let list = tag(nbt, field)?
         .list()
@@ -249,6 +271,20 @@ fn refs<T>(
             NbtTag::Compound(compound) => {
                 providers.push(ProviderRef::inline(parse(&compound)?));
             }
+            NbtTag::Byte(value) => {
+                providers.push(ProviderRef::inline(from_number(f64::from(value))));
+            }
+            NbtTag::Short(value) => {
+                providers.push(ProviderRef::inline(from_number(f64::from(value))));
+            }
+            NbtTag::Int(value) => {
+                providers.push(ProviderRef::inline(from_number(f64::from(value))));
+            }
+            NbtTag::Long(value) => providers.push(ProviderRef::inline(from_number(value as f64))),
+            NbtTag::Float(value) => {
+                providers.push(ProviderRef::inline(from_number(f64::from(value))));
+            }
+            NbtTag::Double(value) => providers.push(ProviderRef::inline(from_number(value))),
             _ => return Err(ProviderParseError::InvalidField(field)),
         }
     }
@@ -259,36 +295,18 @@ fn float_ref(
     nbt: &NbtCompound,
     field: &'static str,
 ) -> Result<ProviderRef<FloatProvider>, ProviderParseError> {
-    // `ConstantValue.INLINE_CODEC` is `Codec.FLOAT`, so a bare number is a valid
-    // inline provider for any numeric tag.
-    if let Some(value) = numeric_tag(tag(nbt, field)?) {
-        return Ok(ProviderRef::inline(FloatProvider::Constant(value as f32)));
-    }
-    provider_ref(nbt, field, parse_float_provider)
+    provider_ref(nbt, field, parse_float_provider, |value| {
+        FloatProvider::Constant(value as f32)
+    })
 }
 
 fn int_ref(
     nbt: &NbtCompound,
     field: &'static str,
 ) -> Result<ProviderRef<IntProvider>, ProviderParseError> {
-    // `Codec.INT` narrows the same numeric tags.
-    if let Some(value) = numeric_tag(tag(nbt, field)?) {
-        return Ok(ProviderRef::inline(IntProvider::Constant(value as i32)));
-    }
-    provider_ref(nbt, field, parse_int_provider)
-}
-
-/// Reads any numeric tag as `f64`, mirroring `NbtOps.getNumberValue`.
-fn numeric_tag(tag: &NbtTag) -> Option<f64> {
-    match tag {
-        NbtTag::Byte(value) => Some(f64::from(*value)),
-        NbtTag::Short(value) => Some(f64::from(*value)),
-        NbtTag::Int(value) => Some(f64::from(*value)),
-        NbtTag::Long(value) => Some(*value as f64),
-        NbtTag::Float(value) => Some(f64::from(*value)),
-        NbtTag::Double(value) => Some(*value),
-        _ => None,
-    }
+    provider_ref(nbt, field, parse_int_provider, |value| {
+        IntProvider::Constant(value as i32)
+    })
 }
 
 fn optional_float_ref(
@@ -300,6 +318,7 @@ fn optional_float_ref(
         nbt,
         field,
         parse_float_provider,
+        |value| FloatProvider::Constant(value as f32),
         FloatProvider::Constant(0.0),
     )
 }
@@ -309,21 +328,31 @@ fn optional_int_ref(
     field: &'static str,
 ) -> Result<ProviderRef<IntProvider>, ProviderParseError> {
     // `ContextIntProviders.exactly(0)`.
-    optional_ref(nbt, field, parse_int_provider, IntProvider::Constant(0))
+    optional_ref(
+        nbt,
+        field,
+        parse_int_provider,
+        |value| IntProvider::Constant(value as i32),
+        IntProvider::Constant(0),
+    )
 }
 
 fn float_refs(
     nbt: &NbtCompound,
     field: &'static str,
 ) -> Result<Vec<ProviderRef<FloatProvider>>, ProviderParseError> {
-    refs(nbt, field, parse_float_provider)
+    refs(nbt, field, parse_float_provider, |value| {
+        FloatProvider::Constant(value as f32)
+    })
 }
 
 fn int_refs(
     nbt: &NbtCompound,
     field: &'static str,
 ) -> Result<Vec<ProviderRef<IntProvider>>, ProviderParseError> {
-    refs(nbt, field, parse_int_provider)
+    refs(nbt, field, parse_int_provider, |value| {
+        IntProvider::Constant(value as i32)
+    })
 }
 
 /// The parsed `cases` list plus the `default` slot of a dispatcher provider.
@@ -332,6 +361,7 @@ type DispatcherCases<T> = (Vec<(ConditionRef, ProviderRef<T>)>, ProviderRef<T>);
 fn dispatcher<T>(
     nbt: &NbtCompound,
     parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError> + Copy,
+    from_number: impl Fn(f64) -> T + Copy,
     default_zero: impl FnOnce() -> T,
 ) -> Result<DispatcherCases<T>, ProviderParseError> {
     let cases = tag(nbt, "cases")?
@@ -344,11 +374,11 @@ fn dispatcher<T>(
         };
         parsed.push((
             condition_ref(&case, "condition")?,
-            provider_ref(&case, "value", parse)?,
+            provider_ref(&case, "value", parse, from_number)?,
         ));
     }
     let default = if nbt.get("default").is_some() {
-        provider_ref(nbt, "default", parse)?
+        provider_ref(nbt, "default", parse, from_number)?
     } else {
         // The Java default is the family's `exactly(0)` holder.
         ProviderRef::inline(default_zero())
@@ -358,7 +388,8 @@ fn dispatcher<T>(
 
 fn weighted_list<T>(
     nbt: &NbtCompound,
-    parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError>,
+    parse: impl Fn(&NbtCompound) -> Result<T, ProviderParseError> + Copy,
+    from_number: impl Fn(f64) -> T + Copy,
 ) -> Result<WeightedList<T>, ProviderParseError> {
     let distribution = tag(nbt, "distribution")?
         .list()
@@ -375,7 +406,7 @@ fn weighted_list<T>(
             return Err(ProviderParseError::InvalidField("weight"));
         }
         entries.push(WeightedValue::new(
-            provider_ref(&entry, "data", &parse)?,
+            provider_ref(&entry, "data", parse, from_number)?,
             weight,
         ));
     }

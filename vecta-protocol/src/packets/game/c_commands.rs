@@ -344,6 +344,8 @@ pub enum ArgumentType {
     LootTable,
     LootPredicate,
     LootModifier,
+    ContextFloatProvider,
+    ContextIntProvider,
     Dialog,
     SwingAnimation,
     Uuid,
@@ -414,6 +416,9 @@ impl ArgumentType {
             Self::LootTable => 52,
             Self::LootPredicate => 53,
             Self::LootModifier => 54,
+            // `slot_source` (57) has no Vecta argument yet.
+            Self::ContextFloatProvider => 55,
+            Self::ContextIntProvider => 56,
             Self::Dialog => 58,
             Self::SwingAnimation => 60,
             Self::Uuid => 61,

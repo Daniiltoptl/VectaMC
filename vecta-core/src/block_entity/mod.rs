@@ -219,8 +219,9 @@ impl BlockEntityBase {
         }
     }
 
+    /// Returns this block entity's type reference.
     #[must_use]
-    const fn block_entity_type(&self) -> BlockEntityTypeRef {
+    pub const fn block_entity_type(&self) -> BlockEntityTypeRef {
         self.block_entity_type
     }
 

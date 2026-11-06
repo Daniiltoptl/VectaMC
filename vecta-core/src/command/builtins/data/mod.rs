@@ -22,6 +22,11 @@ use super::super::{
     },
     registration::CommandRegistration,
 };
+use crate::block_entity::BlockEntity;
+use crate::command::builtins::execute::loaded_block_position;
+use crate::entity::{entity_loot_ref, loot_equipment};
+use vecta_registry::loot_table::{BlockEntityRef, ContextKeySet, LootContext, loot_context_params};
+use vecta_registry::vanilla_context_key_sets as loot_context_param_sets;
 
 type Builder = CommandNodeBuilder<CommandSource, VectaCommandRuntime>;
 
@@ -174,12 +179,61 @@ fn source_branches(parent: Builder, provider: Provider, manipulator: Manipulator
             )
         });
 
-    parent.then(from).then(string).then(
-        literal("value").then(
-            argument("value", VectaArgumentType::nbt_tag())
-                .executes(move |context| manipulate(context, provider, manipulator, Source::Value)),
-        ),
-    )
+    parent
+        .then(from)
+        .then(string)
+        .then(compute_branches(provider, manipulator))
+        .then(
+            literal("value").then(argument("value", VectaArgumentType::nbt_tag()).executes(
+                move |context| manipulate(context, provider, manipulator, Source::Value),
+            )),
+        )
+}
+
+/// The `compute` source: `default`, `block <pos>` and `entity <target>` context
+/// sources followed by `float`/`integer` and a `ResourceOrIdArgument` provider,
+/// mirroring `LootContextSources.addContextSources`.
+fn compute_branches(provider: Provider, manipulator: Manipulator) -> Builder {
+    let compute = |source: ComputeSource, parent: Builder| {
+        parent
+            .then(literal("float").then(
+                argument("provider", VectaArgumentType::context_float_provider()).executes(
+                    move |context| {
+                        manipulate_compute(
+                            context,
+                            provider,
+                            manipulator,
+                            source,
+                            ComputeFamily::Float,
+                        )
+                    },
+                ),
+            ))
+            .then(literal("integer").then(
+                argument("provider", VectaArgumentType::context_int_provider()).executes(
+                    move |context| {
+                        manipulate_compute(
+                            context,
+                            provider,
+                            manipulator,
+                            source,
+                            ComputeFamily::Integer,
+                        )
+                    },
+                ),
+            ))
+    };
+
+    literal("compute")
+        .then(compute(ComputeSource::Default, literal("default")))
+        .then(literal("block").then(compute(
+            ComputeSource::Block,
+            argument("computePos", VectaArgumentType::block_pos()),
+        )))
+        .then(literal("entity").then(compute(
+            ComputeSource::Entity,
+            argument("computeTarget", VectaArgumentType::entity()),
+        )))
 }
 
 #[derive(Clone, Copy)]
@@ -197,6 +251,21 @@ enum Source {
     From(Provider),
     String(Provider),
     Value,
+}
+
+/// The `compute` context source: which `LootContextSources` branch was used.
+#[derive(Clone, Copy)]
+enum ComputeSource {
+    Default,
+    Block,
+    Entity,
+}
+
+/// The `compute` result family.
+#[derive(Clone, Copy)]
+enum ComputeFamily {
+    Float,
+    Integer,
 }
 
 fn merge_data(
@@ -303,6 +372,16 @@ fn manipulate(
     source: Source,
 ) -> Result<i32, CommandSyntaxError> {
     let source_tags = resolve_source(context, source)?;
+    apply_source(context, target, manipulator, source_tags)
+}
+
+/// Mutates the target path with the resolved source tags and reports the change.
+fn apply_source(
+    context: &VectaCommandContext<CommandSource>,
+    target: Provider,
+    manipulator: Manipulator,
+    source_tags: Vec<NbtTag>,
+) -> Result<i32, CommandSyntaxError> {
     let accessor = target.resolve(context, "target")?;
     let path = context.nbt_path("targetPath")?.clone();
     let mut root = NbtTag::Compound(accessor.get_data(context.source())?);
@@ -352,6 +431,117 @@ fn manipulate(
         .source()
         .send_success(&accessor.modified_success(), true);
     Ok(i32::try_from(result).unwrap_or(i32::MAX))
+}
+
+fn manipulate_compute(
+    context: &VectaCommandContext<CommandSource>,
+    target: Provider,
+    manipulator: Manipulator,
+    source: ComputeSource,
+    family: ComputeFamily,
+) -> Result<i32, CommandSyntaxError> {
+    let source_stack = context.source();
+    let world = source_stack.world();
+    let origin = source_stack.position();
+    let this_entity = source_stack.entity();
+
+    // Java evaluates inside the level's own mutable random, so the whole
+    // evaluation stays within one borrow of that stream.
+    world.random().with_level(|rng| {
+        // Every borrowed parameter is bound at the top of this closure so it
+        // outlives the `LootContext`, which keeps references into its values.
+        let target_entity = match source {
+            ComputeSource::Entity => Some(context.entity("computeTarget")?),
+            _ => None,
+        };
+        let target_equipment = target_entity
+            .as_ref()
+            .and_then(|entity| loot_equipment(entity.as_ref()));
+        let this_equipment = this_entity
+            .as_ref()
+            .and_then(|entity| loot_equipment(entity.as_ref()));
+
+        let position = match source {
+            ComputeSource::Block => Some(loaded_block_position(context, "computePos")?),
+            _ => None,
+        };
+        let block_entity = position
+            .as_ref()
+            .and_then(|pos| world.get_block_entity(*pos));
+        let block_entity_ref = block_entity.as_deref().map(block_entity_loot_ref);
+
+        let mut loot = LootContext::new(rng)
+            .with_parameter(loot_context_params::ORIGIN, (origin.x, origin.y, origin.z))
+            .with_data(world.as_ref());
+        if let Some(entity) = this_entity {
+            loot = loot.with_parameter(
+                loot_context_params::THIS_ENTITY,
+                entity_loot_ref(entity.as_ref(), this_equipment.as_ref()),
+            );
+        }
+
+        match source {
+            ComputeSource::Default => {
+                validate_compute_context(&loot, &loot_context_param_sets::COMMAND_COMPUTE_DEFAULT)?;
+            }
+            ComputeSource::Block => {
+                if let Some(position) = position {
+                    loot = loot.with_parameter(
+                        loot_context_params::BLOCK_STATE,
+                        world.get_block_state(position),
+                    );
+                }
+                if let Some(block_entity_ref) = block_entity_ref {
+                    loot = loot.with_parameter(loot_context_params::BLOCK_ENTITY, block_entity_ref);
+                }
+                validate_compute_context(
+                    &loot,
+                    &loot_context_param_sets::COMMAND_COMPUTE_POSITION,
+                )?;
+            }
+            ComputeSource::Entity => {
+                if let Some(entity) = target_entity.as_ref() {
+                    loot = loot.with_parameter(
+                        loot_context_params::TARGET_ENTITY,
+                        entity_loot_ref(entity.as_ref(), target_equipment.as_ref()),
+                    );
+                }
+                validate_compute_context(&loot, &loot_context_param_sets::COMMAND_COMPUTE_ENTITY)?;
+            }
+        }
+
+        let tag = match family {
+            ComputeFamily::Float => {
+                let value = context
+                    .context_float_provider("provider")?
+                    .get_float(&mut loot);
+                NbtTag::Float(value)
+            }
+            ComputeFamily::Integer => {
+                let value = context.context_int_provider("provider")?.get_int(&mut loot);
+                NbtTag::Int(value)
+            }
+        };
+        apply_source(context, target, manipulator, vec![tag])
+    })
+}
+
+fn validate_compute_context(
+    loot: &LootContext<'_>,
+    set: &ContextKeySet,
+) -> Result<(), CommandSyntaxError> {
+    loot.params
+        .validate(set)
+        .map_err(|error| CommandSyntaxError::dynamic(TextComponent::from(error.to_string())))
+}
+
+/// A read-only view of a block entity for loot parameters.
+fn block_entity_loot_ref(block_entity: &dyn BlockEntity) -> BlockEntityRef<'_> {
+    BlockEntityRef {
+        block_entity_type: Some(&block_entity.get_type().key),
+        custom_name: None,
+        inventory: None,
+    }
 }
 
 fn resolve_source(

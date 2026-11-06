@@ -39,6 +39,7 @@ use text_components::TextComponent;
 use vecta_registry::advancement::registry::AdvancementRef;
 use vecta_registry::damage_type::DamageTypeRef;
 use vecta_registry::data_components::vanilla_components::SwingAnimationType;
+use vecta_registry::loot_table::{FloatProvider, IntProvider};
 use vecta_registry::{
     enchantment::EnchantmentRef, entity_type::EntityTypeRef, item_stack::ItemStack,
     timeline::TimelineRef, world_clock::WorldClockRef,
@@ -364,6 +365,22 @@ where
 
     pub(crate) fn nbt_tag(&self, name: &str) -> Result<&NbtTag, CommandSyntaxError> {
         self.typed_argument::<NbtTagValue>(name)
+            .map(|value| &value.0)
+    }
+
+    pub(crate) fn context_float_provider(
+        &self,
+        name: &str,
+    ) -> Result<&FloatProvider, CommandSyntaxError> {
+        self.typed_argument::<super::argument::ContextFloatProviderValue>(name)
+            .map(|value| &value.0)
+    }
+
+    pub(crate) fn context_int_provider(
+        &self,
+        name: &str,
+    ) -> Result<&IntProvider, CommandSyntaxError> {
+        self.typed_argument::<super::argument::ContextIntProviderValue>(name)
             .map(|value| &value.0)
     }
 

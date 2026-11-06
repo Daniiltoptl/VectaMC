@@ -40,12 +40,16 @@ use vecta_protocol::packets::game::{
 };
 use vecta_registry::advancement::registry::AdvancementRef;
 use vecta_registry::damage_type::DamageTypeRef;
+use vecta_registry::loot_table::{
+    FloatProvider, IntProvider, ProviderParseError, parse_float_provider, parse_int_provider,
+};
 use vecta_registry::{
     DAMAGE_TYPE_REGISTRY, ENCHANTMENT_REGISTRY, ENTITY_TYPE_REGISTRY, REGISTRY, RegistryExt as _,
     TIMELINE_REGISTRY, WORLD_CLOCK_REGISTRY, enchantment::EnchantmentRef,
     entity_type::EntityTypeRef, item_stack::ItemStack, timeline::TimelineRef,
     world_clock::WorldClockRef,
 };
+use vecta_utils::nbt::NbtNumeric as _;
 use vecta_utils::translations::ADVANCEMENT_ADVANCEMENT_NOT_FOUND;
 use vecta_utils::{
     Downcast as _, DowncastType, DowncastTypeKey, ErasedType, Identifier,
@@ -362,6 +366,14 @@ impl VectaArgumentType {
         Self::new(NbtTagParser)
     }
 
+    pub(crate) fn context_float_provider() -> Self {
+        Self::new(ContextFloatProviderParser)
+    }
+
+    pub(crate) fn context_int_provider() -> Self {
+        Self::new(ContextIntProviderParser)
+    }
+
     pub(crate) fn storage_key() -> Self {
         Self::new(StorageKeyParser)
     }
@@ -570,6 +582,14 @@ argument_value_wrapper!(
     "vecta:command/value/compound_tag"
 );
 argument_value_wrapper!(NbtTagValue(NbtTag), "vecta:command/value/nbt_tag");
+argument_value_wrapper!(
+    ContextFloatProviderValue(FloatProvider),
+    "vecta:command/value/context_float_provider"
+);
+argument_value_wrapper!(
+    ContextIntProviderValue(IntProvider),
+    "vecta:command/value/context_int_provider"
+);
 argument_value_wrapper!(
     IdentifierValue(Identifier),
     "vecta:command/value/identifier"
@@ -1237,6 +1257,54 @@ unit_argument_parser!(
     _builder | {},
     protocol(ProtocolArgumentType::NbtTag, None)
 );
+
+unit_argument_parser!(
+    ContextFloatProviderParser,
+    "vecta:command/parser/context_float_provider",
+    ContextFloatProviderValue,
+    parse | reader,
+    _source | {
+        parse_context_provider(
+            reader,
+            parse_float_provider,
+            |number| FloatProvider::Constant(number as f32),
+            |key| {
+                vecta_registry::REGISTRY
+                    .context_float_providers
+                    .by_key(key)
+                    .cloned()
+            },
+        )
+        .map(ContextFloatProviderValue)
+    },
+    suggest | _context,
+    _builder | {},
+    protocol(ProtocolArgumentType::ContextFloatProvider, None)
+);
+
+unit_argument_parser!(
+    ContextIntProviderParser,
+    "vecta:command/parser/context_int_provider",
+    ContextIntProviderValue,
+    parse | reader,
+    _source | {
+        parse_context_provider(
+            reader,
+            parse_int_provider,
+            |number| IntProvider::Constant(number as i32),
+            |key| {
+                vecta_registry::REGISTRY
+                    .context_int_providers
+                    .by_key(key)
+                    .cloned()
+            },
+        )
+        .map(ContextIntProviderValue)
+    },
+    suggest | _context,
+    _builder | {},
+    protocol(ProtocolArgumentType::ContextIntProvider, None)
+);
 unit_argument_parser!(
     StorageKeyParser,
     "vecta:command/parser/storage_key",
@@ -1606,6 +1674,58 @@ where
     Err(reader.error(CommandSyntaxErrorKind::Dynamic(Box::new(
         TextComponent::from(format!("Unknown domain {domain}")),
     ))))
+}
+
+/// Parses a `ResourceOrIdArgument` payload: a registry key, an inline SNBT
+/// compound or a bare number (`ConstantValue.INLINE_CODEC`).
+///
+/// Vanilla resolves the key immediately, so an unknown resource fails at parse
+/// time with `argument.resource_or_id.no_such_element`; an inline payload that
+/// the family cannot evaluate fails with `failed_to_parse`.
+pub(super) fn parse_context_provider<T>(
+    reader: &mut StringReader<'_>,
+    inline_compound: impl Fn(&NbtCompound) -> Result<T, ProviderParseError>,
+    inline_number: impl Fn(f64) -> T,
+    lookup: impl FnOnce(&Identifier) -> Option<T>,
+) -> Result<T, CommandSyntaxError> {
+    reader.skip_whitespace();
+    match reader.peek() {
+        Some('{') => {
+            let compound = parse_compound_tag(reader)?;
+            inline_compound(&compound).map_err(|error| {
+                CommandSyntaxError::dynamic(
+                    translations::ARGUMENT_RESOURCE_OR_ID_FAILED_TO_PARSE
+                        .message([TextComponent::plain(error.to_string())])
+                        .component(),
+                )
+            })
+        }
+        Some(character) if character.is_ascii_digit() || character == '-' || character == '+' => {
+            let tag = parse_nbt_tag(reader)?;
+            // `Codec.FLOAT`/`Codec.INT` accept any numeric tag.
+            let number = tag.codec_f64().ok_or_else(|| {
+                CommandSyntaxError::dynamic(
+                    translations::ARGUMENT_RESOURCE_OR_ID_FAILED_TO_PARSE
+                        .message([TextComponent::plain(reader.read_so_far().to_owned())])
+                        .component(),
+                )
+            })?;
+            Ok(inline_number(number))
+        }
+        _ => {
+            let key = parse_identifier(reader)?;
+            lookup(&key).ok_or_else(|| {
+                CommandSyntaxError::dynamic(
+                    translations::ARGUMENT_RESOURCE_OR_ID_NO_SUCH_ELEMENT
+                        .message([
+                            TextComponent::plain(key.to_string()),
+                            TextComponent::plain("minecraft:context_float_provider".to_owned()),
+                        ])
+                        .component(),
+                )
+            })
+        }
+    }
 }
 
 pub(super) fn parse_identifier(

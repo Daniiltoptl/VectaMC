@@ -426,3 +426,30 @@ fn swizzle_argument_retains_unique_axes_and_rejects_duplicates() {
         );
     }
 }
+
+#[test]
+fn context_provider_argument_parses_numbers_and_compounds() {
+    use crate::command::execution::argument::parse_context_provider;
+    use vecta_registry::loot_table::{IntProvider, parse_int_provider as int_parser};
+
+    let constant = |number: f64| IntProvider::Constant(number as i32);
+    let mut reader = StringReader::new("7");
+    assert!(matches!(
+        parse_context_provider(&mut reader, int_parser, constant, |_| None)
+            .expect("a bare number is an inline constant"),
+        IntProvider::Constant(7)
+    ));
+
+    let mut reader = StringReader::new("{type:\"minecraft:constant\",value:9}");
+    assert!(matches!(
+        parse_context_provider(&mut reader, int_parser, constant, |_| None)
+            .expect("an inline payload decodes"),
+        IntProvider::Constant(9)
+    ));
+
+    let mut reader = StringReader::new("minecraft:cooking/does_not_exist");
+    assert!(
+        parse_context_provider(&mut reader, int_parser, constant, |_| None).is_err(),
+        "an unknown resource fails at parse time"
+    );
+}

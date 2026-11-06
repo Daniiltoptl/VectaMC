@@ -105,6 +105,22 @@ pub(super) fn source(server: &Arc<Server>, player: &Arc<Player>) -> CommandSourc
     )
 }
 
+/// Runs one command, treating a parse failure as `(false, 0)`.
+///
+/// `ResourceOrIdArgument` rejects unknown keys while parsing, so negative
+/// compute tests observe the failure here instead of in the executor.
+pub(super) fn try_run(server: &Arc<Server>, source: &CommandSource, command: &str) -> (bool, i32) {
+    let parse_result = {
+        let dispatcher = server.command_dispatcher.read();
+        let parse = dispatcher.parse(command, source.clone());
+        dispatcher.context_chain(parse).is_ok()
+    };
+    if !parse_result {
+        return (false, 0);
+    }
+    run(server, source, command)
+}
+
 /// Runs one command and returns the reported `(success, result)`.
 pub(super) fn run(server: &Server, source: &CommandSource, command: &str) -> (bool, i32) {
     let result = Arc::new(SyncMutex::new(None));
