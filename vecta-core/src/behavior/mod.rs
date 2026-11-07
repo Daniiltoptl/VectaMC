@@ -33,6 +33,7 @@ mod item;
 pub(crate) mod item_utils;
 pub mod items;
 mod mob_effect;
+pub mod worldly_container_holder;
 
 #[expect(warnings)]
 #[rustfmt::skip]

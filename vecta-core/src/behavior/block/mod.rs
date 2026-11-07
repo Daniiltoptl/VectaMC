@@ -33,6 +33,7 @@ use crate::behavior::BLOCK_BEHAVIORS;
 use crate::behavior::blocks::vegetation::GrowingPlantHeadBehavior;
 use crate::behavior::blocks::vegetation::bonemealable::Bonemealable;
 use crate::behavior::context::{BlockHitResult, BlockPlaceContext, InteractionResult};
+use crate::behavior::worldly_container_holder::WorldlyContainerHolder;
 use crate::behavior::{InventoryAccess, PlacementSource};
 use crate::block_entity::{BlockEntity, BlockEntityTicker, SharedBlockEntity};
 use crate::entity::ai::path::PathComputationType;
@@ -1393,6 +1394,12 @@ pub trait BlockBehavior: Send + Sync {
 
     /// Returns the trait object for Blocks that have the Bonemealable trait implemented.
     fn as_bonemealable(&self) -> Option<&dyn Bonemealable> {
+        None
+    }
+
+    /// Returns the vanilla `WorldlyContainerHolder` capability for blocks whose
+    /// automation container is built from state, like the composter.
+    fn as_worldly_container_holder(&self) -> Option<&dyn WorldlyContainerHolder> {
         None
     }
 

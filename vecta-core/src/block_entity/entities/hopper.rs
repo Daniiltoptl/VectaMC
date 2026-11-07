@@ -524,6 +524,19 @@ fn container_size(container: &ContainerRef) -> usize {
 /// Vanilla `HopperBlockEntity.getContainerAt` for a block position.
 fn container_at(world: &Arc<World>, pos: BlockPos) -> Option<TransferTarget> {
     let state = world.get_block_state(pos);
+
+    // Vanilla `getBlockContainer`: a `WorldlyContainerHolder` block provides its
+    // transient container before block entities are consulted, and never falls
+    // through to one.
+    if let Some(holder) = BLOCK_BEHAVIORS
+        .get_behavior(state.get_block())
+        .as_worldly_container_holder()
+    {
+        return Some(TransferTarget::single(
+            holder.get_container(state, world, pos),
+        ));
+    }
+
     let block_entity = world.get_block_entity(pos)?;
     unpack_pending_loot(&block_entity);
 
