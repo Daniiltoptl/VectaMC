@@ -76,5 +76,8 @@ Java считает `int / float` и `float * int` во float, Vecta счита�
 
 ## Проверки
 
-Результаты см. в сообщении коммита ревью и в логах `D:\CodexBuilds\logs\review-s09-*`.
+- `cargo test --locked --workspace -j 1`: 4329 passed, 0 failed, 18 ignored.
+- `cargo clippy --locked --workspace --all-targets --all-features -j 1 -- -D warnings`: exit 0.
+- `cargo fmt --all --check`: exit 0.
+- Логи: `D:\CodexBuilds\logs\review-s09-*`.
 Настоящий клиент 26.3 не проверялся.
