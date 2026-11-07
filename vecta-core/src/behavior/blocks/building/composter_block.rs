@@ -156,17 +156,21 @@ impl ComposterBlock {
         world: &Arc<World>,
         pos: BlockPos,
     ) {
-        // Vanilla draws the XZ scatter (`offsetRandomXZ`) and the entity's
-        // initial velocity from the level random, in this order.
-        let (position, velocity) = world.random().with_level(|rng| {
-            let position = DVec3::new(
+        // `offsetRandomXZ` draws from the level random. The initial velocity
+        // comes from the new entity's own unseeded random, so it must not
+        // advance the level stream.
+        let position = world.random().with_level(|rng| {
+            DVec3::new(
                 f64::from(pos.x()) + 0.5 + f64::from((rng.next_f32() - 0.5) * 0.7),
                 f64::from(pos.y()) + 1.01,
                 f64::from(pos.z()) + 0.5 + f64::from((rng.next_f32() - 0.5) * 0.7),
-            );
-            let velocity = DVec3::new(rng.next_f64() * 0.2 - 0.1, 0.2, rng.next_f64() * 0.2 - 0.1);
-            (position, velocity)
+            )
         });
+        let velocity = DVec3::new(
+            rand::random::<f64>() * 0.2 - 0.1,
+            0.2,
+            rand::random::<f64>() * 0.2 - 0.1,
+        );
         let entity = Arc::new(ItemEntity::with_item_and_velocity(
             &vanilla_entities::ITEM,
             next_entity_id(),
@@ -354,6 +358,16 @@ impl Container for InputContainer {
         1
     }
 
+    /// `SimpleContainer.setItem` calls `setChanged`, which composts at once.
+    fn set_item(&mut self, slot: usize, mut stack: ItemStack) {
+        let max_size = self.get_max_stack_size_for_item(&stack);
+        if stack.count() > max_size {
+            stack.set_count(max_size);
+        }
+        self.items[slot] = stack;
+        self.set_changed();
+    }
+
     fn slots_for_face(&self, direction: Direction) -> Option<&'static [usize]> {
         if direction == Direction::Up {
             Some(&[0])
@@ -439,6 +453,29 @@ impl Container for OutputContainer {
 
     fn get_max_stack_size(&self) -> i32 {
         1
+    }
+
+    /// `SimpleContainer.removeItem` calls `setChanged` before the hopper knows
+    /// whether the bone meal fits, so a failed pull still empties the
+    /// composter and the bone meal is lost, as in vanilla.
+    fn remove_item(&mut self, slot: usize, count: i32) -> ItemStack {
+        let item = &mut self.items[slot];
+        if item.is_empty() || count <= 0 {
+            return ItemStack::empty();
+        }
+        let removed = item.split(count);
+        self.set_changed();
+        removed
+    }
+
+    /// `SimpleContainer.setItem` calls `setChanged`.
+    fn set_item(&mut self, slot: usize, mut stack: ItemStack) {
+        let max_size = self.get_max_stack_size_for_item(&stack);
+        if stack.count() > max_size {
+            stack.set_count(max_size);
+        }
+        self.items[slot] = stack;
+        self.set_changed();
     }
 
     fn slots_for_face(&self, direction: Direction) -> Option<&'static [usize]> {
@@ -906,6 +943,29 @@ mod tests {
         let taken = hopper_slot(&fixture, TEST_POS, 0);
         assert!(taken.is(&vanilla_items::BONE_MEAL));
         assert_eq!(taken.count(), 1);
+    }
+
+    #[test]
+    fn a_failed_pull_still_empties_the_composter() {
+        // Five partial stacks leave the hopper not full, so it tries to pull,
+        // but nothing merges with bone meal. `SimpleContainer.removeItem` has
+        // already emptied the composter by then.
+        let fixture = pull_fixture("composter_hopper_failed_take");
+        for slot in 0..5 {
+            set_hopper_slot(
+                &fixture,
+                TEST_POS,
+                slot,
+                ItemStack::new(&vanilla_items::DIRT),
+            );
+        }
+        tick_block_entities(&fixture, 1);
+
+        assert_eq!(composter_level(&fixture, ABOVE), 0);
+        assert!(
+            (0..5).all(|slot| hopper_slot(&fixture, TEST_POS, slot).is(&vanilla_items::DIRT)),
+            "the bone meal is lost, not merged"
+        );
     }
 
     #[test]
