@@ -497,6 +497,11 @@ impl TestLevel {
             .iter()
             .any(|tick| tick.fluid == &vanilla_fluids::WATER)
     }
+
+    /// Snapshot of the block ticks scheduled through this level.
+    pub(crate) fn scheduled_block_tick_list(&self) -> Vec<ScheduledBlockTick> {
+        self.scheduled_block_ticks.borrow().clone()
+    }
 }
 
 impl LevelReader for TestLevel {

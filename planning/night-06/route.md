@@ -189,3 +189,17 @@ configured providers `compostable/*`. Workspace 4341/0/18.
 хвосты ревью сеанса 8 (контекст печи без BLOCK_ENTITY/CONTAINER, inline-форма
 ResolvableInt/ResolvableFloat в CookingFuel, `block_entity_loot_ref` в
 compute) и далее раздел D файла 06_07 с пункта 29.
+
+## Обновление сеанса 10 (2026-11-07)
+
+Farmland закрыт (W06-536…538, W06-540): влага/дождь/высыхание, trampling
+через level random, canSurvive/updateShape/tick, placement→dirt, тег
+MAINTAINS_FARMLAND; мотыга — data-driven transformer, закреплена тестами,
+не дублирована; рост crop переведён на level random
+(`nextInt((int)(25/speed)+1)==0`). Workspace 4357/0/18.
+
+Следующий маршрут: хвосты ревью при первом consumer (inline
+ResolvableInt/ResolvableFloat у Compostable/CookingFuel, контекст печи без
+BLOCK_ENTITY/CONTAINER, `block_entity_loot_ref`, B-06-11), bonemeal на
+level random как самостоятельный маленький срез, затем раздел D файла 06_07
+с пункта 29.

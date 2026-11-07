@@ -11,6 +11,7 @@ use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::vanilla_block_tags::BlockTag;
 use vecta_registry::{vanilla_entities, vanilla_game_rules, vanilla_items};
+use vecta_utils::random::Random as _;
 use vecta_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 
 use crate::behavior::block::BlockBehavior;
@@ -144,11 +145,14 @@ pub(crate) trait CropLike {
         if age < self.max_age() {
             let growth_speed = self.get_growth_speed(world, pos);
 
-            // Random chance to grow based on growth speed
-            // Vanilla formula: random.nextInt((int)(25.0F / growthSpeed) + 1) == 0
-            let growth_chance = (CROP_GROWTH_CHANCE_BASE / growth_speed) as u32 + 1;
+            // Vanilla formula: the ServerLevel random decides growth:
+            // `random.nextInt((int)(25.0F / growthSpeed) + 1) == 0`.
+            let growth_chance = (CROP_GROWTH_CHANCE_BASE / growth_speed) as i32 + 1;
+            let roll = world
+                .random()
+                .with_level(|rng| rng.next_i32_bounded(growth_chance));
 
-            if rand::random::<u32>().is_multiple_of(growth_chance) {
+            if roll == 0 {
                 let new_state = self.get_state_for_age(age + 1);
                 world.set_block(pos, new_state, UpdateFlags::UPDATE_CLIENTS);
             }
@@ -329,5 +333,111 @@ mod tests {
         assert!(ravager_breaks_crop(&vanilla_entities::RAVAGER, true));
         assert!(!ravager_breaks_crop(&vanilla_entities::RAVAGER, false));
         assert!(!ravager_breaks_crop(&vanilla_entities::ZOMBIE, true));
+    }
+
+    #[test]
+    fn growth_speed_follows_vanilla_moisture_and_crowding_rules() {
+        init_vanilla_registry();
+
+        let pos = BlockPos::new(4, 64, 4);
+        let below = pos.below();
+
+        // Vanilla: dry farmland below adds 1.0, hydrated adds 3.0, and every
+        // non-center GROWS_CROPS cell contributes divided by 4.
+        let dry = TestLevel::default().with_block(
+            below,
+            vanilla_blocks::FARMLAND
+                .default_state()
+                .set_value(MOISTURE, 0u8),
+        );
+        assert_eq!(crop_growth_speed(&vanilla_blocks::WHEAT, &dry, pos), 2.0);
+
+        let wet = TestLevel::default().with_block(
+            below,
+            vanilla_blocks::FARMLAND
+                .default_state()
+                .set_value(MOISTURE, 7u8),
+        );
+        assert_eq!(crop_growth_speed(&vanilla_blocks::WHEAT, &wet, pos), 4.0);
+
+        // A neighboring dry farmland contributes 0.25 (1.0 / 4).
+        let neighbor = TestLevel::default()
+            .with_block(
+                below,
+                vanilla_blocks::FARMLAND
+                    .default_state()
+                    .set_value(MOISTURE, 0u8),
+            )
+            .with_block(
+                below.west(),
+                vanilla_blocks::FARMLAND
+                    .default_state()
+                    .set_value(MOISTURE, 0u8),
+            );
+        assert_eq!(
+            crop_growth_speed(&vanilla_blocks::WHEAT, &neighbor, pos),
+            2.25
+        );
+
+        // The same crop both east-west and north-south halves the speed.
+        let crowded = TestLevel::default()
+            .with_block(
+                below,
+                vanilla_blocks::FARMLAND
+                    .default_state()
+                    .set_value(MOISTURE, 7u8),
+            )
+            .with_block(pos.west(), vanilla_blocks::WHEAT.default_state())
+            .with_block(pos.north(), vanilla_blocks::WHEAT.default_state());
+        assert_eq!(
+            crop_growth_speed(&vanilla_blocks::WHEAT, &crowded, pos),
+            2.0
+        );
+
+        // Non-farmland ground adds nothing: just the vanilla 1.0 base.
+        let bare = TestLevel::default();
+        assert_eq!(crop_growth_speed(&vanilla_blocks::WHEAT, &bare, pos), 1.0);
+    }
+
+    #[test]
+    fn crops_grow_through_the_level_random_on_hydrated_farmland() {
+        use crate::bootstrap::init_globals;
+        use crate::test_support::{fresh_test_world, insert_ready_full_chunk};
+        use vecta_utils::ChunkPos;
+
+        init_globals();
+        let fixture = fresh_test_world("crop_growth_level_random");
+        insert_ready_full_chunk(&fixture.world, ChunkPos::new(0, 0));
+        let world = &fixture.world;
+
+        let pos = BlockPos::new(8, 64, 8);
+        assert!(
+            world.set_block(
+                pos.below(),
+                vanilla_blocks::FARMLAND
+                    .default_state()
+                    .set_value(MOISTURE, 7u8),
+                UpdateFlags::UPDATE_KNOWN_SHAPE,
+            )
+        );
+        assert!(world.set_block(
+            pos,
+            vanilla_blocks::WHEAT.default_state(),
+            UpdateFlags::UPDATE_KNOWN_SHAPE,
+        ));
+
+        let crop = CropBlock::new(&vanilla_blocks::WHEAT);
+        let mut grew = false;
+        for _ in 0..10_000 {
+            crop.random_tick(world.get_block_state(pos), world, pos);
+            if world.get_block_state(pos).get_value(AGE) > 0 {
+                grew = true;
+                break;
+            }
+        }
+        assert!(
+            grew,
+            "a hydrated crop under full sky light must grow through the level random"
+        );
     }
 }

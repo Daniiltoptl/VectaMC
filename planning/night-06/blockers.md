@@ -371,3 +371,32 @@ B-06-11 (`environment_attribute`, owned `LevelBasedValue`, inline-условия
 в Vecta декодируется ошибочно. Это тот же дефект, что у `CookingFuel`
 (ревью сеанса 8); закрытие — общий срез Resolvable* inline-форм, не отдельный
 blocker компостера.
+
+## Сеанс 10: Farmland — открытые расхождения, зафиксированные сверкой Java
+
+1. **Spawn protection не смоделирована.** Ванильный `FarmlandBlock.fallOn`
+   для игрока требует `!server.isUnderSpawnProtection(level, pos, player)`
+   (DedicatedServer: список опов непуст И игрок не оп И spawnProtectionRadius>0
+   И позиция в Chebyshev-радиусе от спавна измерения респавна). В Vecta список
+   опов и радиус защиты спавна недоступны из поведения блока; ветка игрока
+   реализована без проверки — это в точности поведение ванили при пустом
+   списке опов (DedicatedServer возвращает false). Закрытие — срез
+   spawn-protection (ops list + radius + respawn data), не блокер фарма.
+2. **Bonemeal использует thread RNG вместо level random.** Пока правил срез
+   crop/farmland, найдено: `behavior/items/bonemeal.rs` берёт `rand::rng()`
+   для is_bonemeal_success, смещений разброса и `random_range(0..10)`;
+   ваниль везде берёт `level.getRandom()` (в т.ч.
+   `Mth.nextInt(level.getRandom(), 2, 5)` в `getBonemealAgeIncrease`). Тот же
+   класс расхождения, что исправлен у crop growth в этом сеансе. Срез:
+   перевести bonemeal на `world.random().with_level`.
+3. **Порядок-зависимый тест copper chest transformer.**
+   `copper_chest_transforms_both_halves_and_preserves_independent_properties`
+   падает при запуске с узким фильтром `block_transformer` ("Block entity
+   registry not initialized") и на чистом HEAD тоже; в полном проге проходит,
+   потому что реестр инициализирует более ранний тест. Лечится `init_globals()`
+   в `Interaction::new` (fixture) — не сделано в этом сеансе, чтобы не трогать
+   чужой fixture без необходимости.
+4. Хвосты ревью сеансов 8–9 остаются: inline-формы ResolvableInt/ResolvableFloat
+   (Compostable/CookingFuel), контекст печи без BLOCK_ENTITY/CONTAINER,
+   `block_entity_loot_ref` заполняет только тип, B-06-11, формы компостера не
+   сверялись.

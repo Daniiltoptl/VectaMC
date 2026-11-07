@@ -573,3 +573,51 @@ entity accessor, затем compute и направления3–12 файла05
    ничего не меняет. Звуки/level events проверяются по реально отправленным
    пакетам. Workspace **4341 passed / 0 failed / 18 ignored** (было 4329),
    fmt/Clippy exit 0, Python 4 OK, audit 3105/49/227.
+
+## Сеанс 10 (2026-11-07): Farmland W06-536…538 + W06-540
+
+Старт: HEAD `62694c7f3` (ревью компостера), 4342/0/18. Сверены целиком
+`FarmlandBlock.java` и `CropBlock.java` (26.3) с текущей реализацией.
+
+1. **Farmland (`farmland_block.rs`, переписан).** Все методы ванили:
+   `getStateForPlacement` (не выживает → базовый блок **dirt**, иначе
+   default moisture 0), `updateShape` (сосед сверху при !canSurvive →
+   scheduleTick(1)), `canSurvive` (`!above.isSolid() || MAINTAINS_FARMLAND`),
+   `tick` (!canSurvive → dirt), `randomTick` (влага: рядом вода или дождь
+   `isRainingAt(above)` → 7; иначе −1; на 0 без crop → dirt),
+   `fallOn` (trampling), `turnToBaseBlock` (общий `turn_to_dirt`:
+   pushEntitiesUp + game event), `isPathfindable=false`. `isNearWater` —
+   точно ваниль: fluid state (источник/поток/waterlogged) в боксе
+   (-4,0,-4)..(4,1,4); прежний хардкод «WATER или waterlogged» заменён на
+   `get_fluid_state().is_water()`. `shouldMaintainFarmland` — тег
+   `MAINTAINS_FARMLAND` вместо ручного списка (тег шире: fence gates,
+   torchflower, moving_piston).
+2. **RNG-поток.** `fallOn` теперь берёт бросок из **level random**
+   (`world.random().with_level(Random::next_f32)`) на каждом приземлении до
+   любых условий — раньше был thread `rand::random`. У crop growth то же
+   исправление: `on_random_tick` теперь
+   `nextInt((int)(25.0F/growthSpeed)+1)==0` на level random вместо
+   `rand::random::<u32>().is_multiple_of`.
+   Тесты trampling детерминированы краями ванильного условия:
+   fallDistance=0.5 → бросок невозможен (никогда), 100 → всегда.
+3. **W06-538 мотыга — проверена, не дублирована.** В 26.3 `HoeItem` —
+   data-driven `BlockTransformers.HOE`; extracted data в Vecta совпадает
+   с Java 1:1 (all_of(turns_into_farmland, air@offset(0,1,0))→farmland m0;
+   coarse_dirt+air→dirt; rooted_dirt→dirt+loot till/rooted_dirt,
+   clicked_face; disallowed face DOWN; звук ITEM_HOE_TILL). Закреплено
+   тестами через реальный `use_on`: dirt→farmland (и запрет при блоке
+   сверху → Pass), coarse_dirt→dirt, grass_block→farmland;
+   rooted dirt уже был покрыт.
+4. **W06-540 жизненный цикл.** Рост crop: формула скорости
+   (`crop_growth_speed`: GROWS_CROPS, влага>0→3.0, /4 соседи, /2 скученность)
+   сверена с Java и закреплена детерминированным тестом; реальный
+   random_tick растит wheat на гидратированной грядке через level random.
+   Trampling ломает crop: тест «жёсткое падение → farmland→dirt, wheat
+   сверху исчезает» (update_shape куста). Высыхание без воды, удержание
+   влаги-0 под crop, revert в dirt по tick под перекрытием — все на реальных
+   путях.
+5. **Проверки.** Farmland-тестов 14 (+3 старых pure), crop-тестов +3,
+   transformer +2. Workspace **4357 passed / 0 failed / 18 ignored**
+   (было 4342), fmt exit0, Clippy `-D warnings` exit0. Найдено попутно и
+   записано в blockers: bonemeal на thread RNG, spawn-protection не
+   смоделирована, порядок-зависимый copper chest transformer тест.

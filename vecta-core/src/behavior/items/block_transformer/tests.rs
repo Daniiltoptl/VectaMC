@@ -74,6 +74,80 @@ impl Interaction {
     }
 }
 
+/// Vanilla 26.3 hoes through `BlockTransformers.HOE`: the first transform rule
+/// turns every `TURNS_INTO_FARMLAND` block with air above into moisture-0
+/// farmland.
+#[test]
+fn hoe_tills_dirt_into_farmland_only_with_air_above() {
+    let interaction = Interaction::new("transformer_hoe_till");
+    interaction.block(interaction.pos, vanilla_blocks::DIRT.default_state());
+    interaction.tool(&vanilla_items::WOODEN_HOE);
+
+    assert_eq!(
+        interaction.use_on(Direction::Up, InteractionHand::MainHand),
+        InteractionResult::Success
+    );
+    assert_eq!(
+        interaction
+            .world_fixture
+            .world
+            .get_block_state(interaction.pos),
+        vanilla_blocks::FARMLAND.default_state(),
+    );
+
+    // A solid cover removes the vanilla air-above predicate: no transform.
+    interaction.block(interaction.pos, vanilla_blocks::DIRT.default_state());
+    interaction.block(
+        interaction.pos.above(),
+        vanilla_blocks::STONE.default_state(),
+    );
+    assert_eq!(
+        interaction.use_on(Direction::Up, InteractionHand::MainHand),
+        InteractionResult::Pass
+    );
+    assert_eq!(
+        interaction
+            .world_fixture
+            .world
+            .get_block_state(interaction.pos),
+        vanilla_blocks::DIRT.default_state(),
+    );
+}
+
+/// The second rule of the vanilla hoe turns coarse dirt (with air above) into
+/// plain dirt, and grass block is also part of `TURNS_INTO_FARMLAND`.
+#[test]
+fn hoe_tills_coarse_dirt_into_dirt_and_grass_into_farmland() {
+    let interaction = Interaction::new("transformer_hoe_coarse");
+    interaction.tool(&vanilla_items::WOODEN_HOE);
+
+    interaction.block(interaction.pos, vanilla_blocks::COARSE_DIRT.default_state());
+    assert_eq!(
+        interaction.use_on(Direction::Up, InteractionHand::MainHand),
+        InteractionResult::Success
+    );
+    assert_eq!(
+        interaction
+            .world_fixture
+            .world
+            .get_block_state(interaction.pos),
+        vanilla_blocks::DIRT.default_state(),
+    );
+
+    interaction.block(interaction.pos, vanilla_blocks::GRASS_BLOCK.default_state());
+    assert_eq!(
+        interaction.use_on(Direction::Up, InteractionHand::MainHand),
+        InteractionResult::Success
+    );
+    assert_eq!(
+        interaction
+            .world_fixture
+            .world
+            .get_block_state(interaction.pos),
+        vanilla_blocks::FARMLAND.default_state(),
+    );
+}
+
 #[test]
 fn rooted_dirt_drops_loot_from_each_clicked_face_even_with_a_block_above() {
     let interaction = Interaction::new("transformer_rooted_dirt");

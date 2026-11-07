@@ -39,6 +39,8 @@
 | Следующий consumer | **Компостер** как потребитель `compostable/*` (вертикальный срез), затем направления 4–12 файла 05 |
 | Сеанс 9 | компостер + WorldlyContainerHolder; workspace **4341/0/18**, fmt/Clippy exit0, Python4, audit3105/49/227; см. report-next-09 |
 | Следующий consumer (сеанс 9) | **Farmland (W06-536…538)** из G108, затем хвосты ревью сеанса 8 и раздел D файла 06_07 с пункта 29 |
+| Сеанс 10 | Farmland W06-536…538+540: isNearWater по fluid state, MAINTAINS_FARMLAND тег, canSurvive/updateShape+tick, placement→dirt, isPathfindable, fallOn через level random; crop growth через level random; workspace **4357/0/18**, fmt/Clippy exit0; см. report-next-10 |
+| Следующий consumer (сеанс 10) | хвосты ревью (inline ResolvableInt/ResolvableFloat, контекст печи BLOCK_ENTITY/CONTAINER, block_entity_loot_ref, B-06-11) при первом consumer, затем раздел D файла 06_07 с пункта 29 |
 
 [Отчёт сеанса 2](report-next-02.md), [полное ТЗ](../../NIGHT_TASK_06.md),
 [маршрут](route.md), [Java index](reference-index.json),
