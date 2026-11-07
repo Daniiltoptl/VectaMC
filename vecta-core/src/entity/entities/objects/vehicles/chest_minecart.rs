@@ -15,6 +15,7 @@ use vecta_utils::Identifier;
 use vecta_utils::axis::Axis;
 use vecta_utils::block_util::FoundRectangle;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
 use super::abstract_minecart::minecart_relative_portal_position;
@@ -148,11 +149,9 @@ impl Entity for ChestMinecartEntity {
             .string("LootTable")
             .and_then(|value| Identifier::from_str(&value.to_string()).ok());
         let mut state = self.state.lock();
-        if let Some(first_tick) = nbt.byte("HasTicked") {
-            state.first_tick = first_tick != 0;
-        }
+        state.first_tick = nbt.byte_value("HasTicked").is_some_and(|value| value != 0);
         state.loot_table = loot_table;
-        state.loot_table_seed = nbt.long("LootTableSeed").unwrap_or(0);
+        state.loot_table_seed = nbt.long_value("LootTableSeed").unwrap_or(0);
     }
 }
 

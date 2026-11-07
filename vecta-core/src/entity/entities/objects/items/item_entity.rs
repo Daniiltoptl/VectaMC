@@ -17,6 +17,7 @@ use vecta_registry::vanilla_game_rules::MOB_GRIEFING;
 use vecta_registry::{vanilla_custom_stats, vanilla_damage_types};
 use vecta_utils::UuidExt;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{Downcast as _, DowncastType, DowncastTypeKey};
 
 use crate::entity::damage::DamageSource;
@@ -769,13 +770,13 @@ impl Entity for ItemEntity {
     fn load_additional(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         // Match vanilla's ItemEntity.readAdditionalSaveData
         let mut state = self.item_state.lock();
-        if let Some(health) = nbt.short("Health") {
+        if let Some(health) = nbt.short_value("Health") {
             state.health = i32::from(health);
         }
-        if let Some(age) = nbt.short("Age") {
+        if let Some(age) = nbt.short_value("Age") {
             state.age = i32::from(age);
         }
-        if let Some(pickup_delay) = nbt.short("PickupDelay") {
+        if let Some(pickup_delay) = nbt.short_value("PickupDelay") {
             state.pickup_delay = i32::from(pickup_delay);
         }
 

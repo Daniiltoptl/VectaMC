@@ -11,6 +11,7 @@ use vecta_registry::vanilla_game_events;
 use vecta_registry::{
     REGISTRY, TaggedRegistryExt as _, vanilla_blocks, vanilla_entity_type_tags::EntityTypeTag,
 };
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::random::xoroshiro::Xoroshiro;
 use vecta_utils::random::{PositionalRandom, Random, RandomSource, RandomSplitter};
 use vecta_utils::types::UpdateFlags;
@@ -251,7 +252,7 @@ impl BlockEntity for PotentSulfurBlockEntity {
 
     fn load_additional(&self, nbt: &BorrowedNbtCompound<'_>) {
         let nbt: NbtCompoundView<'_, '_> = nbt.into();
-        if let Some(countdown) = nbt.int("countdown") {
+        if let Some(countdown) = nbt.int_value("countdown") {
             self.sulfur.lock().waiting_countdown = countdown;
         }
     }

@@ -17,6 +17,8 @@ use vecta_registry::entity_data::EntityPose;
 use vecta_registry::entity_type::{EntityDimensions, EntityTypeRef};
 use vecta_registry::vanilla_entity_data::InteractionEntityData;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtNumeric as _;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{DowncastType, DowncastTypeKey, UuidExt, WorldAabb};
 
@@ -239,13 +241,14 @@ impl Entity for InteractionEntity {
 
             guard
                 .width
-                .set(nbt.float(TAG_WIDTH).unwrap_or(DEFAULT_WIDTH));
+                .set(nbt.float_value(TAG_WIDTH).unwrap_or(DEFAULT_WIDTH));
             guard
                 .height
-                .set(nbt.float(TAG_HEIGHT).unwrap_or(DEFAULT_HEIGHT));
-            guard
-                .response
-                .set(nbt.byte(TAG_RESPONSE).map_or(DEFAULT_RESPONSE, |b| b != 0));
+                .set(nbt.float_value(TAG_HEIGHT).unwrap_or(DEFAULT_HEIGHT));
+            guard.response.set(
+                nbt.byte_value(TAG_RESPONSE)
+                    .map_or(DEFAULT_RESPONSE, |b| b != 0),
+            );
 
             guard.width.is_dirty() || guard.height.is_dirty()
         };
@@ -295,7 +298,7 @@ impl FromNbtTag for PlayerAction {
         let compound = tag.compound()?;
         Some(Self {
             player: Uuid::from_int_array(&compound.int_array(TAG_PLAYER)?)?,
-            timestamp: compound.long(TAG_TIMESTAMP)?,
+            timestamp: compound.get(TAG_TIMESTAMP)?.codec_i64()?,
         })
     }
 }

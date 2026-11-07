@@ -24,6 +24,8 @@ use vecta_registry::recipe::{
 use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::{REGISTRY, vanilla_block_entity_types, vanilla_items};
 use vecta_utils::locks::IntoShared;
+use vecta_utils::nbt::NbtNumeric as _;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{
     BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
     types::UpdateFlags,
@@ -32,6 +34,7 @@ use vecta_utils::{
 use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::entity::entities::ExperienceOrbEntity;
 use crate::inventory::container::Container;
+use vecta_utils::nbt::NbtValueInput as _;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::world::World;
 
@@ -487,15 +490,15 @@ impl AbstractFurnaceBlockEntity {
             }
         }
         // 26.3 stores the timers as ints and keeps the fuel's speed multiplier.
-        furnace.cooking_timer = nbt.int("cooking_time_spent").unwrap_or(0);
-        furnace.cooking_total_time = nbt.int("cooking_total_time").unwrap_or(0);
-        furnace.lit_time_remaining = nbt.int("lit_time_remaining").unwrap_or(0);
-        furnace.lit_total_time = nbt.int("lit_total_time").unwrap_or(0);
-        furnace.speed_multiplier = nbt.float("speed_multiplier").unwrap_or(1.0);
+        furnace.cooking_timer = nbt.int_value("cooking_time_spent").unwrap_or(0);
+        furnace.cooking_total_time = nbt.int_value("cooking_total_time").unwrap_or(0);
+        furnace.lit_time_remaining = nbt.int_value("lit_time_remaining").unwrap_or(0);
+        furnace.lit_total_time = nbt.int_value("lit_total_time").unwrap_or(0);
+        furnace.speed_multiplier = nbt.float_value("speed_multiplier").unwrap_or(1.0);
         furnace.recipes_used.clear();
         if let Some(recipes) = nbt.compound("RecipesUsed") {
             for (key, value) in recipes.iter() {
-                let Some(count) = value.int() else {
+                let Some(count) = value.codec_i32() else {
                     continue;
                 };
                 if let Ok(identifier) = key.to_string().parse() {

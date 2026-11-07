@@ -38,7 +38,7 @@ use crate::{
     },
     entity::Entity as _,
     inventory::{
-        container::Container,
+        container::{Container, load_all_items},
         lock::{ContainerRef, SharedContainer},
     },
     physics::{CollisionWorld as _, MoverType, WorldCollisionProvider},
@@ -479,25 +479,7 @@ impl BlockEntity for ShulkerBoxBlockEntity {
             return;
         }
 
-        let Some(items_list) = nbt_view.list("Items") else {
-            return;
-        };
-        let Some(compounds) = items_list.compounds() else {
-            return;
-        };
-
-        for compound in compounds {
-            let Some(slot) = compound.byte("Slot") else {
-                continue;
-            };
-            let slot = slot as usize;
-            if slot >= SHULKER_BOX_SLOTS {
-                continue;
-            }
-            if let Some(item) = ItemStack::from_borrowed_compound(&compound) {
-                container.items[slot] = item;
-            }
-        }
+        load_all_items(nbt_view, &mut container.items);
     }
 
     fn save_additional(&self, nbt: &mut NbtCompound) {

@@ -19,6 +19,7 @@ use vecta_registry::vanilla_entity_data::FireworkRocketEntityData;
 use vecta_registry::{sound_events, vanilla_damage_types, vanilla_game_events, vanilla_items};
 use vecta_utils::entity_events::EntityStatus;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
 use crate::behavior::BLOCK_BEHAVIORS;
@@ -418,15 +419,18 @@ impl Entity for FireworkRocketEntity {
         self.load_projectile(nbt);
         {
             let mut state = self.state.lock();
-            state.life = nbt.int("Life").unwrap_or(0);
-            state.lifetime = nbt.int("LifeTime").unwrap_or(0);
+            state.life = nbt.int_value("Life").unwrap_or(0);
+            state.lifetime = nbt.int_value("LifeTime").unwrap_or(0);
         }
         let item = nbt
             .compound("FireworksItem")
             .and_then(|item| ItemStack::from_borrowed_compound(&item))
             .unwrap_or_else(|| ItemStack::new(&vanilla_items::FIREWORK_ROCKET));
         self.set_item(item);
-        self.set_shot_at_angle(nbt.byte("ShotAtAngle").is_some_and(|value| value != 0));
+        self.set_shot_at_angle(
+            nbt.byte_value("ShotAtAngle")
+                .is_some_and(|value| value != 0),
+        );
     }
 }
 

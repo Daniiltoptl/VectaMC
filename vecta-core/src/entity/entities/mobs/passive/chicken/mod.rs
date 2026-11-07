@@ -26,6 +26,7 @@ use vecta_registry::{
     REGISTRY, RegistryExt, RegistryReference, TaggedRegistryExt, sound_events, vanilla_game_events,
 };
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::random::legacy_random::LegacyRandom;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier};
@@ -497,8 +498,11 @@ impl Entity for ChickenEntity {
         self.load_ageable_mob(nbt);
         self.load_animal(nbt);
 
-        self.set_chicken_jockey(nbt.byte("IsChickenJockey").is_some_and(|value| value != 0));
-        if let Some(egg_time) = nbt.int("EggLayTime") {
+        self.set_chicken_jockey(
+            nbt.byte_value("IsChickenJockey")
+                .is_some_and(|value| value != 0),
+        );
+        if let Some(egg_time) = nbt.int_value("EggLayTime") {
             self.set_egg_time(egg_time);
         }
         if let Some(variant) = nbt.string("variant")

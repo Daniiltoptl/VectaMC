@@ -15,6 +15,7 @@ use vecta_registry::vanilla_game_rules::MOB_DROPS;
 use vecta_registry::{vanilla_blocks, vanilla_entities};
 use vecta_utils::entity_events::EntityStatus;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, UuidExt};
 
@@ -368,7 +369,7 @@ pub trait Animal: AgeableMob {
 
     /// Loads vanilla animal fields.
     fn load_animal(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
-        self.set_in_love_time(nbt.int("InLove").unwrap_or(0));
+        self.set_in_love_time(nbt.int_value("InLove").unwrap_or(0));
         if let Some(love_cause) = nbt.int_array("LoveCause")
             && let Some(uuid) = Uuid::from_int_array(&love_cause)
         {

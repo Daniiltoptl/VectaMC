@@ -12,6 +12,7 @@ use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::vanilla_entity_data::EndermiteEntityData;
 use vecta_registry::{sound_events, vanilla_attributes};
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey};
 
 use crate::entity::ai::goal::{
@@ -220,8 +221,8 @@ impl Entity for EndermiteEntity {
 
     fn load_additional(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         self.load_mob(nbt);
-        *self.lifetime.lock() = nbt.int("Lifetime").unwrap_or(0);
-        *self.player_spawned.lock() = nbt.byte("PlayerSpawned").is_some_and(|b| b != 0);
+        *self.lifetime.lock() = nbt.int_value("Lifetime").unwrap_or(0);
+        *self.player_spawned.lock() = nbt.byte_value("PlayerSpawned").is_some_and(|b| b != 0);
     }
 }
 
