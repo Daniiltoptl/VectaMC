@@ -92,6 +92,40 @@ fn int_arithmetic_matches_java_edge_cases() {
         ),
         1
     );
+    // `Math.subtractExact` throws on overflow.
+    assert_eq!(
+        int_ctx(
+            &IntProvider::Sub(
+                ProviderRef::inline(IntProvider::Constant(i32::MIN)),
+                ProviderRef::inline(IntProvider::Constant(1))
+            ),
+            &mut rng
+        ),
+        0
+    );
+    // A negative divisor separates floor arithmetic from Euclidean arithmetic.
+    for (left, right, quotient, modulus) in [(7, -2, -4, -1), (-7, -2, 3, -1), (6, -2, -3, 0)] {
+        assert_eq!(
+            int_ctx(
+                &IntProvider::FloorDiv(
+                    ProviderRef::inline(IntProvider::Constant(left)),
+                    ProviderRef::inline(IntProvider::Constant(right))
+                ),
+                &mut rng
+            ),
+            quotient
+        );
+        assert_eq!(
+            int_ctx(
+                &IntProvider::FloorMod(
+                    ProviderRef::inline(IntProvider::Constant(left)),
+                    ProviderRef::inline(IntProvider::Constant(right))
+                ),
+                &mut rng
+            ),
+            modulus
+        );
+    }
     // Sum accumulates in a long and then checks the int range.
     assert_eq!(
         int_ctx(
@@ -192,6 +226,39 @@ fn float_arithmetic_matches_java_edge_cases() {
     // Average of an empty list divides by zero.
     assert_eq!(
         float_ctx(&FloatProvider::Average(Vec::new()), &mut rng),
+        0.0
+    );
+}
+
+#[test]
+fn a_nan_operand_reaches_the_safe_wrapper() {
+    let mut rng = seed();
+    let nan = || {
+        ProviderRef::inline(FloatProvider::Div(
+            ProviderRef::inline(FloatProvider::Constant(0.0)),
+            ProviderRef::inline(FloatProvider::Constant(0.0)),
+        ))
+    };
+    let one = || ProviderRef::inline(FloatProvider::Constant(1.0));
+
+    // `Math.max`/`Math.min` keep NaN, which `getFloat` then turns into 0.
+    assert_eq!(
+        float_ctx(&FloatProvider::Max(vec![nan(), one()]), &mut rng),
+        0.0
+    );
+    assert_eq!(
+        float_ctx(&FloatProvider::Min(vec![one(), nan()]), &mut rng),
+        0.0
+    );
+    // `Math.pow(1, NaN)` is NaN, while C's `pow` returns 1.
+    assert_eq!(
+        float_ctx(
+            &FloatProvider::Pow {
+                base: one(),
+                exponent: nan(),
+            },
+            &mut rng
+        ),
         0.0
     );
 }

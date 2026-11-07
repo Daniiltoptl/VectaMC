@@ -446,8 +446,9 @@ fn manipulate_compute(
     let this_entity = source_stack.entity();
 
     // Java evaluates inside the level's own mutable random, so the whole
-    // evaluation stays within one borrow of that stream.
-    world.random().with_level(|rng| {
+    // evaluation stays within one borrow of that stream. The write happens after
+    // the borrow ends: it can run block updates that use the same stream.
+    let tag = world.random().with_level(|rng| {
         // Every borrowed parameter is bound at the top of this closure so it
         // outlives the `LootContext`, which keeps references into its values.
         let target_entity = match source {
@@ -510,7 +511,7 @@ fn manipulate_compute(
             }
         }
 
-        let tag = match family {
+        Ok::<_, CommandSyntaxError>(match family {
             ComputeFamily::Float => {
                 let value = context
                     .context_float_provider("provider")?
@@ -521,9 +522,9 @@ fn manipulate_compute(
                 let value = context.context_int_provider("provider")?.get_int(&mut loot);
                 NbtTag::Int(value)
             }
-        };
-        apply_source(context, target, manipulator, vec![tag])
-    })
+        })
+    })?;
+    apply_source(context, target, manipulator, vec![tag])
 }
 
 fn validate_compute_context(

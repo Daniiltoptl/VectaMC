@@ -542,24 +542,61 @@ fn negate_exact(value: i32) -> Result<i32, ProviderError> {
     value.checked_neg().ok_or(ProviderError::Arithmetic)
 }
 
-/// `Math.floorMod`.
+/// `Math.floorMod`: the result takes the sign of the divisor, so this is not
+/// Rust's Euclidean remainder.
 const fn floor_mod(left: i32, right: i32) -> Result<i32, ProviderError> {
     if right == 0 {
         return Err(ProviderError::Arithmetic);
     }
-    if right == -1 {
-        return Ok(0);
+    let remainder = left.wrapping_rem(right);
+    if remainder != 0 && (remainder < 0) != (right < 0) {
+        Ok(remainder + right)
+    } else {
+        Ok(remainder)
     }
-    Ok(left.rem_euclid(right))
 }
 
-/// `Math.floorDivExact`: plain floor division plus the overflow check.
+/// `Math.floorDivExact`: rounds towards negative infinity, so this is not Rust's
+/// Euclidean division, plus the overflow check.
 fn floor_div_exact(left: i32, right: i32) -> Result<i32, ProviderError> {
-    if right == 0 {
-        return Err(ProviderError::Arithmetic);
+    let quotient = left.checked_div(right).ok_or(ProviderError::Arithmetic)?;
+    if left % right != 0 && (left < 0) != (right < 0) {
+        Ok(quotient - 1)
+    } else {
+        Ok(quotient)
     }
-    left.checked_div_euclid(right)
-        .ok_or(ProviderError::Arithmetic)
+}
+
+/// `Math.max(float, float)`: NaN wins and `0.0` beats `-0.0`, unlike `f32::max`.
+const fn java_max(left: f32, right: f32) -> f32 {
+    if left.is_nan() || right.is_nan() {
+        f32::NAN
+    } else if left.total_cmp(&right).is_ge() {
+        left
+    } else {
+        right
+    }
+}
+
+/// `Math.min(float, float)`: NaN wins and `-0.0` beats `0.0`, unlike `f32::min`.
+const fn java_min(left: f32, right: f32) -> f32 {
+    if left.is_nan() || right.is_nan() {
+        f32::NAN
+    } else if left.total_cmp(&right).is_le() {
+        left
+    } else {
+        right
+    }
+}
+
+/// `Math.pow`: a base of magnitude one with a non-finite exponent is NaN, while
+/// `powf` follows C and returns one.
+fn java_pow(base: f64, exponent: f64) -> f64 {
+    if base.abs().total_cmp(&1.0).is_eq() && !exponent.is_finite() {
+        f64::NAN
+    } else {
+        base.powf(exponent)
+    }
 }
 
 /// `Math.powExact(int, int)`.
@@ -739,14 +776,14 @@ impl FloatProvider {
             Self::Max(inputs) => {
                 let mut value = -f32::MAX;
                 for input in inputs {
-                    value = value.max(resolve_float(input)?.get_float_unsafe(ctx)?);
+                    value = java_max(value, resolve_float(input)?.get_float_unsafe(ctx)?);
                 }
                 Ok(value)
             }
             Self::Min(inputs) => {
                 let mut value = f32::MAX;
                 for input in inputs {
-                    value = value.min(resolve_float(input)?.get_float_unsafe(ctx)?);
+                    value = java_min(value, resolve_float(input)?.get_float_unsafe(ctx)?);
                 }
                 Ok(value)
             }
@@ -769,7 +806,7 @@ impl FloatProvider {
                 if base == 0.0 && exponent == 0.0 {
                     return Ok(f32::NAN);
                 }
-                Ok(f64::from(base).powf(f64::from(exponent)) as f32)
+                Ok(java_pow(f64::from(base), f64::from(exponent)) as f32)
             }
             Self::Mul(inputs) => product_floats(inputs, ctx),
             Self::Div(left, right) => {
@@ -864,7 +901,8 @@ impl IntProvider {
             Self::Constant(value) => Ok(*value),
             Self::Sub(left, right) => {
                 let left = resolve_int(left)?.get_int_unsafe(ctx)?;
-                Ok(left.wrapping_sub(resolve_int(right)?.get_int_unsafe(ctx)?))
+                left.checked_sub(resolve_int(right)?.get_int_unsafe(ctx)?)
+                    .ok_or(ProviderError::Arithmetic)
             }
             Self::FromFloat(input) => {
                 float_to_int_safe(resolve_float(input)?.get_float_unsafe(ctx)?)

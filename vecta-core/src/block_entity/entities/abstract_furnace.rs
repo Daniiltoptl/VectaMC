@@ -75,9 +75,9 @@ impl FurnaceKind {
 /// Evaluates a fuel item's `minecraft:cooking_fuel` providers.
 ///
 /// Vanilla builds a `CONTAINER_PROCESS` context from the block state, the block
-/// entity and the block centre, then evaluates the configured providers with it.
-/// Vecta cannot store the `CONTAINER` parameter yet (its key has no value type),
-/// so the same three parameters are supplied without that one.
+/// entity, the block centre and the container. Vecta supplies the block state and
+/// the centre only: `CONTAINER` has no value type yet and `BLOCK_ENTITY` is not
+/// passed, so a provider that reads either one sees it as missing.
 pub(crate) struct FurnaceProviders<'a> {
     world: &'a Arc<World>,
     pos: BlockPos,
@@ -195,7 +195,7 @@ impl FurnaceContainer {
     /// recipe time, rounded up; a non-positive multiplier keeps the raw time.
     fn total_cook_time(&self, recipe_time: i32) -> i32 {
         if self.speed_multiplier > 0.0 {
-            (f64::from(recipe_time) / f64::from(self.speed_multiplier)).ceil() as i32
+            (recipe_time as f32 / self.speed_multiplier).ceil() as i32
         } else {
             recipe_time
         }
@@ -279,9 +279,8 @@ impl FurnaceContainer {
                                 self.cooking_timer as f32 / self.cooking_total_time as f32;
                             self.cooking_total_time =
                                 self.total_cook_time(recipe.data().cooking_time);
-                            self.cooking_timer = (f64::from(completion_ratio)
-                                * f64::from(self.cooking_total_time))
-                            .ceil() as i32;
+                            self.cooking_timer =
+                                (completion_ratio * self.cooking_total_time as f32).ceil() as i32;
                         }
                         if duration > 0 {
                             self.consume_fuel(providers.world, providers.pos);
@@ -453,12 +452,9 @@ impl AbstractFurnaceBlockEntity {
         // 26.3 stores the timers as ints and keeps the fuel's speed multiplier.
         furnace.cooking_timer = nbt.int("cooking_time_spent").unwrap_or(0);
         furnace.cooking_total_time = nbt.int("cooking_total_time").unwrap_or(0);
-        furnace.lit_time_remaining = i32::from(nbt.short("lit_time_remaining").unwrap_or(0));
-        furnace.lit_total_time = i32::from(nbt.short("lit_total_time").unwrap_or(0));
-        furnace.speed_multiplier = nbt
-            .float("speed_multiplier")
-            .filter(|value| value.is_finite())
-            .unwrap_or(1.0);
+        furnace.lit_time_remaining = nbt.int("lit_time_remaining").unwrap_or(0);
+        furnace.lit_total_time = nbt.int("lit_total_time").unwrap_or(0);
+        furnace.speed_multiplier = nbt.float("speed_multiplier").unwrap_or(1.0);
         furnace.recipes_used.clear();
         if let Some(recipes) = nbt.compound("RecipesUsed") {
             for (key, value) in recipes.iter() {
@@ -477,8 +473,8 @@ impl AbstractFurnaceBlockEntity {
         nbt.insert("cooking_time_spent", furnace.cooking_timer);
         nbt.insert("cooking_total_time", furnace.cooking_total_time);
         nbt.insert("speed_multiplier", furnace.speed_multiplier);
-        nbt.insert("lit_time_remaining", furnace.lit_time_remaining as i16);
-        nbt.insert("lit_total_time", furnace.lit_total_time as i16);
+        nbt.insert("lit_time_remaining", furnace.lit_time_remaining);
+        nbt.insert("lit_total_time", furnace.lit_total_time);
 
         let mut items = Vec::new();
         for (slot, stack) in furnace.items.iter().enumerate() {
@@ -623,6 +619,9 @@ furnace_block_entity!(
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
+    use simdnbt::borrow::read_compound as read_borrowed_compound;
     use vecta_registry::{init_vanilla_registry, vanilla_blocks, vanilla_items};
 
     use super::*;
@@ -672,6 +671,54 @@ mod tests {
             200,
             "a non-positive multiplier keeps the raw recipe time"
         );
+    }
+
+    #[test]
+    fn relighting_keeps_the_progress_in_float_precision() {
+        // Java multiplies `float * int`: 0.025F * 200 rounds to exactly 5, while
+        // the same product in double is just above it and would ceil to 6.
+        init_vanilla_registry();
+        let fixture = fresh_test_world("furnace_relight_ratio");
+        let providers = FurnaceProviders::new(
+            &fixture.world,
+            BlockPos::ZERO,
+            kind_state(FurnaceKind::Furnace),
+        );
+        let mut furnace = FurnaceContainer::new(FurnaceKind::Furnace);
+        furnace.set_item(SLOT_INPUT, ItemStack::new(&vanilla_items::IRON_ORE));
+        furnace.set_item(SLOT_FUEL, ItemStack::new(&vanilla_items::COAL));
+        furnace.cooking_timer = 5;
+        furnace.cooking_total_time = 200;
+
+        furnace.tick(&providers);
+
+        assert_eq!(furnace.cooking_timer, 6, "the kept 5 plus this tick");
+    }
+
+    #[test]
+    fn the_burn_timers_are_stored_as_ints() {
+        init_vanilla_registry();
+        let furnace = AbstractFurnaceBlockEntity::new(
+            &vanilla_block_entity_types::FURNACE,
+            FurnaceKind::Furnace,
+            Weak::new(),
+            BlockPos::ZERO,
+            kind_state(FurnaceKind::Furnace),
+        );
+        let mut nbt = NbtCompound::new();
+        nbt.insert("lit_time_remaining", 40_000);
+        nbt.insert("lit_total_time", 40_001);
+        let mut bytes = Vec::new();
+        nbt.write(&mut bytes);
+        let borrowed = read_borrowed_compound(&mut Cursor::new(bytes.as_slice()))
+            .expect("furnace NBT decodes");
+
+        furnace.load_additional(&borrowed);
+        let mut saved = NbtCompound::new();
+        furnace.save_additional(&mut saved);
+
+        assert_eq!(saved.int("lit_time_remaining"), Some(40_000));
+        assert_eq!(saved.int("lit_total_time"), Some(40_001));
     }
 
     #[test]
