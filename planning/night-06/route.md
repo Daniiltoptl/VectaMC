@@ -176,3 +176,16 @@ provider, негативные пути без мутации.
 
 Следующий маршрут: **компостер** (`compostable/*` — вертикальный срез
 interaction/уровни/bone meal/dispenser-hopper), затем приоритеты 9–12 файла 05.
+
+## Обновление сеанса 9 (2026-11-07)
+
+Компостер закрыт вертикальным срезом: `WorldlyContainerHolder` — общий
+фундамент (`container_at` у воронки спрашивает держателя до блок-энтити;
+дроппер идёт через тот же путь), компостер — его первый consumer с
+виртуальными Input/Output/Empty контейнерами без блок-энтити. Шанс компоста —
+configured providers `compostable/*`. Workspace 4341/0/18.
+
+Следующий маршрут: **Farmland (W06-536…538)** из той же группы G108, затем
+хвосты ревью сеанса 8 (контекст печи без BLOCK_ENTITY/CONTAINER, inline-форма
+ResolvableInt/ResolvableFloat в CookingFuel, `block_entity_loot_ref` в
+compute) и далее раздел D файла 06_07 с пункта 29.

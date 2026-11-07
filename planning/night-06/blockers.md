@@ -348,3 +348,26 @@ B-06-07 в части command consumer закрыт: `/data modify … compute` 
 фундаменте typed providers (см. report-next-08). Открытыми остаются только
 три формы из B-06-11 (`environment_attribute`, owned `LevelBasedValue`,
 inline-условия) — они по-прежнему дают ошибку вместо вычисления.
+
+## Сеанс 9: WorldlyContainerHolder больше не блокирует автоматизацию
+
+Пункт ревью сеанса 8 «Воронка не видит `WorldlyContainerHolder`» снят:
+`behavior/worldly_container_holder.rs` + `BlockBehavior::as_worldly_container_holder`,
+`HopperBlockEntity::container_at` спрашивает держателя до блок-энтити (порядок
+Java `getBlockContainer`). Компостер — первый consumer; дроппер и будущий
+crafter идут через тот же общий путь.
+
+Остаются открытыми хвосты ревью сеанса 8 (все — зависимые срезы, не внешние
+блокеры): контекст печи без `BLOCK_ENTITY`/`CONTAINER`; `CookingFuel` хранит
+`Identifier` без inline-формы `ResolvableInt`/`ResolvableFloat`;
+`block_entity_loot_ref` в compute заполняет только тип; открытые формы
+B-06-11 (`environment_attribute`, owned `LevelBasedValue`, inline-условия).
+
+Границы компостера, зафиксированные сверкой Java: `Compostable` в Vecta
+хранит только ссылку на configured provider (`layers: Identifier`), как все
+ванильные предметы 26.3 в extracted data. В 26.3
+`ResolvableInt.STREAM_CODEC` — `ByteBufCodecs.either(Constant, Reference)`,
+то есть сеть допускает и inline-число; предмет с inline `compostable` сейчас
+в Vecta декодируется ошибочно. Это тот же дефект, что у `CookingFuel`
+(ревью сеанса 8); закрытие — общий срез Resolvable* inline-форм, не отдельный
+blocker компостера.

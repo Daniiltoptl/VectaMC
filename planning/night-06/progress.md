@@ -530,3 +530,46 @@ entity accessor, затем compute и направления3–12 файла05
 Тесты: constants (float/int/inline compound), configured resource на smoker
 против furnace, вложенная арифметика, score provider (fallback 42 → живая 5),
 и четыре негативных пути без мутации. Workspace **4326/0/18**, Clippy/fmt exit0.
+
+## Сеанс 9: компостер как потребитель compostable/*
+
+Полные детали — в [report-next-09.md](report-next-09.md).
+
+1. **WorldlyContainerHolder (`behaviors` foundation).** Новый трейт
+   `behavior/worldly_container_holder.rs` (`get_container(state, world, pos)`)
+   и `BlockBehavior::as_worldly_container_holder` (по образцу
+   `as_bonemealable`). `HopperBlockEntity::container_at` теперь спрашивает
+   держателя **до** блок-энтити и не проваливается к ним (порядок
+   `HopperBlockEntity.getBlockContainer`), поэтому воронка, выбрасыватель и
+   далее crafter работают через один общий путь без компостерных особых
+   случаев. Закрыт пункт ревью сеанса 8 «Воронка не видит
+   WorldlyContainerHolder».
+2. **Компостер (`composter_block.rs`).** Полный `ComposterBlock` 26.3:
+   `useItemOn` (`fillLevel < 8` + `COMPOSTABLE`; при `fillLevel < 7` —
+   `addLayer`, level event 1500 с data `state != newState`, stat ITEM_USED,
+   `consume(1)`; иначе `TRY_WITH_EMPTY_HAND` как `super.useItemOn`),
+   `useWithoutItem` (level 8 → `extractProduce`: bone meal item entity в
+   `pos+(0.5,1.01,0.5)` с `offsetRandomXZ(0.7)` и скоростью из level random,
+   `empty`, звук `BLOCK_COMPOSTER_EMPTY`), `addLayer` (BLOCK_INTERACT контекст:
+   BLOCK_STATE/ORIGIN/опц. INTERACTING_ENTITY, слои из
+   `context_int_providers.by_key(compostable.layers)`, clamp 0..7, game event
+   BLOCK_CHANGE, scheduleTick(20) при уровне 7), `empty`, `tick` (7→8 + звук
+   READY), `onPlace` (уровень 7 → scheduleTick), comparator, pathfinding.
+   Шанс — только configured providers `compostable/*` (always_add_one, low,
+   low_medium, medium, medium_high), никакого ручного списка.
+3. **Виртуальные контейнеры.** `InputContainer` (1 слот, stack 1, только UP,
+   вставка только compostable и до первого изменения; `set_changed` →
+   `addLayer(null, …)` + level event + `removeItemNoUpdate`),
+   `OutputContainer` (bone meal, только DOWN, `set_changed` → `empty`),
+   `EmptyContainer` (0 слотов на уровне 7 — контейнер есть, поэтому дроппер
+   перед ним оставляет предмет, а не выбрасывает). Компостер без блок-энтити,
+   как в ванили.
+4. **Проверки.** 13 компостерных тестов: гарантированный слой на уровне 0,
+   event data инвариант при взвешенном шансе (и что предмет расходуется
+   всегда), extraction (item entity + звук + уровень 0), tick 7→8 со звуком,
+   onPlace schedule, компаратор, воронка сверху (1 предмет за трансфер),
+   воронка снизу (bone meal + пустой компостер), дроппер сверху кормит,
+   дроппер перед уровнем 7 сохраняет предмет без выброса, клик на уровне 7
+   ничего не меняет. Звуки/level events проверяются по реально отправленным
+   пакетам. Workspace **4341 passed / 0 failed / 18 ignored** (было 4329),
+   fmt/Clippy exit 0, Python 4 OK, audit 3105/49/227.

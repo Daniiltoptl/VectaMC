@@ -1,6 +1,6 @@
 path,line,marker
-vecta-core/src/behavior/block/mod.rs,78,// TODO: Add the block entity to the context when it can be done.
-vecta-core/src/behavior/block/mod.rs,261,// TODO: extract the correct rules from block spawn rule
+vecta-core/src/behavior/block/mod.rs,79,// TODO: Add the block entity to the context when it can be done.
+vecta-core/src/behavior/block/mod.rs,262,// TODO: extract the correct rules from block spawn rule
 vecta-core/src/behavior/blocks/building/bed_block.rs,28,/// TODO: Mirror vanilla `BedBlock.useWithoutItem` invalid-dimension explosion
 vecta-core/src/behavior/blocks/building/bed_block.rs,31,/// TODO: Mirror vanilla `BedBlock.kickVillagerOutOfBed` once villager sleeping
 vecta-core/src/behavior/blocks/building/bed_block.rs,329,// TODO: When WOrld::explode foundation exists display the bedrule error remove both halves and create the bad respawn point explosion
