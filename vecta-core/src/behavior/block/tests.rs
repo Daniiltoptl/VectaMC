@@ -223,7 +223,12 @@ fn fall_on_facts_use_vanilla_width_squared_height_formula() {
 
     assert!(facts.is_player());
     assert!(facts.is_living_entity);
-    assert!((facts.bounding_box_width_squared_height() - 0.648).abs() < f64::EPSILON);
+    // Java computes `0.6F * 0.6F * 1.8F` in float; 0.648 only holds as f32.
+    assert!(
+        (facts.bounding_box_width_squared_height() - 0.6f32 * 0.6f32 * 1.8f32).abs() < f32::EPSILON
+    );
+    // Player volume tramples farmland; a silverfish-sized entity does not.
+    assert!(facts.bounding_box_width_squared_height() > 0.512f32);
 }
 
 #[test]

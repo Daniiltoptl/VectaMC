@@ -416,10 +416,14 @@ impl EntityFallOnFacts {
     }
 
     /// Vanilla farmland trampling size check:
-    /// `getBbWidth() * getBbWidth() * getBbHeight()`.
+    /// `getBbWidth() * getBbWidth() * getBbHeight()`. Java computes the whole
+    /// expression in `float` (entity dimensions are floats), so the product
+    /// must be evaluated in `f32` to keep the `> 0.512F` comparison exact.
     #[must_use]
-    pub fn bounding_box_width_squared_height(self) -> f64 {
-        self.bounding_box_width * self.bounding_box_width * self.bounding_box_height
+    pub fn bounding_box_width_squared_height(self) -> f32 {
+        let width = self.bounding_box_width as f32;
+        let height = self.bounding_box_height as f32;
+        width * width * height
     }
 }
 

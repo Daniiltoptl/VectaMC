@@ -23,7 +23,8 @@ const MOISTURE: &IntProperty = &BlockStateProperties::MOISTURE;
 
 /// Maximum moisture level for farmland. Vanilla `FarmlandBlock.MAX_MOISTURE`.
 const MAX_MOISTURE: u8 = 7;
-const TRAMPLE_VOLUME_THRESHOLD: f64 = 0.512;
+/// Vanilla compares the trampling volume in `float`: `> 0.512F`.
+const TRAMPLE_VOLUME_THRESHOLD: f32 = 0.512;
 
 /// Behavior for farmland blocks.
 ///
