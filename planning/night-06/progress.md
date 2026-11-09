@@ -767,3 +767,35 @@ fmt OK; narrow 9 passed; workspace 4399/0; clippy exit 0; audit
 игроке, sendInitialRecipeBook в spawn_sync (после CUpdateRecipes, vanilla
 PlayerList.placeNewPlayer), serverbound handlers (change settings →
 set_book_setting; seen recipe → display lookup → remove_highlight).
+
+### Сеанс 11 — продолжение: G033.2 core (2026-11-09)
+
+**G033.2 — recipe book в vecta-core** (коммит `de0ae9370`, push):
+- `vecta-registry` ServerRecipeBook: +`known_keys()` (итерация known для
+  sendInitialRecipeBook).
+- Новый `vecta-core/src/player/recipe_book.rs`: Player::recipe_book
+  (SyncMutex<ServerRecipeBook>, поле + init в new); process-wide
+  `display_index()` (LazyLock<DisplayIndex::build(&REGISTRY.recipes)> —
+  аналог ванильного DisplayResolver);
+  `send_initial_recipe_book` (CRecipeBookSettings затем CRecipeBookAdd
+  replace=true, entry флаги highlight из книги, notification=false —
+  vanilla ServerRecipeBook.sendInitialRecipeBook);
+  `handle_recipe_book_change_settings` → set_book_setting;
+  `handle_recipe_book_seen_recipe` → get_recipe_from_display →
+  remove_highlight(parent.key()).
+- `connection/java.rs`: ScheduledPlayPacketKind::{RecipeBookChangeSettings,
+  RecipeBookSeenRecipe}, decode по S_RECIPE_BOOK_CHANGE_SETTINGS(47)/
+  S_RECIPE_BOOK_SEEN_RECIPE(48), исполнение PlayerLocal (как ClientCommand —
+  только состояние игрока), dispatch на хендлеры.
+- `lifecycle/spawn_sync.rs`: send_initial_recipe_book после CUpdateRecipes
+  под тем же `if send_recipes` (vanilla PlayerList.placeNewPlayer).
+- 3 теста с RecordingConnection: initial sync шлёт ровно settings(8 нулей)
+  + add(count=1, replace=1) по реальному BAKED_POTATO; seen recipe снимает
+  highlight, оставляя known; change settings пишет tab state.
+W06-154 (пакетный wire consumer) закрыт полностью: wire → decode →
+dispatch → state. Проверки: fmt OK; narrow 3 passed; workspace 4402/0;
+clippy exit 0; audit 3105/49/227; python 4 OK.
+
+Остаток G033/G034+: персистенция книги в playerdata (PlayerDataFile
+строгой версии, отдельный срез), award/forget senders (критерии разбора —
+advancements/commands), G034 place recipe.

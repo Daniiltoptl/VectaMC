@@ -152,19 +152,19 @@ vecta-core/src/player/game_mode/player_methods.rs,62,// TODO: Stop location-base
 vecta-core/src/player/game_mode/player_methods.rs,67,// TODO: Restart location-based enchantment effects once those effects are implemented.
 vecta-core/src/player/game_mode/player_methods.rs,314,// TODO: Store the camera entity and apply world-border/cross-world
 vecta-core/src/player/lifecycle/respawn.rs,706,// TODO: implement requesting for game rule values
-vecta-core/src/player/mod.rs,636,"advancements: SyncMutex::new(PlayerAdvancement::default()), // TODO save the advancement"
-vecta-core/src/player/mod.rs,810,// TODO: reset player noActionTime and remove shoulder entities.
-vecta-core/src/player/mod.rs,874,// TODO: combat tracker (getCombatTracker().recordDamage)
-vecta-core/src/player/mod.rs,920,"// TODO: use CombatTracker for multi-arg messages (killer name, item, etc.)"
-vecta-core/src/player/mod.rs,940,// TODO: team death message visibility (ALWAYS / HIDE_FOR_OTHER_TEAMS / HIDE_FOR_OWN_TEAM)
-vecta-core/src/player/mod.rs,960,// TODO: Increment DEATH_COUNT objective criterion
-vecta-core/src/player/mod.rs,964,// TODO: Create wither rose
-vecta-core/src/player/mod.rs,1524,// TODO: Reset current impulse context once vehicle/player impulse contexts exist.
-vecta-core/src/player/mod.rs,1721,// TODO: Trigger advancement criteria.
-vecta-core/src/player/mod.rs,1722,// TODO: Increment the score of some objectives of this player.
-vecta-core/src/player/mod.rs,1728,// TODO: Handle team kill
-vecta-core/src/player/mod.rs,1812,// TODO: Tick stats even when the player has been dead for more than 20 ticks.
-vecta-core/src/player/mod.rs,2050,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
+vecta-core/src/player/mod.rs,642,"advancements: SyncMutex::new(PlayerAdvancement::default()), // TODO save the advancement"
+vecta-core/src/player/mod.rs,817,// TODO: reset player noActionTime and remove shoulder entities.
+vecta-core/src/player/mod.rs,881,// TODO: combat tracker (getCombatTracker().recordDamage)
+vecta-core/src/player/mod.rs,927,"// TODO: use CombatTracker for multi-arg messages (killer name, item, etc.)"
+vecta-core/src/player/mod.rs,947,// TODO: team death message visibility (ALWAYS / HIDE_FOR_OTHER_TEAMS / HIDE_FOR_OWN_TEAM)
+vecta-core/src/player/mod.rs,967,// TODO: Increment DEATH_COUNT objective criterion
+vecta-core/src/player/mod.rs,971,// TODO: Create wither rose
+vecta-core/src/player/mod.rs,1531,// TODO: Reset current impulse context once vehicle/player impulse contexts exist.
+vecta-core/src/player/mod.rs,1728,// TODO: Trigger advancement criteria.
+vecta-core/src/player/mod.rs,1729,// TODO: Increment the score of some objectives of this player.
+vecta-core/src/player/mod.rs,1735,// TODO: Handle team kill
+vecta-core/src/player/mod.rs,1819,// TODO: Tick stats even when the player has been dead for more than 20 ticks.
+vecta-core/src/player/mod.rs,2057,// TODO: Emit EQUIP game event once game-event dispatch is implemented.
 vecta-core/src/player/movement/mod.rs,688,// TODO: Add auto-spin exemption when riptide/spin attack state exists.
 vecta-core/src/player/movement/mod.rs,993,// TODO: Implement once controlled vehicle jumping and vehicle inventory interfaces exist.
 vecta-core/src/player/player_inventory/player_handlers.rs,556,// TODO: Implement slot state change handling
