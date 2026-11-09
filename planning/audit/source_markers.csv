@@ -52,8 +52,8 @@ vecta-core/src/behavior/items/shield.rs,12,// TODO: Complete the shared Item.use
 vecta-core/src/behavior/items/spawn_egg.rs,150,// TODO: Use spawn eggs on a spawner block and also check if the condition is correct
 vecta-core/src/behavior/items/throwable_potion.rs,64,// TODO: Implement `use` and the `ProjectileItem` dispenser dispatch. Blocked on
 vecta-core/src/behavior/items/tipped_arrow.rs,16,// TODO: Implement inherited ArrowItem projectile and dispenser behavior once
-vecta-core/src/block_entity/entities/beacon.rs,63,// TODO: Expose a `getBeamSections` equivalent when server-side callers need it.
-vecta-core/src/block_entity/entities/beacon.rs,427,// TODO: Trigger the CONSTRUCT_BEACON criterion for nearby players on activation once
+vecta-core/src/block_entity/entities/beacon.rs,64,// TODO: Expose a `getBeamSections` equivalent when server-side callers need it.
+vecta-core/src/block_entity/entities/beacon.rs,432,// TODO: Trigger the CONSTRUCT_BEACON criterion for nearby players on activation once
 vecta-core/src/block_entity/entities/bell.rs,199,// TODO: make bell sleep when not used
 vecta-core/src/block_entity/entities/brushable.rs,223,// TODO: Trigger CriteriaTriggers.GENERATE_LOOT once criteria triggers exist.
 vecta-core/src/block_entity/entities/potent_sulfur.rs,279,"// TODO: Add nausea ticker (WET / DORMANT states, every 10 ticks) after the mob-effect refactor adds timed instances and sync."

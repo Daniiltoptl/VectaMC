@@ -708,3 +708,34 @@ DyedSlotDemo(dye, target). 6 новых тестов в registry.rs. Прове�
 workspace 4384/0/18, clippy -D warnings exit 0, audit/python OK.
 W06-155 (stonecutter) подтверждён: synchronized_stonecutter_recipes и
 initial CUpdateRecipes не тронуты — DisplayIndex отдельный builder.
+
+### Сеанс 11 — продолжение: G032 (2026-11-09)
+
+**G032 — ServerRecipeBook** (коммит `63f06b151`, push): новый
+`vecta-registry/src/recipe/recipe_book.rs` (+2 в mod.rs). RecipeBookType
+(Crafting/Furnace/BlastFurnace/Smoker), TypeSettings{open,filtering},
+RecipeBookSettings (get/set_open/set_filtering/set_book_setting/
+replace_from; все const где возможно) + WriteTo/ReadFrom — 8 bool в
+порядке типов (vanilla RecipeBookSettings.STREAM_CODEC). Packed (vanilla
+ServerRecipeBook.Packed): settings/known/toBeDisplayed — ToNbtTag/
+FromNbtTag с точными ванильными ключами isGuiOpen/isFilteringCraftable/
+isFurnaceGuiOpen/isFurnaceFilteringCraftable/isBlastingFurnaceGuiOpen/
+isBlastingFurnaceFilteringCraftable/isSmokerGuiOpen/
+isSmokerFilteringCraftable (optional bool, default false) и списками
+ключей рецептов; absence → пустой список, битые записи → None.
+ServerRecipeBook: known/highlight как FxHashSet<Identifier>,
+add/contains/remove/remove_highlight/is_highlighted, award_recipes
+(vanilla addRecipes state: скип без properties и special, новые получают
+highlight), forget_recipes (возвращает известные, снимает highlight),
+pack/apply/load_untrusted (валидатор ключей, неизвестные — tracing::error
+как vanilla loadRecipes). 6 тестов: дефолты настроек, wire 8-bool
+round trip с точными байтами [1,0,0,1,0,0,0,1], NBT имена полей,
+award/forget tracking, load_untrusted с отбрасыванием неизвестных,
+pack→apply и полный pack→NBT→Packed→load_untrusted round trip.
+Нюанс simdnbt: borrow NbtList::strings() = None для пустого списка
+(End-kind) — чтение ключей через owned as_nbt_tags() (Empty → vec![]),
+декод строки через .parse::<Identifier>(); тесты не должны писать
+голый NbtCompound (write без type-байта) — только NbtTag::Compound.
+Проверки: fmt OK; narrow 6 passed; workspace 4390/0; clippy
+`-D warnings` exit 0 (после const-fn + is_some_and правок); audit
+3105/49/227; python 4 OK.

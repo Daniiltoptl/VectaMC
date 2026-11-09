@@ -226,3 +226,9 @@ W06-153 закрыт (`7bab2d0ba`). G031: W06-151/152/153/155 закрыты; W0
 (пакетный wire consumer) — частично, ждёт G033 (recipe-book packets).
 Следующий маршрут: G032 ServerRecipeBook (known/highlight/settings/
 persistence на игроке), затем G033 packets.
+
+G032 закрыт (`63f06b151`). Следующий маршрут: G033 — recipe-book packets
+(ClientboundRecipeBookAdd/Remove/Settings, sendInitialRecipeBook,
+serverbound settings handlers) — закрывает W06-154 (пакетный wire
+consumer). Затем G034 place recipe → G035 max craft → G036 discovery →
+G037 crafting callbacks.
