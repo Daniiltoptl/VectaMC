@@ -4,6 +4,7 @@ mod crafting;
 mod display;
 mod ingredient;
 mod properties;
+mod recipe_display;
 mod registry;
 mod single_item;
 mod smithing;
@@ -25,6 +26,10 @@ pub use properties::{
     CookingBookCategory, CraftingBookCategory, PlacementInfo, RecipeBookCategory,
     RecipeBookCategoryKind, RecipeBookCategoryRef, RecipeBookCategoryRegistry,
     RecipeBookProperties, RecipeProperties, vanilla_recipe_book_categories,
+};
+pub use recipe_display::{
+    RecipeDisplay, RecipeDisplayEntry, RecipeDisplayId, RecipeDisplayKind, RecipeDisplayType,
+    RecipeDisplayTypeRef, RecipeDisplayTypeRegistry,
 };
 pub use registry::{
     CachedRecipeCheck, RecipeRegistry, TypedRecipeRef, TypedRecipeSet, UntypedRecipeRef,

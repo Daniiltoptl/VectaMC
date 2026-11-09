@@ -81,6 +81,7 @@ mod pig_variants;
 mod poi_types;
 mod position_source_types;
 mod potions;
+mod recipe_displays;
 mod recipes;
 mod slot_displays;
 mod sound_events;
@@ -149,6 +150,7 @@ const DIALOGS: &str = "dialogs";
 const DIALOG_TAGS: &str = "dialog_tags";
 const MENU_TYPES: &str = "menu_types";
 const SLOT_DISPLAYS: &str = "slot_displays";
+const RECIPE_DISPLAYS: &str = "recipe_displays";
 const MOB_EFFECTS: &str = "mob_effects";
 const MAP_DECORATION_TYPES: &str = "map_decoration_types";
 const POTIONS: &str = "potions";
@@ -239,6 +241,7 @@ pub fn main() {
         (tags::dialog(), DIALOG_TAGS),
         (menu_types::build(), MENU_TYPES),
         (slot_displays::build(), SLOT_DISPLAYS),
+        (recipe_displays::build(), RECIPE_DISPLAYS),
         (loot_contexts::build(), "context_key_sets"),
         (
             context_number_providers::build(),

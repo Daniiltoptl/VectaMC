@@ -281,6 +281,7 @@ pub struct Registry {
     pub dialogs: DialogRegistry,
     pub menu_types: MenuTypeRegistry,
     pub slot_displays: crate::recipe::SlotDisplayTypeRegistry,
+    pub recipe_displays: crate::recipe::RecipeDisplayTypeRegistry,
     pub context_key_sets: crate::loot_table::ContextKeySetRegistry,
     pub context_float_providers: crate::loot_table::FloatProviderRegistry,
     pub context_int_providers: crate::loot_table::IntProviderRegistry,
@@ -399,6 +400,7 @@ impl Registry {
         vanilla_dialog_tags::DialogTag::register_dialog_tags(&mut registry.dialogs);
         vanilla_menu_types::register_menu_types(&mut registry.menu_types);
         crate::vanilla_slot_displays::register_slot_displays(&mut registry.slot_displays);
+        crate::vanilla_recipe_displays::register_recipe_displays(&mut registry.recipe_displays);
         crate::vanilla_context_key_sets::register_context_key_sets(&mut registry.context_key_sets);
         crate::vanilla_context_number_providers::register_context_float_providers(
             &mut registry.context_float_providers,
@@ -508,6 +510,7 @@ impl Registry {
         self.dialogs.freeze();
         self.menu_types.freeze();
         self.slot_displays.freeze();
+        self.recipe_displays.freeze();
         self.context_key_sets.freeze();
         self.context_float_providers.freeze();
         self.context_int_providers.freeze();
@@ -777,6 +780,7 @@ impl Registry {
             dialogs: DialogRegistry::new(),
             menu_types: MenuTypeRegistry::new(),
             slot_displays: crate::recipe::SlotDisplayTypeRegistry::new(),
+            recipe_displays: crate::recipe::RecipeDisplayTypeRegistry::new(),
             context_key_sets: crate::loot_table::ContextKeySetRegistry::new(),
             context_float_providers: crate::loot_table::FloatProviderRegistry::new(),
             context_int_providers: crate::loot_table::IntProviderRegistry::new(),

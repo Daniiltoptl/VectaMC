@@ -305,6 +305,9 @@ pub mod vanilla_menu_types;
 #[path = "generated/vanilla_slot_displays.rs"]
 pub mod vanilla_slot_displays;
 
+#[path = "generated/vanilla_recipe_displays.rs"]
+pub mod vanilla_recipe_displays;
+
 #[rustfmt::skip]
 #[path = "generated/vanilla_context_key_sets.rs"]
 pub mod vanilla_context_key_sets;
