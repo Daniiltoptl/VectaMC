@@ -739,3 +739,31 @@ pack→apply и полный pack→NBT→Packed→load_untrusted round trip.
 Проверки: fmt OK; narrow 6 passed; workspace 4390/0; clippy
 `-D warnings` exit 0 (после const-fn + is_some_and правок); audit
 3105/49/227; python 4 OK.
+
+### Сеанс 11 — продолжение: G033 протокол (2026-11-09)
+
+**G033.1 — recipe-book packets** (коммит `e3f5c55fe`, push): 5 новых
+пакетов в vecta-protocol по Java 26.3:
+- `c_recipe_book_add.rs` — CRecipeBookAdd{entries,replace};
+  Entry{contents: RecipeDisplayEntry, flags: u8} с
+  FLAG_NOTIFICATION=1/FLAG_HIGHLIGHT=2, конструктором new(notification,
+  highlight) и accessor-ами (const). Wire: VarInt-список entry +
+  bool replace. Тест строит реальный entry через DisplayIndex по BAKED_POTATO.
+- `c_recipe_book_remove.rs` — CRecipeBookRemove{Vec<RecipeDisplayId>} (derive).
+- `c_recipe_book_settings.rs` — CRecipeBookSettings{RecipeBookSettings} (8 bool).
+- `s_recipe_book_change_settings.rs` — SRecipeBookChangeSettings{book_type,
+  is_open, is_filtering}: writeEnum=VarInt ordinal (0..3), орфан-рул —
+  ordinal-хелперы свободными функциями; reject ordinal >3 (InvalidData).
+- `s_recipe_book_seen_recipe.rs` — SRecipeBookSeenRecipe{RecipeDisplayId}
+  (VarInt).
+Java-сверка: ClientboundRecipeBookAddPacket (+Entry), RemovePacket,
+SettingsPacket, ServerboundRecipeBookChangeSettingsPacket,
+ServerboundRecipeBookSeenRecipePacket, GamePacketTypes id-шники уже в
+generated vanilla_packets (C 75/76/77, S 47/48). 9 тестов. Проверки:
+fmt OK; narrow 9 passed; workspace 4399/0; clippy exit 0; audit
+3105/49/227; python 4 OK.
+
+Следующий маршрут: G033.2 — vecta-core интеграция: хранение книги на
+игроке, sendInitialRecipeBook в spawn_sync (после CUpdateRecipes, vanilla
+PlayerList.placeNewPlayer), serverbound handlers (change settings →
+set_book_setting; seen recipe → display lookup → remove_highlight).
