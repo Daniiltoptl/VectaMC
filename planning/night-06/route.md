@@ -232,3 +232,9 @@ G032 закрыт (`63f06b151`). Следующий маршрут: G033 — rec
 serverbound settings handlers) — закрывает W06-154 (пакетный wire
 consumer). Затем G034 place recipe → G035 max craft → G036 discovery →
 G037 crafting callbacks.
+
+G033 закрыт по сети (коммиты `e3f5c55fe`, `de0ae9370`). Следующий маршрут:
+персистенция recipe book в playerdata (PlayerDataFile v10: recipeBook =
+settings + known + highlight, load через load_untrusted с валидатором),
+затем G034 place recipe → G035 max craft → G036 discovery → G037
+crafting callbacks.
