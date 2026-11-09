@@ -660,3 +660,51 @@ WORKBUDDY_CONTINUE_06_10.md.
    python-скриптом — восстановлен из HEAD и правки наложены заново (проверено
    сборкой); прог workspace, шедший в этот момент, признан недействительным
    и перезапущен.
+
+### Сеанс 11 — продолжение: B1/G031 (2026-11-09)
+
+**G031 — RecipeDisplay wire-типы + извлечённый реестр** (коммит
+`e26c19aa9`, push):
+
+- Java-сверка всех кодеков по исходникам 26.3: `RecipeDisplay.STREAM_CODEC`
+  (registry dispatch `minecraft:recipe_display`), все 5 вариантов
+  (Shapeless/Shaped/Furnace/Stonecutter/Smithing) поле-в-поле,
+  `RecipeDisplayEntry.STREAM_CODEC` (id, display, OPTIONAL_VAR_INT group,
+  registry-категория, optional(list(Ingredient.CONTENTS_STREAM_CODEC))),
+  `ByteBufCodecs.list()` = VarInt-счётчик с bound `Integer.MAX_VALUE`,
+  `OPTIONAL_VAR_INT` (0=absent, v+1).
+- `recipe_displays.json` извлечён штатным путём: новый
+  `RecipeDisplayRegistry.kt` + gradle-задача `extractRecipeDisplays`
+  (потребовался gradle 9.7.0 — дистрибутив скачан, sha256 сверен с
+  официальным; JAVA_HOME переключён на Temurin 25, fabric-loom требует
+  JVM 25). Bootstrap-порядок 0..4 подтверждён тестом.
+- Rust: `recipe_display.rs` + `types.rs` по образцу slot displays
+  (`impl_standard_methods!` + `impl_registry!`), codegen
+  `build/recipe_displays.rs` + wiring в build.rs/lib.rs/registry/mod.rs.
+- Урок теста: kind→type диспетчеризация у RecipeDisplay всегда ведёт к
+  глобальным статикам (как ваниль) — локально зарегистрированный тип
+  не используется `RecipeDisplay::write`; тест переписан на реальные
+  семантики. Кастомные display-типы не поддерживаются (blocker 5).
+- Проверки: fmt OK; narrow 8 passed; workspace 4378/0/18; clippy
+  `-D warnings` exit 0; audit 3105/49/227; python 4 OK.
+
+### Сеанс 11 — продолжение: W06-153 (2026-11-09)
+
+**G031/W06-153 — RecipeManager↔display linkage** (коммит `7bab2d0ba`,
+push): DisplayIndex::build по образцу RecipeManager.unpackRecipeInfo —
+порядок регистрации, последовательные RecipeDisplayId, group id по первому
+вхождению строки группы (Object2IntMap semantics), special→crafting
+requirements None, иначе placement ingredients → holder sets; display()-
+паритет всех сериализаторов с display() (shaped, shapeless, transmute с
+пересчётом результата по количеству материала, dye через
+OnlyWithComponent(DYE)+DyedSlotDemo, imbue 3×3 с WithAnyPotion, cooking с
+furnaceIcon по типу, stonecutter только для книги, smithing transform/trim
+со SmithingTrimDemoSlotDisplay); RecipeBookCategoryKind::resolve по
+ванильным переключателям; Ingredient::display (TagSlotDisplay) +
+holder_set. Java-сверка: Recipe.java display() default пуст, RecipeManager
+unpackRecipeInfo/getRecipeFromDisplay/listDisplaysForRecipe,
+SmithingTrimDemoSlotDisplay(base, material, Holder<TrimPattern>),
+DyedSlotDemo(dye, target). 6 новых тестов в registry.rs. Проверки: fmt OK,
+workspace 4384/0/18, clippy -D warnings exit 0, audit/python OK.
+W06-155 (stonecutter) подтверждён: synchronized_stonecutter_recipes и
+initial CUpdateRecipes не тронуты — DisplayIndex отдельный builder.

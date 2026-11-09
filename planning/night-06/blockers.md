@@ -422,3 +422,17 @@ blocker компостера.
    protection не смоделирована; порядок-зависимый copper chest transformer
    тест; B-06-11 (`environment_attribute`, owned `LevelBasedValue`,
    inline-условия, `slot_source` protocol id 57) — по потребителю.
+5. **RecipeDisplay не расширяется кастомными типами** (в отличие от
+   SlotDisplay с PayloadCodec::Custom): enum покрывает только 5 ванильных
+   видов, kind→type диспетчеризация всегда идёт к глобальным статикам.
+   Если появится потребность в модовых recipe display — отдельный срез
+   (добавить Custom-вариант по образцу CustomSlotDisplay).
+6. **`special: false` у CustomRecipe-рецептов в extractor-данных.** Ваниль
+   `CustomRecipe.isSpecial()` = true (armor_dye, book_cloning, repair и
+   т.п.), а generated vanilla_recipes.rs помечает их `special: false` —
+   распакованные entries таких рецептов получают пустой
+   `craftingRequirements` список (Some(vec![])) вместо None (wire: bool 1 +
+   VarInt 1 против bool 0). Клиентский highlight «can craft» при пустом
+   списке true — поведенчески близко, но байты отличаются. Лечится в
+   extractor (special по сериализатору) — отдельный срез, при первом
+   живом consumer recipe book.

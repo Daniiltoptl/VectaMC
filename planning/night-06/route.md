@@ -216,3 +216,13 @@ CONTAINER (SlotProvider) — блокер до typed value family.
 ServerRecipeBook → recipe-book packets → place recipe (G034) → max craft и
 компоненты (G035) → открытие рецептов (G036) → crafting callbacks (G037),
 реальный путь клиента. По мере потребителей — A4 (B-06-11).
+
+G031 закрыт (коммит `e26c19aa9`). Следующий маршрут: G032 — связка
+RecipeManager ↔ RecipeDisplay (построение RecipeDisplayEntry из
+реестра рецептов: id/display/group/category/craftingRequirements),
+затем ServerRecipeBook (G033) и recipe-book packets.
+
+W06-153 закрыт (`7bab2d0ba`). G031: W06-151/152/153/155 закрыты; W06-154
+(пакетный wire consumer) — частично, ждёт G033 (recipe-book packets).
+Следующий маршрут: G032 ServerRecipeBook (known/highlight/settings/
+persistence на игроке), затем G033 packets.
