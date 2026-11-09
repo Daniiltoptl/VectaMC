@@ -21,6 +21,7 @@ pub mod player_data;
 pub mod player_data_storage;
 pub mod player_inventory;
 mod profile;
+mod recipe_book;
 mod session;
 mod sleep;
 mod sleep_state;
@@ -72,6 +73,7 @@ use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::entity_data::{EntityPose, HumanoidArm, ParticleList};
 use vecta_registry::entity_type::{EntityDimensions, EntityTypeRef};
 use vecta_registry::game_rules::GameRuleRef;
+use vecta_registry::recipe::ServerRecipeBook;
 use vecta_registry::sound_event::SoundEventRef;
 use vecta_registry::vanilla_block_tags::BlockTag;
 use vecta_registry::vanilla_entity_data::PlayerEntityData;
@@ -289,6 +291,10 @@ pub struct Player {
 
     /// Manage the advancements of the player
     pub advancements: SyncMutex<PlayerAdvancement>,
+
+    /// Vanilla `ServerPlayer.recipeBook`: known/highlight recipe keys and
+    /// the per-menu tab settings.
+    pub(crate) recipe_book: SyncMutex<ServerRecipeBook>,
 }
 
 // SAFETY: This key is owned by Vecta and uniquely identifies `Player`.
@@ -634,6 +640,7 @@ impl Player {
             stats: SyncMutex::new(StatsCounter::new()),
             last_action_time: SyncMutex::new(Instant::now()),
             advancements: SyncMutex::new(PlayerAdvancement::default()), // TODO save the advancement
+            recipe_book: SyncMutex::new(ServerRecipeBook::default()),
         }
     }
 

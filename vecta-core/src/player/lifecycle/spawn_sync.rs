@@ -295,6 +295,9 @@ impl Player {
                 item_sets: synchronized_item_properties(),
                 stonecutter_recipes: synchronized_stonecutter_recipes(),
             });
+            // Vanilla follows the recipe list with `sendInitialRecipeBook`:
+            // the player's tab settings and known recipes.
+            self.send_initial_recipe_book();
         }
         self.send_time_sync(world);
         self.send_packet(world.initialize_border_packet());

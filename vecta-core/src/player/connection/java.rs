@@ -18,8 +18,9 @@ use vecta_protocol::packets::game::{
     SContainerSlotStateChanged, SEditBook, SInteract, SMovePlayer, SMovePlayerPos,
     SMovePlayerPosRot, SMovePlayerRot, SMovePlayerStatusOnly, SMoveVehicle, SPickItemFromBlock,
     SPickItemFromEntity, SPlayerAbilities, SPlayerAction, SPlayerCommand, SPlayerInput,
-    SPlayerLoad, SPunch, SRenameItem, SSeenAdvancement, SSelectBundleItem, SSetBeacon,
-    SSetCarriedItem, SSetCreativeModeSlot, SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
+    SPlayerLoad, SPunch, SRecipeBookChangeSettings, SRecipeBookSeenRecipe, SRenameItem,
+    SSeenAdvancement, SSelectBundleItem, SSetBeacon, SSetCarriedItem, SSetCreativeModeSlot,
+    SSignUpdate, SSpectatorAction, SUseItem, SUseItemOn,
 };
 
 use crate::command::{handle_client_request, sender::CommandSender};
@@ -119,6 +120,8 @@ enum ScheduledPlayPacketKind {
     ChangeGameMode(SChangeGameMode),
     ChangeDifficulty(SChangeDifficulty),
     UpdateSelectedTab(SSeenAdvancement),
+    RecipeBookChangeSettings(SRecipeBookChangeSettings),
+    RecipeBookSeenRecipe(SRecipeBookSeenRecipe),
 }
 
 enum ImmediatePlayPacket {
@@ -182,6 +185,8 @@ impl ScheduledPlayPacket {
             | ScheduledPlayPacketKind::PickItemFromBlock(_)
             | ScheduledPlayPacketKind::PickItemFromEntity(_)
             | ScheduledPlayPacketKind::EditBook(_)
+            | ScheduledPlayPacketKind::RecipeBookChangeSettings(_)
+            | ScheduledPlayPacketKind::RecipeBookSeenRecipe(_)
             | ScheduledPlayPacketKind::ClientCommand(_) => ScheduledPacketExecution::PlayerLocal,
             ScheduledPlayPacketKind::PlayerCommand(packet) => match packet.action {
                 PlayerCommandAction::StartSprinting
@@ -368,6 +373,12 @@ impl ScheduledPlayPacket {
             }
             ScheduledPlayPacketKind::UpdateSelectedTab(packet) => {
                 player.handle_seen_advancement(packet);
+            }
+            ScheduledPlayPacketKind::RecipeBookChangeSettings(packet) => {
+                player.handle_recipe_book_change_settings(packet);
+            }
+            ScheduledPlayPacketKind::RecipeBookSeenRecipe(packet) => {
+                player.handle_recipe_book_seen_recipe(packet);
             }
         }
     }
@@ -847,6 +858,16 @@ impl JavaConnection {
             play::S_SEEN_ADVANCEMENTS => scheduled(ScheduledPlayPacketKind::UpdateSelectedTab(
                 SSeenAdvancement::read_packet(data)?,
             )),
+            play::S_RECIPE_BOOK_CHANGE_SETTINGS => {
+                scheduled(ScheduledPlayPacketKind::RecipeBookChangeSettings(
+                    SRecipeBookChangeSettings::read_packet(data)?,
+                ))
+            }
+            play::S_RECIPE_BOOK_SEEN_RECIPE => {
+                scheduled(ScheduledPlayPacketKind::RecipeBookSeenRecipe(
+                    SRecipeBookSeenRecipe::read_packet(data)?,
+                ))
+            }
             id => DecodedPlayPacket::Immediate(ImmediatePlayPacket::Unknown(id)),
         })
     }

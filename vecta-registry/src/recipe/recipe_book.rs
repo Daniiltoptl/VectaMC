@@ -319,6 +319,12 @@ impl ServerRecipeBook {
         self.known.contains(key)
     }
 
+    /// The known recipe keys, in unspecified order (vanilla iterates the
+    /// identity set in `sendInitialRecipeBook`).
+    pub fn known_keys(&self) -> impl Iterator<Item = &Identifier> {
+        self.known.iter()
+    }
+
     /// Vanilla `removeHighlight`.
     pub fn remove_highlight(&mut self, key: &Identifier) {
         self.highlight.remove(key);
