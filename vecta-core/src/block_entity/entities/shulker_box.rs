@@ -9,6 +9,7 @@ use simdnbt::{
     borrow::{BaseNbtCompound, NbtCompound as NbtCompoundView},
     owned::{NbtCompound, NbtList, NbtTag},
 };
+use text_components::TextComponent;
 use vecta_protocol::packets::game::SoundSource;
 use vecta_registry::{
     ItemStackTemplate, REGISTRY,
@@ -440,6 +441,10 @@ impl ShulkerBoxBlockEntity {
 impl BlockEntity for ShulkerBoxBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.identity.custom_name()
     }
 
     fn tick(&self, world: &Arc<World>) {

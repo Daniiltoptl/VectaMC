@@ -50,6 +50,7 @@ use std::{
         atomic::{AtomicBool, Ordering},
     },
 };
+use text_components::TextComponent;
 
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::{
@@ -357,6 +358,21 @@ impl BlockEntityBase {
 pub trait BlockEntity: ErasedType + Send + Sync {
     /// Returns the common metadata owned by this block entity.
     fn base(&self) -> &BlockEntityBase;
+
+    /// Vanilla `Nameable.getCustomName` on this block entity: the name loot
+    /// consumers (`copy_name`) copy. `None` when this entity is unnamed or
+    /// not a named container (`BaseContainerBlockEntity` family).
+    fn custom_name(&self) -> Option<TextComponent> {
+        None
+    }
+
+    /// Vanilla `Container.getItems` snapshot for loot consumers
+    /// (`copy_contents`, CONTAINER slot sources). `None` when this entity has
+    /// no container capability. The default locks the entity's own container
+    /// storage; it must not be called while that storage is already locked.
+    fn container_items(&self) -> Option<Vec<ItemStack>> {
+        Some(self.container_ref()?.lock().items().to_vec())
+    }
 
     /// Returns the type of this block entity.
     fn get_type(&self) -> BlockEntityTypeRef {

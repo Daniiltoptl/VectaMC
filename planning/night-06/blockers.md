@@ -400,3 +400,25 @@ blocker компостера.
    (Compostable/CookingFuel), контекст печи без BLOCK_ENTITY/CONTAINER,
    `block_entity_loot_ref` заполняет только тип, B-06-11, формы компостера не
    сверялись.
+
+## Сеанс 11: остатки и новые находки
+
+1. **CONTAINER без типа значения.** `ContextValueKind::Container` — только
+   метаданные реестра; ваниль `LootContextParams.CONTAINER` (SlotProvider)
+   требуется в `CONTAINER_PROCESS`. Печь в Vecta не может отдать live-слоты:
+   `FurnaceContainer::tick` держит мьютекс контейнера, ваниль же передаёт
+   `this`. Нужен typed value family (`SlotProvider`) и дизайн «live-слоты без
+   повторного захвата» — отдельный срез, до того контекст печи остаётся без
+   CONTAINER.
+2. **У печи нет ContainerIdentity** (ваниль `AbstractFurnaceBlockEntity`
+   extends `BaseContainerBlockEntity` → CustomName/lock). BLOCK_ENTITY ref
+   печи отдаёт custom_name = None. Связано с G-задачами меню печи.
+3. **Фurnace custom_name из Resolvable-рефов: только текст.**
+   `plain_custom_name` в /data compute извлекает только `Content::Text`;
+   translate/selectors без резолютора считаются безымянными. Потребитель
+   (`copy_name` в vecta-registry) пока стаб — расширить при реализации
+   copy_name.
+4. Хвосты предыдущих сеансов остаются: bonemeal на thread RNG; spawn
+   protection не смоделирована; порядок-зависимый copper chest transformer
+   тест; B-06-11 (`environment_attribute`, owned `LevelBasedValue`,
+   inline-условия, `slot_source` protocol id 57) — по потребителю.

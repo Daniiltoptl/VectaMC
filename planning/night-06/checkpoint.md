@@ -116,3 +116,8 @@ experience bottle, splash potion; fire charge ждёт G047, wind charge ждё�
 диагнозами отсутствующего living loader и запрета extractor для providers.
 TYPE/configured provider registries реальны; данные получать штатным extractor.
 Единая context-map архитектура уже согласована; реализация ещё впереди.
+
+| Сеанс 11 (A1) | Farmland принят: 17 тестов, сверка всех методов Java; объём trampling теперь в f32 (vanilla `w*w*h > 0.512F`); коммит `bd82a24d9`, push, audit 3105/49/227 |
+| Сеанс 11 (A2) | ResolvableInt/ResolvableFloat (enum Constant/Reference): wire bool-префикс + BE int/f32, NBT число-или-ключ, hash по ветке; Compostable/CookingFuel/BrewingFuel переведены; компостер и печь читают Constant без loot-контекста и без вызова level random; +1 тест компостера |
+| Сеанс 11 (A3) | FurnaceProviders передаёт BLOCK_ENTITY (тип БС) в контекст топлива (CONTAINER — metadata-only, блокер); /data compute block_entity_loot_ref заполняет custom_name (только текстовые) и inventory (снимок через container_ref); BlockEntity::custom_name/container_items с 7 переопределениями |
+| Следующий consumer (сеанс 11) | блок B: B1 G031→G037 RecipeDisplay → recipe book; хвост A4 (B-06-11) по мере потребителя; CONTAINER value family — отдельный срез |

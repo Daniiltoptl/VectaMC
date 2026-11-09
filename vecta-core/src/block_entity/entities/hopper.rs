@@ -51,6 +51,7 @@ use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerId, ContainerLockGuard, ContainerRef, SharedContainer};
 use crate::player::Player;
 use crate::world::{LevelReader, World};
+use text_components::TextComponent;
 
 /// Number of slots in a hopper.
 pub const HOPPER_SLOTS: usize = 5;
@@ -889,6 +890,10 @@ fn can_merge_items(current: &ItemStack, incoming: &ItemStack) -> bool {
 impl BlockEntity for HopperBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.identity.custom_name()
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {

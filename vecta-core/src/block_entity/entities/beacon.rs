@@ -37,6 +37,7 @@ use crate::chunk::light::MAX_LIGHT_LEVEL;
 use crate::entity::{LivingEntity as _, MobEffectInstance};
 use crate::player::Player;
 use crate::world::World;
+use text_components::TextComponent;
 
 const MAX_LEVELS: i32 = 4;
 
@@ -351,6 +352,10 @@ impl BeaconBlockEntity {
 impl BlockEntity for BeaconBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.identity.custom_name()
     }
 
     // Vanilla `BaseContainerBlockEntity` keeps `CustomName` and `lock` on every

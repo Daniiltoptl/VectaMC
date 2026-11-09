@@ -7,6 +7,7 @@ use simdnbt::{
     owned::{NbtCompound, NbtTag},
 };
 use text_components::TextComponent;
+use text_components::content::Content;
 use vecta_utils::{
     Identifier,
     nbt::{NbtPath, NbtPathMutationError, is_too_deep, merge_nbt_compounds, nbt_list_values},
@@ -469,7 +470,15 @@ fn manipulate_compute(
         let block_entity = position
             .as_ref()
             .and_then(|pos| world.get_block_entity(*pos));
-        let block_entity_ref = block_entity.as_deref().map(block_entity_loot_ref);
+        let block_entity_name = block_entity.as_deref().and_then(BlockEntity::custom_name);
+        let block_entity_items = block_entity
+            .as_deref()
+            .and_then(BlockEntity::container_items);
+        let block_entity_ref = block_entity.as_deref().map(|block_entity| BlockEntityRef {
+            block_entity_type: Some(&block_entity.get_type().key),
+            custom_name: block_entity_name.as_ref().and_then(plain_custom_name),
+            inventory: block_entity_items.as_deref(),
+        });
 
         let mut loot = LootContext::new(rng)
             .with_parameter(loot_context_params::ORIGIN, (origin.x, origin.y, origin.z))
@@ -536,12 +545,13 @@ fn validate_compute_context(
         .map_err(|error| CommandSyntaxError::dynamic(TextComponent::from(error.to_string())))
 }
 
-/// A read-only view of a block entity for loot parameters.
-fn block_entity_loot_ref(block_entity: &dyn BlockEntity) -> BlockEntityRef<'_> {
-    BlockEntityRef {
-        block_entity_type: Some(&block_entity.get_type().key),
-        custom_name: None,
-        inventory: None,
+/// The plain text of a literal custom name. Non-textual content (translate,
+/// selectors) has no plain form without a client-side resolutor, so such
+/// names are treated as unnamed.
+fn plain_custom_name(name: &TextComponent) -> Option<&str> {
+    match &name.content {
+        Content::Text { text } => Some(text),
+        _ => None,
     }
 }
 

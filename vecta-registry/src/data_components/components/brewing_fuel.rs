@@ -8,20 +8,36 @@ use vecta_utils::Identifier;
 use vecta_utils::hash::{ComponentHasher, HashComponent, HashEntry, sort_map_entries};
 use vecta_utils::serial::{ReadFrom, WriteTo};
 
-/// References to the context int/float providers that give a brewing fuel
-/// item its number of uses and brewing-speed multiplier.
-#[derive(Debug, Clone, PartialEq, Eq)]
+use super::resolvable::{ResolvableFloat, ResolvableInt};
+
+/// Number of uses and brewing-speed multiplier of a brewing fuel item:
+/// inline constants or references to `minecraft:context_int_provider` /
+/// `minecraft:context_float_provider`, mirroring the vanilla
+/// `ResolvableInt`/`ResolvableFloat` fields of
+/// `net.minecraft.world.item.component.BrewingFuel`.
+#[derive(Debug, Clone, PartialEq)]
 pub struct BrewingFuel {
-    pub uses: Identifier,
-    pub speed_multiplier: Identifier,
+    pub uses: ResolvableInt,
+    pub speed_multiplier: ResolvableFloat,
 }
 
 impl BrewingFuel {
+    /// Vanilla `BrewingFuel(ResourceKey, ResourceKey)`. The generated item
+    /// data uses the reference form.
     #[must_use]
     pub const fn new(uses: Identifier, speed_multiplier: Identifier) -> Self {
         Self {
-            uses,
-            speed_multiplier,
+            uses: ResolvableInt::from_key(uses),
+            speed_multiplier: ResolvableFloat::from_key(speed_multiplier),
+        }
+    }
+
+    /// Vanilla inline-constant constructor for datapacks and commands.
+    #[must_use]
+    pub const fn constant(uses: i32, speed_multiplier: f32) -> Self {
+        Self {
+            uses: ResolvableInt::Constant(uses),
+            speed_multiplier: ResolvableFloat::Constant(speed_multiplier),
         }
     }
 }
@@ -36,8 +52,8 @@ impl WriteTo for BrewingFuel {
 impl ReadFrom for BrewingFuel {
     fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
         Ok(Self {
-            uses: Identifier::read(data)?,
-            speed_multiplier: Identifier::read(data)?,
+            uses: ResolvableInt::read(data)?,
+            speed_multiplier: ResolvableFloat::read(data)?,
         })
     }
 }
@@ -54,8 +70,8 @@ impl ToNbtTag for BrewingFuel {
 impl FromNbtTag for BrewingFuel {
     fn from_nbt_tag(tag: simdnbt::borrow::NbtTag) -> Option<Self> {
         let compound = tag.compound()?;
-        let uses = Identifier::from_nbt_tag(compound.get("uses")?)?;
-        let speed_multiplier = Identifier::from_nbt_tag(compound.get("speed_multiplier")?)?;
+        let uses = ResolvableInt::from_nbt_tag(compound.get("uses")?)?;
+        let speed_multiplier = ResolvableFloat::from_nbt_tag(compound.get("speed_multiplier")?)?;
         Some(Self {
             uses,
             speed_multiplier,
@@ -93,11 +109,12 @@ mod tests {
     use simdnbt::FromNbtTag as _;
     use simdnbt::ToNbtTag as _;
     use simdnbt::borrow::read_tag;
-    use simdnbt::owned::NbtTag;
+    use simdnbt::owned::{NbtCompound, NbtTag};
     use vecta_utils::Identifier;
     use vecta_utils::serial::{ReadFrom as _, WriteTo as _};
 
     use super::BrewingFuel;
+    use crate::data_components::components::resolvable::{ResolvableFloat, ResolvableInt};
 
     fn parse(tag: NbtTag) -> Option<BrewingFuel> {
         let mut bytes = Vec::new();
@@ -121,6 +138,38 @@ mod tests {
         assert_eq!(
             BrewingFuel::read(&mut Cursor::new(network.as_slice())).expect("fuel should decode"),
             value
+        );
+    }
+
+    #[test]
+    fn inline_constants_round_trip_both_codecs() {
+        let value = BrewingFuel::constant(20, 1.0);
+
+        let NbtTag::Compound(compound) = value.clone().to_nbt_tag() else {
+            panic!("brewing fuel NBT is a compound");
+        };
+        assert_eq!(compound.get("uses"), Some(&NbtTag::Int(20)));
+        assert_eq!(compound.get("speed_multiplier"), Some(&NbtTag::Float(1.0)));
+        assert_eq!(parse(NbtTag::Compound(compound)), Some(value.clone()));
+
+        let mut network = Vec::new();
+        value.write(&mut network).expect("fuel should encode");
+        assert_eq!(
+            BrewingFuel::read(&mut Cursor::new(network.as_slice())).expect("fuel should decode"),
+            value
+        );
+    }
+
+    #[test]
+    fn parses_a_mixed_datapack_form() {
+        let mut compound = NbtCompound::new();
+        compound.insert("uses", 40);
+        compound.insert("speed_multiplier", "minecraft:brewing/speed_default");
+        let parsed = parse(NbtTag::Compound(compound)).expect("mixed form should parse");
+        assert_eq!(parsed.uses, ResolvableInt::Constant(40));
+        assert_eq!(
+            parsed.speed_multiplier,
+            ResolvableFloat::from_key(Identifier::vanilla_static("brewing/speed_default"))
         );
     }
 }

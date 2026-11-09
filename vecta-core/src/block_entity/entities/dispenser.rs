@@ -35,6 +35,7 @@ use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::player::Player;
 use crate::world::World;
+use text_components::TextComponent;
 
 /// Vanilla `DispenserBlockEntity.CONTAINER_SIZE`.
 pub const DISPENSER_SLOTS: usize = 9;
@@ -242,6 +243,10 @@ impl DispenserBlockEntity {
 impl BlockEntity for DispenserBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.identity.custom_name()
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {

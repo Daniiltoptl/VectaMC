@@ -15,6 +15,7 @@ use vecta_registry::blocks::{
     block_state_ext::BlockStateExt as _,
     properties::{BlockStateProperties, Direction, IntProperty},
 };
+use vecta_registry::data_components::components::ResolvableInt;
 use vecta_registry::data_components::vanilla_components::{COMPOSTABLE, Compostable};
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::loot_table::{LootContext, loot_context_params};
@@ -70,7 +71,10 @@ impl ComposterBlock {
     }
 
     /// Evaluates a compostable item's layer provider against the
-    /// `BLOCK_INTERACT` context (`ComposterBlock.addLayer`).
+    /// `BLOCK_INTERACT` context (`ComposterBlock.addLayer`). Vanilla
+    /// `ResolvableInt.get`: constants return immediately and never draw from
+    /// the level random; references fall back to 0 when the provider is
+    /// missing.
     fn layers_to_add(
         compostable: &Compostable,
         state: BlockStateId,
@@ -78,7 +82,11 @@ impl ComposterBlock {
         pos: BlockPos,
         source: Option<&dyn Entity>,
     ) -> i32 {
-        let Some(provider) = REGISTRY.context_int_providers.by_key(&compostable.layers) else {
+        let key = match &compostable.layers {
+            ResolvableInt::Constant(value) => return *value,
+            ResolvableInt::Reference(key) => key,
+        };
+        let Some(provider) = REGISTRY.context_int_providers.by_key(key) else {
             return 0;
         };
         let center = (
@@ -1071,6 +1079,42 @@ mod tests {
                 Direction::North,
             ),
             5
+        );
+    }
+
+    /// Vanilla `ResolvableInt.Constant.get` returns the inline value without
+    /// building the loot context, so it never draws from the level random.
+    #[test]
+    fn an_inline_constant_compostable_adds_exactly_its_layers() {
+        let (fixture, player) = composter_fixture("composter_inline_constant");
+        let mut stack = ItemStack::new(&vanilla_items::OAK_SAPLING);
+        stack.set(COMPOSTABLE, Compostable::constant_layers(3));
+        give_in_hand(&player, &stack);
+
+        let behavior = ComposterBlock::new(&vanilla_blocks::COMPOSTER);
+        let mut inventory =
+            InventoryAccess::new(Arc::clone(&player.inventory), InteractionHand::MainHand);
+        assert_eq!(
+            behavior.use_item_on(
+                composter_state(&fixture, TEST_POS),
+                &fixture.world,
+                TEST_POS,
+                &player,
+                InteractionHand::MainHand,
+                &composter_hit(),
+                &mut inventory,
+            ),
+            InteractionResult::Success,
+        );
+
+        assert_eq!(composter_level(&fixture, TEST_POS), 3);
+        assert!(
+            player
+                .inventory
+                .lock()
+                .get_item_in_hand(InteractionHand::MainHand)
+                .is_empty(),
+            "the constant item is consumed like any compostable"
         );
     }
 

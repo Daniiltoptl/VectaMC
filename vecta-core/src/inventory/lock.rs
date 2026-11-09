@@ -32,7 +32,7 @@ struct ContainerOwner {
 /// Thread-safe reference to an erased container.
 pub type SharedContainer = Shared<dyn Container>;
 
-struct LockedContainer(ArcMutexGuard<RawMutex, dyn Container>);
+pub(crate) struct LockedContainer(ArcMutexGuard<RawMutex, dyn Container>);
 
 impl Deref for LockedContainer {
     type Target = dyn Container;
@@ -169,7 +169,7 @@ impl ContainerRef {
     }
 
     /// Locks this container and returns a guard.
-    fn lock(&self) -> LockedContainer {
+    pub(crate) fn lock(&self) -> LockedContainer {
         LockedContainer(SyncMutex::lock_arc(&self.source))
     }
 }

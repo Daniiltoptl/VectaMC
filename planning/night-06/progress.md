@@ -621,3 +621,42 @@ entity accessor, затем compute и направления3–12 файла05
    (было 4342), fmt exit0, Clippy `-D warnings` exit0. Найдено попутно и
    записано в blockers: bonemeal на thread RNG, spawn-protection не
    смоделирована, порядок-зависимый copper chest transformer тест.
+
+## Сеанс 11 (2026-11-09): блок A — хвосты (A1, A2, A3)
+
+Старт: HEAD `69ca44bac`, baseline 4357/0/18. Режим: марафон по
+WORKBUDDY_CONTINUE_06_10.md.
+
+1. **A1 — Farmland принят (`bd82a24d9`, push).** Повторно сверены все методы
+   `FarmlandBlock.java` с реализацией; 17/17 тестов. Найдена и закрыта
+   микро-дивергенция: ваниль считает `getBbWidth()²·getBbHeight() > 0.512F`
+   во float — хелпер переведён на f32 (`bounding_box_width_squared_height`),
+   порог 0.512f32. W06-536…538, W06-540 закрыты. audit 3105/49/227, python OK.
+2. **A2 — inline-формы Resolvable.** Новый общий модуль
+   `data_components/components/resolvable.rs`: `ResolvableInt` /
+   `ResolvableFloat` (Constant/Reference) точно по Java `ResolvableInt` /
+   `ResolvableFloat` 26.3: wire = `ByteBufCodecs.either` (bool true →
+   Constant, потом BE int `readInt` / BE float `readFloat`; false → key),
+   NBT = число или строковый ключ, hash = хэш выбранной ветки.
+   `Compostable`, `CookingFuel`, `BrewingFuel` переведены; конструкторы
+   `new(Identifier…)` сохранены (generated данные не тронуты), добавлены
+   `constant_layers`/`constant`. Компостер: Constant возвращает слои без
+   построения LootContext — не тратит вызов level random (как ваниль
+   `Constant.get`); Reference без провайдера → 0 (vanilla `.orElse(0)`);
+   печь аналогично с дефолтами 0/1.0. Тесты: 6 в resolvable, +2
+   compostable, +2 cooking_fuel, +2 brewing_fuel, +1 компостер (inline
+   Constant кладёт ровно 3 слоя).
+3. **A3 — контекст печи и /data compute.** `FurnaceProviders` теперь несёт
+   identity блочной сущности и передаёт `BLOCK_ENTITY` в контекст топлива
+   (ваниль `BaseContainerBlockEntity.getLootContext`, параметр-сет
+   `CONTAINER_PROCESS`); тест «контекст топлива несёт identity печи».
+   `CONTAINER` остался — metadata-only, см. blockers. `BlockEntity` получил
+   `custom_name()` (7 переопределений: barrel, beacon, chest, dispenser,
+   dropper, hopper, shulker_box) и `container_items()` (снимок через
+   container_ref, lock стал pub(crate)); `/data compute` (block) теперь
+   заполняет в `BlockEntityRef` и имя, и инвентарь.
+4. **Проверки:** fmt exit 0; workspace см. отчёт; clippy `-D warnings` exit 0.
+   Во время сеанса рабочий файл abstract_furnace.rs был случайно обнулён
+   python-скриптом — восстановлен из HEAD и правки наложены заново (проверено
+   сборкой); прог workspace, шедший в этот момент, признан недействительным
+   и перезапущен.

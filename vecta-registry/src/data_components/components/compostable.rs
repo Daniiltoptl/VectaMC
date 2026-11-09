@@ -8,17 +8,33 @@ use vecta_utils::Identifier;
 use vecta_utils::hash::{ComponentHasher, HashComponent, HashEntry};
 use vecta_utils::serial::{ReadFrom, WriteTo};
 
-/// Reference to the context int provider giving a compostable item its
-/// chance to add a compost layer.
+use super::resolvable::ResolvableInt;
+
+/// How many compost layers an item adds: an inline constant or a reference
+/// to a `minecraft:context_int_provider`, mirroring the vanilla
+/// `ResolvableInt` field of `net.minecraft.world.item.component.Compostable`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Compostable {
-    pub layers: Identifier,
+    pub layers: ResolvableInt,
 }
 
 impl Compostable {
+    /// Vanilla `Compostable(ResourceKey<ContextIntProvider> layers)`.
+    /// The generated item data uses the reference form.
     #[must_use]
     pub const fn new(layers: Identifier) -> Self {
-        Self { layers }
+        Self {
+            layers: ResolvableInt::from_key(layers),
+        }
+    }
+
+    /// Vanilla `new Compostable(ResolvableInt.Constant(value))` for inline
+    /// constants written by datapacks or commands.
+    #[must_use]
+    pub const fn constant_layers(layers: i32) -> Self {
+        Self {
+            layers: ResolvableInt::Constant(layers),
+        }
     }
 }
 
@@ -31,7 +47,7 @@ impl WriteTo for Compostable {
 impl ReadFrom for Compostable {
     fn read(data: &mut Cursor<&[u8]>) -> Result<Self> {
         Ok(Self {
-            layers: Identifier::read(data)?,
+            layers: ResolvableInt::read(data)?,
         })
     }
 }
@@ -47,7 +63,7 @@ impl ToNbtTag for Compostable {
 impl FromNbtTag for Compostable {
     fn from_nbt_tag(tag: simdnbt::borrow::NbtTag) -> Option<Self> {
         let compound = tag.compound()?;
-        let layers = Identifier::from_nbt_tag(compound.get("layers")?)?;
+        let layers = ResolvableInt::from_nbt_tag(compound.get("layers")?)?;
         Some(Self { layers })
     }
 }
@@ -74,11 +90,12 @@ mod tests {
     use simdnbt::FromNbtTag as _;
     use simdnbt::ToNbtTag as _;
     use simdnbt::borrow::read_tag;
-    use simdnbt::owned::NbtTag;
+    use simdnbt::owned::{NbtCompound, NbtTag};
     use vecta_utils::Identifier;
     use vecta_utils::serial::{ReadFrom as _, WriteTo as _};
 
     use super::Compostable;
+    use crate::data_components::components::resolvable::ResolvableInt;
 
     fn parse(tag: NbtTag) -> Option<Compostable> {
         let mut bytes = Vec::new();
@@ -103,5 +120,38 @@ mod tests {
                 .expect("compostable should decode"),
             value
         );
+    }
+
+    #[test]
+    fn inline_constant_round_trips_both_codecs() {
+        let value = Compostable::constant_layers(3);
+
+        // NBT: `layers` is a plain int tag.
+        let NbtTag::Compound(compound) = value.clone().to_nbt_tag() else {
+            panic!("compostable NBT is a compound");
+        };
+        assert_eq!(compound.get("layers"), Some(&NbtTag::Int(3)));
+        assert_eq!(parse(NbtTag::Compound(compound)), Some(value.clone()));
+
+        // Wire: bool prefix, then the big-endian int.
+        let mut network = Vec::new();
+        value
+            .write(&mut network)
+            .expect("compostable should encode");
+        assert_eq!(network[0], 1);
+        assert_eq!(&network[1..], &3i32.to_be_bytes());
+        assert_eq!(
+            Compostable::read(&mut Cursor::new(network.as_slice()))
+                .expect("compostable should decode"),
+            value
+        );
+    }
+
+    #[test]
+    fn parses_a_datapack_constant_form() {
+        let mut compound = NbtCompound::new();
+        compound.insert("layers", 5);
+        let parsed = parse(NbtTag::Compound(compound)).expect("constant form should parse");
+        assert_eq!(parsed.layers, ResolvableInt::Constant(5));
     }
 }

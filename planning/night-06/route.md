@@ -203,3 +203,16 @@ ResolvableInt/ResolvableFloat у Compostable/CookingFuel, контекст пе�
 BLOCK_ENTITY/CONTAINER, `block_entity_loot_ref`, B-06-11), bonemeal на
 level random как самостоятельный маленький срез, затем раздел D файла 06_07
 с пункта 29.
+
+## Обновление сеанса 11 (2026-11-09)
+
+Блок A закрыт: A1 Farmland принят (`bd82a24d9`, trampling-объём в f32),
+A2 ResolvableInt/ResolvableFloat inline-формы (Compostable/CookingFuel/
+BrewingFuel; Constant не тратит level random), A3 контекст печи получил
+BLOCK_ENTITY, /data compute block_entity_loot_ref несёт имя и инвентарь.
+CONTAINER (SlotProvider) — блокер до typed value family.
+
+Следующий маршрут: блок B, пункт B1 — G031→G037 RecipeDisplay →
+ServerRecipeBook → recipe-book packets → place recipe (G034) → max craft и
+компоненты (G035) → открытие рецептов (G036) → crafting callbacks (G037),
+реальный путь клиента. По мере потребителей — A4 (B-06-11).

@@ -40,6 +40,7 @@ mod rarity;
 mod recipes;
 mod recursive_items;
 mod registry_holder_sets;
+mod resolvable;
 mod rgb_color;
 mod sign_text;
 mod suspicious_stew;
@@ -96,6 +97,7 @@ pub use recursive_items::{
     SulfurCubeContent, UseRemainder,
 };
 pub use registry_holder_sets::{DamageResistant, ProvidesBannerPatterns, Repairable};
+pub use resolvable::{ResolvableFloat, ResolvableInt};
 pub use sign_text::SignText;
 pub use suspicious_stew::{SuspiciousStewEffect, SuspiciousStewEffects};
 pub use swing_animation::{SwingAnimation, SwingAnimationType};

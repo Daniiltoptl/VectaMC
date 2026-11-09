@@ -40,6 +40,7 @@ use crate::inventory::container::Container;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::player::Player;
 use crate::world::{LevelReader, World};
+use text_components::TextComponent;
 
 /// Number of slots in a chest (3 rows of 9).
 pub const CHEST_SLOTS: usize = 27;
@@ -304,6 +305,10 @@ impl ContainerOpenersListener for ChestBlockEntity {
 impl BlockEntity for ChestBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         &self.base
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.identity.custom_name()
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, _state: BlockStateId) {

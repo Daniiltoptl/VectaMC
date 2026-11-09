@@ -20,6 +20,7 @@ use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::inventory::lock::ContainerRef;
 use crate::player::Player;
 use crate::world::World;
+use text_components::TextComponent;
 
 /// Vanilla `DispenserBlockEntity.CONTAINER_SIZE`: a dropper has the same nine
 /// slots as the dispenser it extends.
@@ -81,6 +82,10 @@ impl DropperBlockEntity {
 impl BlockEntity for DropperBlockEntity {
     fn base(&self) -> &BlockEntityBase {
         self.inner.base()
+    }
+
+    fn custom_name(&self) -> Option<TextComponent> {
+        self.inner.identity().custom_name()
     }
 
     fn pre_remove_side_effects(&self, pos: BlockPos, state: BlockStateId) {

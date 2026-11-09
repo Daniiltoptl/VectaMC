@@ -12,8 +12,10 @@ use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use vecta_registry::block_entity_type::BlockEntityTypeRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty, Direction};
+use vecta_registry::data_components::components::{ResolvableFloat, ResolvableInt};
 use vecta_registry::data_components::vanilla_components::COOKING_FUEL;
 use vecta_registry::item_stack::ItemStack;
+use vecta_registry::loot_table::BlockEntityRef;
 use vecta_registry::loot_table::{LootContext, loot_context_params};
 use vecta_registry::recipe::{
     CachedRecipeCheck, CookingRecipe, RecipeType, SingleItemRecipeInput, TypedRecipeRef,
@@ -75,19 +77,32 @@ impl FurnaceKind {
 /// Evaluates a fuel item's `minecraft:cooking_fuel` providers.
 ///
 /// Vanilla builds a `CONTAINER_PROCESS` context from the block state, the block
-/// entity, the block centre and the container. Vecta supplies the block state and
-/// the centre only: `CONTAINER` has no value type yet and `BLOCK_ENTITY` is not
-/// passed, so a provider that reads either one sees it as missing.
+/// entity, the block centre and the container. Vecta supplies the block state,
+/// the centre and the block entity identity; `CONTAINER` has no value type yet
+/// (`ContextValueKind::Container` is registry metadata only), so a provider
+/// that reads it sees it as missing.
 pub(crate) struct FurnaceProviders<'a> {
     world: &'a Arc<World>,
     pos: BlockPos,
     state: BlockStateId,
+    block_entity_type: BlockEntityTypeRef,
 }
 
 impl<'a> FurnaceProviders<'a> {
-    /// Captures the block state the fuel providers are evaluated against.
-    pub(crate) const fn new(world: &'a Arc<World>, pos: BlockPos, state: BlockStateId) -> Self {
-        Self { world, pos, state }
+    /// Captures the block state and block entity identity the fuel providers
+    /// are evaluated against.
+    pub(crate) const fn new(
+        world: &'a Arc<World>,
+        pos: BlockPos,
+        state: BlockStateId,
+        block_entity_type: BlockEntityTypeRef,
+    ) -> Self {
+        Self {
+            world,
+            pos,
+            state,
+            block_entity_type,
+        }
     }
 
     fn with_context<T>(&self, f: impl FnOnce(&mut LootContext<'_>) -> T) -> T {
@@ -99,6 +114,16 @@ impl<'a> FurnaceProviders<'a> {
         self.world.random().with_level(|rng| {
             let mut ctx = LootContext::new(rng)
                 .with_parameter(loot_context_params::BLOCK_STATE, self.state)
+                .with_parameter(
+                    loot_context_params::BLOCK_ENTITY,
+                    BlockEntityRef {
+                        block_entity_type: Some(&self.block_entity_type.key),
+                        // Vanilla passes the live `Nameable` block entity; the
+                        // furnace has no ContainerIdentity in Vecta yet.
+                        custom_name: None,
+                        inventory: None,
+                    },
+                )
                 .with_parameter(loot_context_params::ORIGIN, (center.x, center.y, center.z))
                 .with_data(self.world.as_ref());
             f(&mut ctx)
@@ -106,11 +131,17 @@ impl<'a> FurnaceProviders<'a> {
     }
 
     /// `ResolvableInt.getFromItem(fuel, COOKING_FUEL, burn_time, ctx, 0)`.
+    /// Vanilla `ResolvableInt.get`: constants return without building a
+    /// context; a missing reference falls back to the default.
     pub(crate) fn burn_duration(&self, fuel: &ItemStack) -> i32 {
         let Some(component) = fuel.get(COOKING_FUEL) else {
             return 0;
         };
-        let Some(provider) = REGISTRY.context_int_providers.by_key(&component.burn_time) else {
+        let key = match &component.burn_time {
+            ResolvableInt::Constant(value) => return *value,
+            ResolvableInt::Reference(key) => key,
+        };
+        let Some(provider) = REGISTRY.context_int_providers.by_key(key) else {
             return 0;
         };
         self.with_context(|ctx| provider.get_int(ctx))
@@ -121,10 +152,11 @@ impl<'a> FurnaceProviders<'a> {
         let Some(component) = fuel.get(COOKING_FUEL) else {
             return 1.0;
         };
-        let Some(provider) = REGISTRY
-            .context_float_providers
-            .by_key(&component.speed_multiplier)
-        else {
+        let key = match &component.speed_multiplier {
+            ResolvableFloat::Constant(value) => return *value,
+            ResolvableFloat::Reference(key) => key,
+        };
+        let Some(provider) = REGISTRY.context_float_providers.by_key(key) else {
             return 1.0;
         };
         self.with_context(|ctx| provider.get_float(ctx))
@@ -421,7 +453,12 @@ impl AbstractFurnaceBlockEntity {
     }
 
     fn server_tick(&self, world: &Arc<World>) {
-        let providers = FurnaceProviders::new(world, self.base.pos(), self.base.block_state());
+        let providers = FurnaceProviders::new(
+            world,
+            self.base.pos(),
+            self.base.block_state(),
+            self.base.block_entity_type(),
+        );
         let result = self.container.lock().tick(&providers);
 
         if result.lit_changed {
@@ -636,11 +673,51 @@ mod tests {
         }
     }
 
+    /// The block entity identity the fuel providers are evaluated against.
+    fn kind_block_entity_type(kind: FurnaceKind) -> BlockEntityTypeRef {
+        match kind {
+            FurnaceKind::Furnace => &vanilla_block_entity_types::FURNACE,
+            FurnaceKind::BlastFurnace => &vanilla_block_entity_types::BLAST_FURNACE,
+            FurnaceKind::Smoker => &vanilla_block_entity_types::SMOKER,
+        }
+    }
+
+    /// Vanilla `BaseContainerBlockEntity.getLootContext` passes
+    /// `LootContextParams.BLOCK_ENTITY = this` for the `CONTAINER_PROCESS`
+    /// fuel providers.
+    #[test]
+    fn the_fuel_context_carries_the_block_entity_identity() {
+        init_vanilla_registry();
+        let fixture = fresh_test_world("furnace_context_block_entity");
+        let providers = FurnaceProviders::new(
+            &fixture.world,
+            BlockPos::ZERO,
+            kind_state(FurnaceKind::BlastFurnace),
+            kind_block_entity_type(FurnaceKind::BlastFurnace),
+        );
+
+        let block_entity_type = providers.with_context(|ctx| {
+            ctx.params
+                .get(loot_context_params::BLOCK_ENTITY)
+                .and_then(|block_entity| block_entity.block_entity_type.map(ToString::to_string))
+        });
+        assert_eq!(
+            block_entity_type.as_deref(),
+            Some("minecraft:blast_furnace"),
+            "the fuel context must expose the furnace block entity identity"
+        );
+    }
+
     fn cook_iron(kind: FurnaceKind, expected_ticks: usize, expected_fuel_time: i32) {
         init_vanilla_registry();
         let fixture = fresh_test_world("furnace_cook_iron");
         let world = &fixture.world;
-        let providers = FurnaceProviders::new(world, BlockPos::ZERO, kind_state(kind));
+        let providers = FurnaceProviders::new(
+            world,
+            BlockPos::ZERO,
+            kind_state(kind),
+            kind_block_entity_type(kind),
+        );
         let mut furnace = FurnaceContainer::new(kind);
         furnace.set_item(SLOT_INPUT, ItemStack::new(&vanilla_items::IRON_ORE));
         furnace.set_item(SLOT_FUEL, ItemStack::new(&vanilla_items::COAL));
@@ -683,6 +760,7 @@ mod tests {
             &fixture.world,
             BlockPos::ZERO,
             kind_state(FurnaceKind::Furnace),
+            kind_block_entity_type(FurnaceKind::Furnace),
         );
         let mut furnace = FurnaceContainer::new(FurnaceKind::Furnace);
         furnace.set_item(SLOT_INPUT, ItemStack::new(&vanilla_items::IRON_ORE));
@@ -729,6 +807,7 @@ mod tests {
             &fixture.world,
             BlockPos::ZERO,
             kind_state(FurnaceKind::Furnace),
+            kind_block_entity_type(FurnaceKind::Furnace),
         );
         let mut furnace = FurnaceContainer::new(FurnaceKind::Furnace);
         furnace.set_item(SLOT_INPUT, ItemStack::new(&vanilla_items::IRON_ORE));
