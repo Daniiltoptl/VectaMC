@@ -4,9 +4,11 @@ mod matching;
 
 use vecta_utils::{DowncastType, DowncastTypeKey};
 
-use crate::data_components::vanilla_components::FireworkExplosionShape;
+use crate::data_components::vanilla_components::{self, FireworkExplosionShape};
 use crate::item_stack::ItemStack;
 use crate::item_stack_template::ItemStackTemplate;
+use crate::recipe::display::SlotDisplay;
+use crate::recipe::recipe_display::RecipeDisplay;
 
 use super::{Ingredient, RecipeData, RecipeInput, RecipeMatches, RecipeProperties};
 
@@ -249,6 +251,99 @@ impl CraftingRecipe {
             Self::MapExtending(recipe) => &recipe.properties,
             Self::RepairItem(recipe) => &recipe.properties,
             Self::ShieldDecoration(recipe) => &recipe.properties,
+        }
+    }
+
+    /// Builds the recipe-book displays, mirroring each serializer's
+    /// `display()` override. Vanilla serializers without an override
+    /// (`DecoratedPot`, `BannerDuplicate`, `BookCloning`, `FireworkRocket`,
+    /// `FireworkStar`, `FireworkStarFade`, `MapExtending`, `RepairItem`,
+    /// `ShieldDecoration`) produce no recipe-book entries.
+    #[must_use]
+    pub fn displays(&self) -> Vec<RecipeDisplay> {
+        fn crafting_station() -> SlotDisplay {
+            SlotDisplay::Item(&crate::vanilla_items::CRAFTING_TABLE)
+        }
+        match self {
+            Self::Shaped(recipe) => vec![RecipeDisplay::Shaped {
+                width: i32::try_from(recipe.width).expect("shaped width fits i32"),
+                height: i32::try_from(recipe.height).expect("shaped height fits i32"),
+                ingredients: recipe.pattern.iter().map(Ingredient::display).collect(),
+                result: SlotDisplay::ItemStack(recipe.result.clone()),
+                crafting_station: crafting_station(),
+            }],
+            Self::Shapeless(recipe) => vec![RecipeDisplay::Shapeless {
+                ingredients: recipe.ingredients.iter().map(Ingredient::display).collect(),
+                result: SlotDisplay::ItemStack(recipe.result.clone()),
+                crafting_station: crafting_station(),
+            }],
+            Self::Transmute(recipe) => {
+                let Some(result) = recipe.result.as_ref() else {
+                    return Vec::new();
+                };
+                let input = recipe.input.display();
+                let material = recipe.material.display();
+                let mut displays = Vec::new();
+                let mut ingredients = vec![input];
+                for material_count in recipe.min_material_count..=recipe.max_material_count {
+                    ingredients.push(material.clone());
+                    let result_count = if recipe.add_material_count_to_result {
+                        i32::try_from(material_count).expect("material count fits i32")
+                            + result.count()
+                    } else {
+                        result.count()
+                    };
+                    let result_display = ItemStackTemplate::try_with_count_and_patch(
+                        result.item(),
+                        result_count,
+                        result.components().clone(),
+                    )
+                    .expect("transmute display result is a valid template");
+                    displays.push(RecipeDisplay::Shapeless {
+                        ingredients: ingredients.clone(),
+                        result: SlotDisplay::ItemStack(result_display),
+                        crafting_station: crafting_station(),
+                    });
+                }
+                displays
+            }
+            Self::Dye(recipe) => {
+                let dyes = Box::new(SlotDisplay::OnlyWithComponent {
+                    source: Box::new(recipe.dye.display()),
+                    component: vanilla_components::DYE.key,
+                });
+                let target = Box::new(recipe.target.display());
+                vec![RecipeDisplay::Shapeless {
+                    ingredients: vec![*target.clone(), *dyes.clone()],
+                    result: SlotDisplay::Dyed { dye: dyes, target },
+                    crafting_station: crafting_station(),
+                }]
+            }
+            Self::Imbue(recipe) => {
+                let material = recipe.material.display();
+                let source = SlotDisplay::WithAnyPotion(Box::new(recipe.source.display()));
+                let ingredients = vec![
+                    material.clone(),
+                    material.clone(),
+                    material.clone(),
+                    material.clone(),
+                    source,
+                    material.clone(),
+                    material.clone(),
+                    material.clone(),
+                    material,
+                ];
+                vec![RecipeDisplay::Shaped {
+                    width: 3,
+                    height: 3,
+                    ingredients,
+                    result: SlotDisplay::WithAnyPotion(Box::new(SlotDisplay::ItemStack(
+                        recipe.result.clone(),
+                    ))),
+                    crafting_station: crafting_station(),
+                }]
+            }
+            _ => Vec::new(),
         }
     }
 

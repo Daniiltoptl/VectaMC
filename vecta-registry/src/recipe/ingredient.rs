@@ -2,7 +2,9 @@
 
 use vecta_utils::Identifier;
 
-use crate::{REGISTRY, TaggedRegistryExt, item_stack::ItemStack, items::ItemRef};
+use super::display::SlotDisplay;
+use crate::items::{Item, ItemRef};
+use crate::{REGISTRY, RegistryHolderSet, TaggedRegistryExt, item_stack::ItemStack};
 
 /// Represents what items can satisfy a recipe slot.
 /// Matches Java's `Ingredient` class.
@@ -68,6 +70,34 @@ impl Ingredient {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x == y)
             }
             _ => false,
+        }
+    }
+
+    /// Builds the recipe-book slot display for this ingredient.
+    ///
+    /// Vanilla always renders an ingredient as a `TagSlotDisplay` over its
+    /// holder set; a Rust `Empty` ingredient corresponds to the vanilla
+    /// `Optional.empty` slot, which recipes map to `SlotDisplay.Empty`.
+    #[must_use]
+    pub fn display(&self) -> SlotDisplay {
+        match self {
+            Self::Empty => SlotDisplay::Empty,
+            Self::Item(item) => SlotDisplay::Tag(RegistryHolderSet::Direct(vec![*item])),
+            Self::Tag(tag) => SlotDisplay::Tag(RegistryHolderSet::Tag(tag.clone())),
+            Self::Choice(items) => SlotDisplay::Tag(RegistryHolderSet::Direct(items.to_vec())),
+        }
+    }
+
+    /// Builds the stacked-ingredients holder set used by
+    /// `RecipeDisplayEntry.craftingRequirements` (vanilla `Ingredient`'s
+    /// `CONTENTS_STREAM_CODEC` payload).
+    #[must_use]
+    pub fn holder_set(&self) -> RegistryHolderSet<Item> {
+        match self {
+            Self::Empty => RegistryHolderSet::Direct(Vec::new()),
+            Self::Item(item) => RegistryHolderSet::Direct(vec![*item]),
+            Self::Tag(tag) => RegistryHolderSet::Tag(tag.clone()),
+            Self::Choice(items) => RegistryHolderSet::Direct(items.to_vec()),
         }
     }
 }

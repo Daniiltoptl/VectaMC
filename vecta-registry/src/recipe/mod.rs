@@ -32,7 +32,8 @@ pub use recipe_display::{
     RecipeDisplayTypeRef, RecipeDisplayTypeRegistry,
 };
 pub use registry::{
-    CachedRecipeCheck, RecipeRegistry, TypedRecipeRef, TypedRecipeSet, UntypedRecipeRef,
+    CachedRecipeCheck, DisplayIndex, RecipeRegistry, ServerDisplayInfo, TypedRecipeRef,
+    TypedRecipeSet, UntypedRecipeRef,
 };
 pub use single_item::{CookingRecipe, SingleItemRecipeInput, StonecuttingRecipe};
 pub use smithing::{

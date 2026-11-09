@@ -3,10 +3,152 @@
 use rustc_hash::FxHashMap;
 use vecta_utils::{Downcast as _, DowncastType, Identifier};
 
+use super::recipe_display::{RecipeDisplay, RecipeDisplayEntry, RecipeDisplayId};
 use super::{
-    ErasedRecipe, Recipe, RecipeData, RecipeInput, RecipeMatches, RecipeType, RecipeTypeEntryRef,
-    RecipeTypeRegistry,
+    CookingRecipe, CraftingRecipe, ErasedRecipe, Ingredient, Recipe, RecipeData, RecipeInput,
+    RecipeMatches, RecipeType, RecipeTypeEntryRef, RecipeTypeRegistry, SmithingRecipe,
+    StonecuttingRecipe,
 };
+
+/// One unpacked recipe-book entry with its parent recipe (vanilla
+/// `RecipeManager.ServerDisplayInfo`).
+#[derive(Debug, Clone)]
+pub struct ServerDisplayInfo {
+    /// The entry sent to the client, carrying the server-assigned id.
+    pub display: RecipeDisplayEntry,
+    /// The registered recipe this display belongs to.
+    pub parent: UntypedRecipeRef,
+}
+
+/// Server-side index over all recipe-book displays (vanilla `RecipeManager`'s
+/// `allDisplays` and `recipeToDisplay` pair). Built in registration order so
+/// that `RecipeDisplayId`s are stable across reserialization.
+pub struct DisplayIndex {
+    displays: Vec<ServerDisplayInfo>,
+    recipe_to_display: FxHashMap<Identifier, Vec<usize>>,
+}
+
+impl DisplayIndex {
+    /// Unpacks the recipe-book displays (vanilla `RecipeManager.unpackRecipeInfo`):
+    /// recipes iterate in registry order, group ids are assigned per unpack by
+    /// first occurrence, special recipes carry no `craftingRequirements`, and
+    /// every display of a recipe gets a sequential `RecipeDisplayId`.
+    ///
+    /// Feature flags are not modeled; vanilla recipes declare no
+    /// feature-flagged displays.
+    #[must_use]
+    pub fn build(registry: &RecipeRegistry) -> Self {
+        let mut displays: Vec<ServerDisplayInfo> = Vec::new();
+        let mut recipe_to_display: FxHashMap<Identifier, Vec<usize>> = FxHashMap::default();
+        let mut groups: FxHashMap<String, i32> = FxHashMap::default();
+        for recipe in registry.iter() {
+            let Some(properties) = recipe.data().properties() else {
+                continue;
+            };
+            let Some(book) = properties.recipe_book.as_ref() else {
+                continue;
+            };
+            let payload_displays: Vec<RecipeDisplay> =
+                if let Some(data) = recipe.downcast_data::<CraftingRecipe>() {
+                    data.displays()
+                } else if let Some(data) = recipe.downcast_data::<CookingRecipe>() {
+                    data.displays(&recipe.recipe_type().key)
+                } else if let Some(data) = recipe.downcast_data::<StonecuttingRecipe>() {
+                    data.displays()
+                } else if let Some(data) = recipe.downcast_data::<SmithingRecipe>() {
+                    data.displays()
+                } else {
+                    Vec::new()
+                };
+            if payload_displays.is_empty() {
+                continue;
+            }
+            let group = book.group.as_ref().map(|group| {
+                let next = groups.len() as i32;
+                *groups.entry(group.clone()).or_insert(next)
+            });
+            let crafting_requirements = if properties.special {
+                None
+            } else {
+                Some(
+                    properties
+                        .placement
+                        .as_ref()
+                        .map_or(&[][..], |placement| &placement.ingredients)
+                        .iter()
+                        .map(Ingredient::holder_set)
+                        .collect(),
+                )
+            };
+            let category = book.category.resolve(&recipe.recipe_type().key);
+            for display in payload_displays {
+                let id = RecipeDisplayId {
+                    index: i32::try_from(displays.len()).expect("display id fits i32"),
+                };
+                let entry = RecipeDisplayEntry {
+                    id,
+                    display,
+                    group,
+                    category,
+                    crafting_requirements: crafting_requirements.clone(),
+                };
+                recipe_to_display
+                    .entry(recipe.key().clone())
+                    .or_default()
+                    .push(displays.len());
+                displays.push(ServerDisplayInfo {
+                    display: entry,
+                    parent: recipe,
+                });
+            }
+        }
+        Self {
+            displays,
+            recipe_to_display,
+        }
+    }
+
+    /// Resolves a server-assigned display id (vanilla
+    /// `RecipeManager.getRecipeFromDisplay`): unknown or out-of-range ids
+    /// resolve to nothing.
+    #[must_use]
+    pub fn get_recipe_from_display(&self, id: RecipeDisplayId) -> Option<&ServerDisplayInfo> {
+        let index = usize::try_from(id.index).ok()?;
+        self.displays.get(index)
+    }
+
+    /// Iterates the displays belonging to one recipe (vanilla
+    /// `RecipeManager.listDisplaysForRecipe`); unknown keys produce nothing.
+    pub fn list_displays_for_recipe(
+        &self,
+        key: &Identifier,
+    ) -> impl Iterator<Item = &ServerDisplayInfo> + '_ {
+        self.recipe_to_display
+            .get(key)
+            .map_or(&[][..], Vec::as_slice)
+            .iter()
+            .filter_map(|index| self.displays.get(*index))
+    }
+
+    #[must_use]
+    pub fn get(&self, index: usize) -> Option<&ServerDisplayInfo> {
+        self.displays.get(index)
+    }
+
+    #[must_use]
+    pub const fn len(&self) -> usize {
+        self.displays.len()
+    }
+
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.displays.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &ServerDisplayInfo> + '_ {
+        self.displays.iter()
+    }
+}
 
 /// Type-erased recipe reference returned by all-recipe and key lookup APIs.
 #[derive(Clone, Copy)]
@@ -359,9 +501,15 @@ mod tests {
     use vecta_utils::{DowncastType, DowncastTypeKey, Identifier};
 
     use crate::item_stack::ItemStack;
+    use crate::item_stack_template::ItemStackTemplate;
+    use crate::recipe::display::SlotDisplay;
+    use crate::recipe::recipe_display::RecipeDisplay;
+    use crate::recipe::registry::ServerDisplayInfo;
     use crate::recipe::{
-        CachedRecipeCheck, CraftingInput, CraftingRecipe, Ingredient, Recipe, RecipeData,
-        RecipeInput, RecipeMatches, RecipeRegistry, RecipeType, RecipeTypeRegistry,
+        CachedRecipeCheck, CraftingBookCategory, CraftingInput, CraftingRecipe, DisplayIndex,
+        Ingredient, PlacementInfo, Recipe, RecipeBookCategoryKind, RecipeBookProperties,
+        RecipeData, RecipeDisplayId, RecipeInput, RecipeMatches, RecipeProperties, RecipeRegistry,
+        RecipeType, RecipeTypeRegistry, ShapelessRecipe, vanilla_recipe_book_categories,
         vanilla_recipe_types,
     };
     use crate::{REGISTRY, init_vanilla_registry, vanilla_items, vanilla_recipes};
@@ -674,5 +822,243 @@ mod tests {
         ));
 
         assert!(recipe.matches(&input));
+    }
+
+    #[test]
+    fn display_index_assigns_sequential_ids_in_registration_order() {
+        init_vanilla_registry();
+        let index = DisplayIndex::build(&REGISTRY.recipes);
+        assert!(
+            index.len() > 1_000,
+            "vanilla recipes must unpack more than 1000 displays, got {}",
+            index.len()
+        );
+        for (position, info) in index.iter().enumerate() {
+            assert_eq!(
+                info.display.id,
+                RecipeDisplayId {
+                    index: i32::try_from(position).expect("position fits i32"),
+                },
+                "display ids must be the entry position"
+            );
+        }
+        assert!(
+            index
+                .get_recipe_from_display(RecipeDisplayId { index: -1 })
+                .is_none(),
+            "negative display ids resolve to nothing"
+        );
+        assert!(
+            index
+                .get_recipe_from_display(RecipeDisplayId {
+                    index: index.len() as i32,
+                })
+                .is_none(),
+            "out-of-range display ids resolve to nothing"
+        );
+        let first = index
+            .get_recipe_from_display(RecipeDisplayId { index: 0 })
+            .expect("first display exists");
+        assert_eq!(first.display.id.index, 0);
+    }
+
+    #[test]
+    fn iron_pickaxe_display_links_to_its_recipe_with_the_vanilla_shape() {
+        init_vanilla_registry();
+        let index = DisplayIndex::build(&REGISTRY.recipes);
+        let entries: Vec<&ServerDisplayInfo> = index
+            .list_displays_for_recipe(vanilla_recipes::IRON_PICKAXE.key())
+            .collect();
+        assert_eq!(entries.len(), 1, "shaped recipes unpack one display");
+        let entry = &entries[0].display;
+        let RecipeDisplay::Shaped {
+            width,
+            height,
+            ingredients,
+            result,
+            crafting_station,
+        } = &entry.display
+        else {
+            panic!("iron pickaxe must unpack a shaped display");
+        };
+        assert_eq!((*width, *height), (3, 3));
+        assert_eq!(ingredients.len(), 9);
+        let shaped = match vanilla_recipes::IRON_PICKAXE.data() {
+            CraftingRecipe::Shaped(shaped) => shaped,
+            other => panic!("iron pickaxe must keep shaped data, got {other:?}"),
+        };
+        assert_eq!(
+            *ingredients,
+            shaped
+                .pattern
+                .iter()
+                .map(Ingredient::display)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(*result, SlotDisplay::ItemStack(shaped.result.clone()));
+        assert_eq!(
+            *crafting_station,
+            SlotDisplay::Item(&vanilla_items::CRAFTING_TABLE)
+        );
+        assert_eq!(
+            entry.category,
+            &vanilla_recipe_book_categories::CRAFTING_EQUIPMENT
+        );
+        // Not special: the placement ingredients are the stacked requirements.
+        let Some(requirements) = &entry.crafting_requirements else {
+            panic!("regular recipes carry crafting requirements");
+        };
+        let placement = shaped
+            .properties
+            .placement
+            .as_ref()
+            .expect("shaped placement");
+        assert_eq!(
+            requirements,
+            &placement
+                .ingredients
+                .iter()
+                .map(Ingredient::holder_set)
+                .collect::<Vec<_>>()
+        );
+        assert!(!placement.ingredients.is_empty());
+        assert_eq!(entries[0].parent.key(), vanilla_recipes::IRON_PICKAXE.key());
+    }
+
+    #[test]
+    fn recipes_sharing_a_group_share_one_group_id_per_unpack() {
+        init_vanilla_registry();
+        let index = DisplayIndex::build(&REGISTRY.recipes);
+        let oak = index
+            .list_displays_for_recipe(vanilla_recipes::OAK_BOAT.key())
+            .next()
+            .expect("oak boat unpacks displays")
+            .display
+            .group;
+        let acacia = index
+            .list_displays_for_recipe(vanilla_recipes::ACACIA_BOAT.key())
+            .next()
+            .expect("acacia boat unpacks displays")
+            .display
+            .group;
+        assert!(oak.is_some(), "boat recipes declare a book group");
+        assert_eq!(oak, acacia, "recipes sharing a group share one group id");
+    }
+
+    #[test]
+    fn baked_potato_display_carries_the_furnace_station_and_values() {
+        init_vanilla_registry();
+        let index = DisplayIndex::build(&REGISTRY.recipes);
+        let entries: Vec<&ServerDisplayInfo> = index
+            .list_displays_for_recipe(vanilla_recipes::BAKED_POTATO.key())
+            .collect();
+        assert_eq!(entries.len(), 1, "cooking recipes unpack one display");
+        let entry = &entries[0].display;
+        let RecipeDisplay::Furnace {
+            ingredient,
+            fuel,
+            result,
+            crafting_station,
+            duration,
+            experience,
+        } = &entry.display
+        else {
+            panic!("baked potato must unpack a furnace display");
+        };
+        let cooking = vanilla_recipes::BAKED_POTATO.data();
+        assert_eq!(*ingredient, cooking.ingredient.display());
+        assert_eq!(*fuel, SlotDisplay::AnyFuel);
+        assert_eq!(*result, SlotDisplay::ItemStack(cooking.result.clone()));
+        assert_eq!(
+            *crafting_station,
+            SlotDisplay::Item(&vanilla_items::FURNACE)
+        );
+        assert_eq!(*duration, cooking.cooking_time);
+        assert_eq!(*experience, cooking.experience);
+        assert_eq!(
+            entry.category,
+            &vanilla_recipe_book_categories::FURNACE_FOOD
+        );
+    }
+
+    #[test]
+    fn smithing_trim_recipes_render_the_trim_demo_result() {
+        init_vanilla_registry();
+        let index = DisplayIndex::build(&REGISTRY.recipes);
+        let entries: Vec<&ServerDisplayInfo> = index
+            .list_displays_for_recipe(
+                vanilla_recipes::BOLT_ARMOR_TRIM_SMITHING_TEMPLATE_SMITHING_TRIM.key(),
+            )
+            .collect();
+        assert_eq!(entries.len(), 1, "smithing trim recipes unpack one display");
+        let RecipeDisplay::Smithing {
+            result,
+            crafting_station,
+            ..
+        } = &entries[0].display.display
+        else {
+            panic!("smithing trim must unpack a smithing display");
+        };
+        let SlotDisplay::SmithingTrim { base, material, .. } = result else {
+            panic!("trim results use the smithing trim demo display");
+        };
+        assert!(
+            matches!(**base, SlotDisplay::Tag(_)),
+            "trim base is an ingredient tag display"
+        );
+        assert!(
+            matches!(**material, SlotDisplay::Tag(_)),
+            "trim material is an ingredient tag display"
+        );
+        assert_eq!(
+            *crafting_station,
+            SlotDisplay::Item(&vanilla_items::SMITHING_TABLE)
+        );
+        assert_eq!(
+            entries[0].display.category,
+            &vanilla_recipe_book_categories::SMITHING
+        );
+    }
+
+    #[test]
+    fn special_recipes_drop_crafting_requirements() {
+        static SPECIAL: LazyLock<Recipe<CraftingRecipe, CraftingInput>> = LazyLock::new(|| {
+            Recipe::new(
+                Identifier::new_static("test_plugin", "a_special_display"),
+                &vanilla_recipe_types::CRAFTING,
+                CraftingRecipe::Shapeless(ShapelessRecipe::new(
+                    RecipeProperties {
+                        special: true,
+                        placement: Some(PlacementInfo::from_ingredients(&[Ingredient::Item(
+                            &vanilla_items::STICK,
+                        )])),
+                        recipe_book: Some(RecipeBookProperties {
+                            category: RecipeBookCategoryKind::Crafting(CraftingBookCategory::Misc),
+                            group: None,
+                            show_notification: true,
+                        }),
+                    },
+                    vec![Ingredient::Item(&vanilla_items::STICK)].into_boxed_slice(),
+                    ItemStackTemplate::new(&vanilla_items::STICK),
+                )),
+            )
+        });
+
+        let mut types = RecipeTypeRegistry::new();
+        types.register(&vanilla_recipe_types::CRAFTING);
+        types.freeze();
+        let mut recipes = RecipeRegistry::new();
+        recipes.register(&SPECIAL);
+        recipes.freeze(&types);
+
+        let index = DisplayIndex::build(&recipes);
+        let entry = index
+            .list_displays_for_recipe(SPECIAL.key())
+            .next()
+            .expect("special shapeless recipes still unpack a display");
+        assert!(
+            entry.display.crafting_requirements.is_none(),
+            "special recipes carry no crafting requirements"
+        );
     }
 }

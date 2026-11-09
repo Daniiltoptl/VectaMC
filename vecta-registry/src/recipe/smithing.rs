@@ -4,7 +4,11 @@ use vecta_utils::{DowncastType, DowncastTypeKey};
 
 use crate::item_stack::ItemStack;
 use crate::item_stack_template::ItemStackTemplate;
+use crate::recipe::display::SlotDisplay;
+use crate::recipe::recipe_display::RecipeDisplay;
+use crate::registry::RegistryHolder;
 use crate::trim_pattern::TrimPatternRef;
+use crate::vanilla_items;
 
 use super::{Ingredient, RecipeData, RecipeInput, RecipeMatches, RecipeProperties};
 
@@ -40,6 +44,43 @@ impl SmithingRecipe {
             Self::Transform(recipe) => &recipe.properties,
             Self::Trim(recipe) => &recipe.properties,
         }
+    }
+
+    /// Builds the recipe-book display, mirroring the smithing serializers'
+    /// `display()` overrides.
+    #[must_use]
+    pub fn displays(&self) -> Vec<RecipeDisplay> {
+        fn smithing_table() -> SlotDisplay {
+            SlotDisplay::Item(&vanilla_items::SMITHING_TABLE)
+        }
+        fn optional_display(ingredient: Option<&Ingredient>) -> SlotDisplay {
+            ingredient.map_or(SlotDisplay::Empty, Ingredient::display)
+        }
+        let (template, base, addition, result) = match self {
+            Self::Transform(recipe) => (
+                optional_display(recipe.template.as_ref()),
+                recipe.base.display(),
+                optional_display(recipe.addition.as_ref()),
+                SlotDisplay::ItemStack(recipe.result.clone()),
+            ),
+            Self::Trim(recipe) => (
+                recipe.template.display(),
+                recipe.base.display(),
+                recipe.addition.display(),
+                SlotDisplay::SmithingTrim {
+                    base: Box::new(recipe.base.display()),
+                    material: Box::new(recipe.addition.display()),
+                    pattern: Box::new(RegistryHolder::Reference(recipe.pattern)),
+                },
+            ),
+        };
+        vec![RecipeDisplay::Smithing {
+            template,
+            base,
+            addition,
+            result,
+            crafting_station: smithing_table(),
+        }]
     }
 }
 

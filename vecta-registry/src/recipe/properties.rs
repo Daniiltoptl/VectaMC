@@ -24,15 +24,51 @@ pub enum CookingBookCategory {
 
 /// Logical recipe-book category stored by recipe data.
 ///
-/// Cooking categories are resolved against the operational recipe type when the
-/// registry freezes. For example, `Cooking(Food)` becomes `furnace_food` for a
-/// smelting recipe and `smoker_food` for a smoking recipe.
+/// Cooking categories are resolved against the operational recipe type when
+/// displays are unpacked. For example, `Cooking(Food)` becomes `furnace_food`
+/// for a smelting recipe and `smoker_food` for a smoking recipe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RecipeBookCategoryKind {
     Crafting(CraftingBookCategory),
     Cooking(CookingBookCategory),
     Stonecutter,
     Smithing,
+}
+
+impl RecipeBookCategoryKind {
+    /// Resolves the protocol category, mirroring the per-serializer
+    /// `recipeBookCategory()` switches (`SmeltingRecipe`, `BlastingRecipe`,
+    /// `SmokingRecipe`, `CampfireCookingRecipe`).
+    ///
+    /// # Panics
+    /// Panics if a cooking category is used by a non-cooking recipe type.
+    #[must_use]
+    pub fn resolve(self, recipe_type: &Identifier) -> RecipeBookCategoryRef {
+        use CookingBookCategory as Cooking;
+        use vanilla_recipe_book_categories as categories;
+        match self {
+            Self::Crafting(CraftingBookCategory::Building) => &categories::CRAFTING_BUILDING_BLOCKS,
+            Self::Crafting(CraftingBookCategory::Redstone) => &categories::CRAFTING_REDSTONE,
+            Self::Crafting(CraftingBookCategory::Equipment) => &categories::CRAFTING_EQUIPMENT,
+            Self::Crafting(CraftingBookCategory::Misc) => &categories::CRAFTING_MISC,
+            Self::Stonecutter => &categories::STONECUTTER,
+            Self::Smithing => &categories::SMITHING,
+            Self::Cooking(kind) => match recipe_type.path.as_ref() {
+                "smelting" => match kind {
+                    Cooking::Food => &categories::FURNACE_FOOD,
+                    Cooking::Blocks => &categories::FURNACE_BLOCKS,
+                    Cooking::Misc => &categories::FURNACE_MISC,
+                },
+                "blasting" => match kind {
+                    Cooking::Blocks => &categories::BLAST_FURNACE_BLOCKS,
+                    Cooking::Food | Cooking::Misc => &categories::BLAST_FURNACE_MISC,
+                },
+                "smoking" => &categories::SMOKER_FOOD,
+                "campfire_cooking" => &categories::CAMPFIRE,
+                other => panic!("Cooking recipe book category on non-cooking type: {other}"),
+            },
+        }
+    }
 }
 
 /// Recipe-book metadata which is not part of matching or processing.

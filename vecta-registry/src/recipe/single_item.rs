@@ -1,9 +1,12 @@
 //! Passive single-item recipe data and input snapshots.
 
-use vecta_utils::{DowncastType, DowncastTypeKey};
+use vecta_utils::{DowncastType, DowncastTypeKey, Identifier};
 
 use crate::item_stack::ItemStack;
 use crate::item_stack_template::ItemStackTemplate;
+use crate::recipe::display::SlotDisplay;
+use crate::recipe::recipe_display::RecipeDisplay;
+use crate::vanilla_items;
 
 use super::{Ingredient, RecipeData, RecipeInput, RecipeMatches, RecipeProperties};
 
@@ -52,6 +55,30 @@ impl RecipeData for CookingRecipe {
     }
 }
 
+impl CookingRecipe {
+    /// Builds the recipe-book display, mirroring
+    /// `AbstractCookingRecipe.display()` with the serializer's `furnaceIcon`.
+    #[must_use]
+    pub fn displays(&self, recipe_type: &Identifier) -> Vec<RecipeDisplay> {
+        fn furnace_icon(recipe_type: &Identifier) -> SlotDisplay {
+            match recipe_type.path.as_ref() {
+                "blasting" => SlotDisplay::Item(&vanilla_items::BLAST_FURNACE),
+                "smoking" => SlotDisplay::Item(&vanilla_items::SMOKER),
+                "campfire_cooking" => SlotDisplay::Item(&vanilla_items::CAMPFIRE),
+                _ => SlotDisplay::Item(&vanilla_items::FURNACE),
+            }
+        }
+        vec![RecipeDisplay::Furnace {
+            ingredient: self.ingredient.display(),
+            fuel: SlotDisplay::AnyFuel,
+            result: SlotDisplay::ItemStack(self.result.clone()),
+            crafting_station: furnace_icon(recipe_type),
+            duration: self.cooking_time,
+            experience: self.experience,
+        }]
+    }
+}
+
 /// Stonecutter recipe data.
 #[derive(Debug)]
 pub struct StonecuttingRecipe {
@@ -68,6 +95,20 @@ unsafe impl DowncastType for StonecuttingRecipe {
 impl RecipeData for StonecuttingRecipe {
     fn properties(&self) -> Option<&RecipeProperties> {
         Some(&self.properties)
+    }
+}
+
+impl StonecuttingRecipe {
+    /// Builds the recipe-book display, mirroring
+    /// `StonecutterRecipe.display()`. This is book-only; the stonecutter
+    /// menu keeps its own update-recipes path.
+    #[must_use]
+    pub fn displays(&self) -> Vec<RecipeDisplay> {
+        vec![RecipeDisplay::Stonecutter {
+            input: self.ingredient.display(),
+            result: SlotDisplay::ItemStack(self.result.clone()),
+            crafting_station: SlotDisplay::Item(&vanilla_items::STONECUTTER),
+        }]
     }
 }
 
