@@ -24,7 +24,9 @@ use vecta_registry::data_components::vanilla_components::SwingAnimation;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::sound_event::{SoundEventHolder, SoundEventRef};
-use vecta_registry::{REGISTRY, vanilla_attributes, vanilla_damage_types, vanilla_entities};
+use vecta_registry::{
+    REGISTRY, sound_events, vanilla_attributes, vanilla_damage_types, vanilla_entities,
+};
 use vecta_utils::types::{Difficulty, GameType, InteractionHand, SignTextSlot};
 use vecta_utils::{BlockPos, Downcast as _, Identifier, WorldAabb};
 
