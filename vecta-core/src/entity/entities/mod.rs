@@ -18,4 +18,4 @@ pub use objects::projectiles::{
     ThrownExperienceBottleEntity,
 };
 pub use objects::technical::{InteractionEntity, MarkerEntity};
-pub use objects::vehicles::{ChestMinecartEntity, MinecartEntity};
+pub use objects::vehicles::{ChestMinecartEntity, MinecartEntity, SpawnerMinecartEntity};
