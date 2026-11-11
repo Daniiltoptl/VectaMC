@@ -4,7 +4,6 @@ use std::f32::consts::PI;
 use std::sync::{Arc, Weak};
 
 use glam::DVec3;
-use rand::{Rng, RngExt as _};
 use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::NbtCompound;
 use vecta_macros::entity_behavior;
@@ -17,6 +16,7 @@ use vecta_registry::vanilla_entity_data::BatEntityData;
 use vecta_registry::{level_events, sound_events, vanilla_attributes};
 use vecta_utils::locks::SyncMutex;
 use vecta_utils::nbt::NbtValueInput as _;
+use vecta_utils::random::{Random as _, RandomSource};
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey};
 
 use crate::chunk::heightmap::HeightmapType;
@@ -77,15 +77,15 @@ impl BatEntity {
     /// Bats spawn below the world surface in dark places on `bats_spawnable_on` blocks.
     pub(crate) fn check_bat_spawn_rules(
         entity_type: EntityTypeRef,
-        level: &dyn LevelReader,
+        level: &World,
         spawn_reason: EntitySpawnReason,
         pos: BlockPos,
-        random: &mut dyn Rng,
+        random: &mut RandomSource,
     ) -> bool {
-        if pos.y() >= level.height_at(HeightmapType::WorldSurface, pos.x(), pos.z())
-            || random.random::<bool>()
+        if pos.y() >= LevelReader::height_at(level, HeightmapType::WorldSurface, pos.x(), pos.z())
+            || random.next_bool()
             || i32::from(level.max_local_raw_brightness(pos, level.sky_darkening()))
-                > random.random_range(0..4)
+                > random.next_i32_bounded(4)
         {
             return false;
         }

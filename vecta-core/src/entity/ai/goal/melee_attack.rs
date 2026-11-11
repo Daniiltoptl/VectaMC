@@ -27,7 +27,12 @@ pub(crate) struct MeleeAttackGoal {
     ticks_until_next_path_recalculation: i32,
     ticks_until_next_attack: i32,
     last_can_use_check: i64,
+    can_use_gate: Option<MeleeAttackGate>,
+    can_continue_gate: Option<MeleeAttackGate>,
 }
+
+/// Extra vanilla subclass conditions, e.g. `Spider.SpiderAttackGoal`.
+pub(crate) type MeleeAttackGate = Box<dyn Fn(&dyn PathfinderMob) -> bool + Send + Sync>;
 
 impl MeleeAttackGoal {
     #[must_use]
@@ -40,7 +45,29 @@ impl MeleeAttackGoal {
             ticks_until_next_path_recalculation: 0,
             ticks_until_next_attack: 0,
             last_can_use_check: 0,
+            can_use_gate: None,
+            can_continue_gate: None,
         }
+    }
+
+    /// Adds a subclass condition that must pass before the base `canUse` checks.
+    #[must_use]
+    pub(crate) fn with_can_use_gate(
+        mut self,
+        gate: impl Fn(&dyn PathfinderMob) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.can_use_gate = Some(Box::new(gate));
+        self
+    }
+
+    /// Adds a subclass condition checked before the base `canContinueToUse` result.
+    #[must_use]
+    pub(crate) fn with_can_continue_gate(
+        mut self,
+        gate: impl Fn(&dyn PathfinderMob) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.can_continue_gate = Some(Box::new(gate));
+        self
     }
 
     fn check_and_perform_attack(
@@ -138,6 +165,9 @@ impl Goal for MeleeAttackGoal {
     }
 
     fn can_use(&mut self, mob: &dyn PathfinderMob) -> bool {
+        if self.can_use_gate.as_ref().is_some_and(|gate| !gate(mob)) {
+            return false;
+        }
         let Some(world) = mob.level() else {
             return false;
         };
@@ -162,6 +192,13 @@ impl Goal for MeleeAttackGoal {
     }
 
     fn can_continue_to_use(&mut self, mob: &dyn PathfinderMob) -> bool {
+        if self
+            .can_continue_gate
+            .as_ref()
+            .is_some_and(|gate| !gate(mob))
+        {
+            return false;
+        }
         let Some(target) = mob.target() else {
             return false;
         };

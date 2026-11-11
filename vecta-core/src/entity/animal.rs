@@ -3,7 +3,6 @@
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use rand::Rng;
 use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::{NbtCompound, NbtTag};
 use uuid::Uuid;
@@ -16,6 +15,7 @@ use vecta_registry::{vanilla_blocks, vanilla_entities};
 use vecta_utils::entity_events::EntityStatus;
 use vecta_utils::locks::SyncMutex;
 use vecta_utils::nbt::NbtValueInput as _;
+use vecta_utils::random::RandomSource;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, UuidExt};
 
@@ -209,7 +209,7 @@ pub trait Animal: AgeableMob {
         level: &(impl LevelReader + ?Sized),
         spawn_reason: EntitySpawnReason,
         pos: BlockPos,
-        _random: &mut dyn Rng,
+        _random: &mut RandomSource,
     ) -> bool
     where
         Self: Sized,
@@ -382,6 +382,7 @@ pub trait Animal: AgeableMob {
 mod tests {
     use vecta_registry::{REGISTRY, init_vanilla_registry, vanilla_blocks};
     use vecta_utils::BlockStateId;
+    use vecta_utils::random::legacy_random::LegacyRandom;
     use vecta_worldgen::density_functions::overworld::OverworldNoiseSettings;
 
     use super::*;
@@ -437,7 +438,7 @@ mod tests {
             &level,
             EntitySpawnReason::Natural,
             BlockPos::new(0, 64, 0),
-            &mut rand::rng(),
+            &mut RandomSource::Legacy(LegacyRandom::from_seed(0)),
         ));
     }
 
@@ -451,7 +452,7 @@ mod tests {
             &level,
             EntitySpawnReason::Natural,
             BlockPos::new(0, 64, 0),
-            &mut rand::rng(),
+            &mut RandomSource::Legacy(LegacyRandom::from_seed(0)),
         ));
 
         let level = spawn_rule_level(vanilla_blocks::GRASS_BLOCK.default_state(), 9);
@@ -461,7 +462,7 @@ mod tests {
             &level,
             EntitySpawnReason::Natural,
             BlockPos::new(0, 64, 0),
-            &mut rand::rng(),
+            &mut RandomSource::Legacy(LegacyRandom::from_seed(0)),
         ));
     }
 
@@ -475,7 +476,7 @@ mod tests {
             &level,
             EntitySpawnReason::TrialSpawner,
             BlockPos::new(0, 64, 0),
-            &mut rand::rng(),
+            &mut RandomSource::Legacy(LegacyRandom::from_seed(0)),
         ));
     }
 }

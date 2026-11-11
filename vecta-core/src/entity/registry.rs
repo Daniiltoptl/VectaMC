@@ -4,7 +4,6 @@ use std::ops::Deref;
 use std::sync::{OnceLock, Weak};
 
 use glam::DVec3;
-use rand::Rng;
 use simdnbt::borrow::{
     BaseNbtCompound as BorrowedNbtCompound, NbtCompound as BorrowedNbtCompoundView,
 };
@@ -13,13 +12,14 @@ use vecta_registry::RegistryExt;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::{REGISTRY, RegistryEntry};
 use vecta_utils::BlockPos;
+use vecta_utils::random::RandomSource;
 
 use super::generated_entities::{register_entity_factories, register_spawn_rules};
 use super::{
     EntityBaseLoad, EntityBaseSaveData, EntityFireFreezeState, EntitySpawnReason, SharedEntity,
     next_entity_id,
 };
-use crate::world::{LevelReader, World};
+use crate::world::World;
 
 /// Factory function type for creating entities.
 ///
@@ -34,8 +34,11 @@ pub type EntityFactory = fn(EntityTypeRef, i32, DVec3, Weak<World>) -> SharedEnt
 pub type EntityLoadFactory = fn(EntityTypeRef, EntityBaseLoad) -> SharedEntity;
 
 /// Spawn placement predicate of an entity type.
+///
+/// Mirrors vanilla `SpawnPlacements` predicates, which receive the live level and its
+/// `RandomSource`; the light-dependent monster rules consume that stream directly.
 pub(crate) type SpawnRule =
-    fn(EntityTypeRef, &dyn LevelReader, EntitySpawnReason, BlockPos, &mut dyn Rng) -> bool;
+    fn(EntityTypeRef, &World, EntitySpawnReason, BlockPos, &mut RandomSource) -> bool;
 
 /// Entity load request before the registry assigns a runtime ID.
 pub struct EntityLoadRequest {

@@ -429,13 +429,18 @@ impl BaseSpawner {
                 if !custom_rules.is_valid_position(world, spawn_block_pos) {
                     continue;
                 }
-            } else if !SpawnPlacements::check_spawner_spawn_rules(
-                entity_type,
-                world,
-                spawn_block_pos,
-                &mut random,
-            ) {
-                continue;
+            } else {
+                let passes_placement = world.random().with_level(|random| {
+                    SpawnPlacements::check_spawner_spawn_rules(
+                        entity_type,
+                        world,
+                        spawn_block_pos,
+                        random,
+                    )
+                });
+                if !passes_placement {
+                    continue;
+                }
             }
 
             let Some(loaded) = load_entity_recursive_owned(

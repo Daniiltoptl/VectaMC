@@ -155,6 +155,17 @@ pub trait PathfinderMob: Mob {
         }
 
         tick_path_navigation_target(self, &world, game_time, self.can_update_path());
+
+        // Vanilla `WallClimberNavigation.tick` keeps pushing the move control toward the
+        // remembered position once the ground path is finished.
+        let wall_climb_target = self
+            .mob_base()
+            .navigation()
+            .lock()
+            .wall_climb_move_target(self.position(), self.bounding_box().width());
+        if let Some((target, speed_modifier)) = wall_climb_target {
+            self.set_wanted_position(target, speed_modifier);
+        }
     }
 
     fn tick_pathfinder_goal_selectors(&self, entity: &SharedEntity)
@@ -190,6 +201,11 @@ pub trait PathfinderMob: Mob {
             return None;
         }
 
+        // Vanilla `WallClimberNavigation.createPath` remembers the requested position.
+        self.mob_base()
+            .navigation()
+            .lock()
+            .set_wall_climb_path_to_position(target);
         let target = path_target_for_mob(self, world.as_ref(), target);
         let targets = [target];
         self.create_path_to_targets(&world, &targets, reach_range)
@@ -221,17 +237,17 @@ pub trait PathfinderMob: Mob {
             return pathfinder.move_to_pos_with_reach(target, reach_range, speed_modifier);
         }
 
-        let target_pos = BlockPos::containing(target.x, target.y, target.z);
+        let raw_target_pos = BlockPos::containing(target.x, target.y, target.z);
         let Some(world) = self.level() else {
             self.mob_base().navigation().lock().stop();
             return false;
         };
-        if !world.has_full_chunk(ChunkPos::from_block_pos(target_pos)) {
+        if !world.has_full_chunk(ChunkPos::from_block_pos(raw_target_pos)) {
             self.mob_base().navigation().lock().stop();
             return false;
         }
 
-        let target_pos = path_target_for_mob(self, world.as_ref(), target_pos);
+        let target_pos = path_target_for_mob(self, world.as_ref(), raw_target_pos);
         let targets = [target_pos];
         if self
             .mob_base()
@@ -248,6 +264,15 @@ pub trait PathfinderMob: Mob {
         }
 
         let path = self.create_path_to_targets(&world, &targets, reach_range);
+        if path.is_none() {
+            // Vanilla `WallClimberNavigation.moveTo(Entity, speed)` keeps the goal running
+            // when the ground pathfinder fails and lets `tick` push the move control.
+            let mut navigation = self.mob_base().navigation().lock();
+            if navigation.is_wall_climb() {
+                navigation.remember_wall_climb_move_target(raw_target_pos, speed_modifier);
+                return true;
+            }
+        }
         self.move_to_path(path, speed_modifier)
     }
 

@@ -20,7 +20,11 @@ pub(crate) struct NearestAttackableTargetGoal {
     target: Option<SharedEntity>,
     target_conditions: TargetingConditions,
     search: TargetSearch,
+    use_gate: Option<TargetGoalGate>,
 }
+
+/// Extra vanilla subclass condition, e.g. `Spider.SpiderTargetGoal`'s light check.
+pub(crate) type TargetGoalGate = Box<dyn Fn(&dyn PathfinderMob) -> bool + Send + Sync>;
 
 impl NearestAttackableTargetGoal {
     #[must_use]
@@ -84,7 +88,18 @@ impl NearestAttackableTargetGoal {
             target: None,
             target_conditions: TargetingConditions::for_combat().selector(selector),
             search,
+            use_gate: None,
         }
+    }
+
+    /// Adds a subclass condition that gates the whole `canUse` check.
+    #[must_use]
+    pub(crate) fn with_use_gate(
+        mut self,
+        gate: impl Fn(&dyn PathfinderMob) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        self.use_gate = Some(Box::new(gate));
+        self
     }
 
     fn find_target(&mut self, mob: &dyn PathfinderMob) {
@@ -127,6 +142,9 @@ impl Goal for NearestAttackableTargetGoal {
     }
 
     fn can_use(&mut self, mob: &dyn PathfinderMob) -> bool {
+        if self.use_gate.as_ref().is_some_and(|gate| !gate(mob)) {
+            return false;
+        }
         if self.random_interval > 0 && rand::random_range(0..self.random_interval) != 0 {
             return false;
         }

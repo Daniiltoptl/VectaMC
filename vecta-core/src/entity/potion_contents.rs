@@ -63,6 +63,21 @@ pub(crate) const fn to_runtime_instance_icon_from_visibility(
     to_runtime_instance(effect, duration).with_show_icon(effect.show_particles())
 }
 
+/// Builds the registry mob-effect instance for one runtime active effect.
+///
+/// Mirrors vanilla `new MobEffectInstance(existing)`, which copies every flag.
+pub(crate) fn to_registry_instance(effect: &RuntimeMobEffectInstance) -> RegistryMobEffectInstance {
+    RegistryMobEffectInstance::new(
+        effect.effect(),
+        effect.duration(),
+        effect.amplifier(),
+        effect.is_ambient(),
+        effect.is_visible(),
+        effect.show_icon(),
+        None,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;

@@ -1152,16 +1152,35 @@ pub trait LivingEntity: Entity {
     /// Rolls and spawns this entity's death-loot drops from its loot table,
     /// seeded deterministically when a loot-table seed is set.
     fn drop_from_loot_table(&self, source: &DamageSource, killed_by_player: bool) {
-        let Some(world) = self.level() else {
-            return;
-        };
-        let has_custom_death_loot_table =
-            self.as_mob().is_some_and(Mob::has_custom_death_loot_table);
         let Some(loot_table) = self.death_loot_table() else {
-            if has_custom_death_loot_table && let Some(mob) = self.as_mob() {
+            if self.as_mob().is_some_and(Mob::has_custom_death_loot_table)
+                && let Some(mob) = self.as_mob()
+            {
                 mob.clear_custom_death_loot_table();
             }
             return;
+        };
+
+        let has_custom_death_loot_table =
+            self.as_mob().is_some_and(Mob::has_custom_death_loot_table);
+        self.drop_from_loot_table_with(loot_table, source, killed_by_player);
+        if has_custom_death_loot_table && let Some(mob) = self.as_mob() {
+            mob.clear_custom_death_loot_table();
+        }
+    }
+
+    /// Rolls and spawns drops from an explicitly chosen loot table.
+    ///
+    /// Mirrors vanilla `LivingEntity.dropFromLootTable` with a table override, which charged
+    /// creepers use to drop skulls from their victim's loot. Returns whether anything dropped.
+    fn drop_from_loot_table_with(
+        &self,
+        loot_table: LootTableRef,
+        source: &DamageSource,
+        killed_by_player: bool,
+    ) -> bool {
+        let Some(world) = self.level() else {
+            return false;
         };
 
         let seed = self.death_loot_table_seed();
@@ -1173,14 +1192,14 @@ pub trait LivingEntity: Entity {
             killed_by_player,
             seed,
         );
-
-        if has_custom_death_loot_table && let Some(mob) = self.as_mob() {
-            mob.clear_custom_death_loot_table();
+        if drops.is_empty() {
+            return false;
         }
 
         for item_stack in drops {
             self.spawn_at_location(item_stack, 0.0);
         }
+        true
     }
 
     /// Hook for non-mob custom death loot.

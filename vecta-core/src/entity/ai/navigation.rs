@@ -71,6 +71,8 @@ pub struct PathNavigation {
     can_walk_over_fences: bool,
     avoid_sun: bool,
     can_path_to_targets_below_surface: bool,
+    wall_climb: bool,
+    wall_climb_path_to_position: Option<BlockPos>,
 }
 
 impl PathNavigation {
@@ -102,6 +104,8 @@ impl PathNavigation {
             can_walk_over_fences: false,
             avoid_sun: false,
             can_path_to_targets_below_surface: false,
+            wall_climb: false,
+            wall_climb_path_to_position: None,
         }
     }
 
@@ -222,6 +226,78 @@ impl PathNavigation {
 
     pub const fn tick(&mut self) {
         self.tick = self.tick.wrapping_add(1);
+    }
+
+    /// Switches this navigation to vanilla `WallClimberNavigation` behavior.
+    pub const fn set_wall_climb(&mut self, wall_climb: bool) {
+        self.wall_climb = wall_climb;
+        if !wall_climb {
+            self.wall_climb_path_to_position = None;
+        }
+    }
+
+    /// Returns whether this navigation follows vanilla `WallClimberNavigation`.
+    #[must_use]
+    pub const fn is_wall_climb(&self) -> bool {
+        self.wall_climb
+    }
+
+    /// Records the position vanilla `WallClimberNavigation.createPath` remembers.
+    pub fn set_wall_climb_path_to_position(&mut self, pos: BlockPos) {
+        if self.wall_climb {
+            self.wall_climb_path_to_position = Some(pos);
+        }
+    }
+
+    /// Records the position and speed vanilla `WallClimberNavigation.moveTo(Entity, speed)`
+    /// remembers while the ground pathfinder could not produce a path.
+    pub fn remember_wall_climb_move_target(&mut self, pos: BlockPos, speed_modifier: f64) {
+        if self.wall_climb {
+            self.wall_climb_path_to_position = Some(pos);
+            self.speed_modifier = speed_modifier;
+        }
+    }
+
+    /// Vanilla `WallClimberNavigation.tick`'s "path is done" branch: keeps pushing the move
+    /// control toward the remembered position so a wall-climbing mob can reach a target the
+    /// ground pathfinder could not path to.
+    pub fn wall_climb_move_target(
+        &mut self,
+        mob_position: DVec3,
+        mob_width: f64,
+    ) -> Option<(DVec3, f64)> {
+        if !self.wall_climb || !self.done {
+            return None;
+        }
+        let Some(path_to_position) = self.wall_climb_path_to_position else {
+            return None;
+        };
+
+        let (center_x, center_y, center_z) = path_to_position.get_center();
+        let distance_sqr = mob_width * mob_width;
+        let close_to_position = (DVec3::new(center_x, center_y, center_z) - mob_position)
+            .length_squared()
+            < distance_sqr;
+        // Vanilla compares against `BlockPos.containing(x, mob.getY(), z)`, whose center Y is
+        // the floor of the mob's Y plus one half.
+        let same_column_center = DVec3::new(center_x, mob_position.y.floor() + 0.5, center_z);
+        let close_to_same_column =
+            (same_column_center - mob_position).length_squared() < distance_sqr;
+        if close_to_position
+            || (mob_position.y > f64::from(path_to_position.y()) && close_to_same_column)
+        {
+            self.wall_climb_path_to_position = None;
+            return None;
+        }
+
+        Some((
+            DVec3::new(
+                f64::from(path_to_position.x()),
+                f64::from(path_to_position.y()),
+                f64::from(path_to_position.z()),
+            ),
+            self.speed_modifier,
+        ))
     }
 
     pub fn invalidate_path_type(&mut self, pos: BlockPos) {

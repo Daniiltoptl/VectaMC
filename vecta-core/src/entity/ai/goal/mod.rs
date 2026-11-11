@@ -29,17 +29,20 @@ mod restrict_sun;
 mod selector;
 mod squid_flee_goal;
 mod squid_random_movement_goal;
+mod swell_goal;
 mod target_goal;
 mod tempt_goal;
 mod try_find_water;
 mod water_avoiding_random_stroll;
 
+pub(crate) use avoid_entity::AvoidEntityGoal;
 pub(crate) use breed_goal::BreedGoal;
 pub(crate) use climb_on_top_of_powder_snow::ClimbOnTopOfPowderSnowGoal;
 pub(crate) use eat_block_goal::EatBlockGoal;
 pub(crate) use float_goal::FloatGoal;
 pub(crate) use follow_parent::FollowParentGoal;
 pub(crate) use hurt_by_target::HurtByTargetGoal;
+pub(crate) use leap_at_target::LeapAtTargetGoal;
 pub(crate) use look_at_player::LookAtPlayerGoal;
 pub(crate) use melee_attack::MeleeAttackGoal;
 pub(crate) use nearest_attackable_target::NearestAttackableTargetGoal;
@@ -50,6 +53,7 @@ pub(crate) use selector::GoalControls;
 pub(crate) use selector::{Goal, GoalControl, GoalSelector};
 pub(crate) use squid_flee_goal::SquidFleeGoal;
 pub(crate) use squid_random_movement_goal::SquidRandomMovementGoal;
+pub(crate) use swell_goal::SwellGoal;
 pub(crate) use tempt_goal::TemptGoal;
 pub(crate) use water_avoiding_random_stroll::WaterAvoidingRandomStrollGoal;
 

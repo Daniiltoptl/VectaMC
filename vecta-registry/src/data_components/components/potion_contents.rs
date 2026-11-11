@@ -118,6 +118,14 @@ impl PotionContents {
         effects
     }
 
+    /// Returns a copy with `effect` appended to the custom effects.
+    #[must_use]
+    pub fn with_effect_added(&self, effect: MobEffectInstance) -> Self {
+        let mut contents = self.clone();
+        contents.custom_effects.push(effect);
+        contents
+    }
+
     /// Whether the base potion or the custom effects contain any effect.
     #[must_use]
     pub fn has_effects(&self) -> bool {

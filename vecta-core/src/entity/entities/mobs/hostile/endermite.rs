@@ -2,7 +2,6 @@ use std::iter::empty;
 use std::sync::Weak;
 
 use glam::DVec3;
-use rand::Rng;
 use simdnbt::borrow::NbtCompound as BorrowedNbtCompoundView;
 use simdnbt::owned::NbtCompound;
 use vecta_macros::entity_behavior;
@@ -13,6 +12,7 @@ use vecta_registry::vanilla_entity_data::EndermiteEntityData;
 use vecta_registry::{sound_events, vanilla_attributes};
 use vecta_utils::locks::SyncMutex;
 use vecta_utils::nbt::NbtValueInput as _;
+use vecta_utils::random::RandomSource;
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey};
 
 use crate::entity::ai::goal::{
@@ -26,7 +26,7 @@ use crate::entity::{
     PathfinderMob, RemovalReason, SharedEntity, SpawnRule, sync_dirty_mob_effects,
 };
 use crate::physics::MoveResult;
-use crate::world::{LevelReader, World};
+use crate::world::World;
 
 const DEFAULT_STEP_HEIGHT: f32 = 0.6;
 const MAX_LIFETIME: i32 = 2400;
@@ -54,12 +54,12 @@ impl EndermiteEntity {
     pub(crate) const SPAWN_RULE: SpawnRule = Self::check_endermite_spawn_rules;
 
     /// Checks the Endermite placement predicate for the spawner-only dispatcher.
-    pub(crate) fn check_endermite_spawn_rules(
+    pub(crate) const fn check_endermite_spawn_rules(
         _entity_type: EntityTypeRef,
-        _level: &dyn LevelReader,
+        _level: &World,
         spawn_reason: EntitySpawnReason,
         _pos: BlockPos,
-        _random: &mut dyn Rng,
+        _random: &mut RandomSource,
     ) -> bool {
         spawn_reason.is_spawner()
     }
