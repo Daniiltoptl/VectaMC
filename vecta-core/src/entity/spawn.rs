@@ -3,6 +3,8 @@ use std::{collections::BTreeSet, io::Cursor, sync::Arc};
 use glam::DVec3;
 use simdnbt::borrow::{BaseNbtCompound, NbtCompound as BorrowedNbtCompoundView, read_compound};
 use simdnbt::owned::NbtCompound;
+use text_components::TextComponent;
+use uuid::Uuid;
 use vecta_math::{DEGREE_360, wrap_degrees};
 use vecta_registry::data_components::vanilla_components::{CUSTOM_DATA, CUSTOM_NAME, ENTITY_DATA};
 use vecta_registry::entity_data::EntityPose;
@@ -12,8 +14,6 @@ use vecta_registry::{REGISTRY, RegistryExt};
 use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::nbt::{NbtNumeric, merge_nbt_compounds, nbt_collection_values};
 use vecta_utils::{BlockPos, Identifier, UuidExt, WorldAabb, axis::Axis, types::Difficulty};
-use text_components::TextComponent;
-use uuid::Uuid;
 
 use super::{AddEntityError, ENTITIES, SharedEntity, next_entity_id};
 use crate::entity::entity::{read_nbt_dvec3, read_nbt_rotation, sanitize_nbt_motion};
@@ -530,7 +530,6 @@ mod tests {
 
     use glam::DVec3;
     use simdnbt::owned::{NbtCompound, NbtList};
-    use simdnbt::owned::NbtCompound;
     use text_components::TextComponent;
     use vecta_registry::data_components::CustomData;
     use vecta_registry::data_components::components::EntityData;

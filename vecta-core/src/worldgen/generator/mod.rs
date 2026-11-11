@@ -14,7 +14,7 @@ pub use flat::FlatChunkGenerator;
 pub use generation_chunk::benchmark_support as generation_benchmark_support;
 pub use generation_chunk::{GenerationChunk, TerrainPhase};
 pub use vanilla::{
-    NoiseSpawnTarget, VectaPostNoiseState, VanillaGenerator, VanillaPostNoiseStateType,
+    NoiseSpawnTarget, VanillaGenerator, VanillaPostNoiseStateType, VectaPostNoiseState,
 };
 
 use enum_dispatch::enum_dispatch;

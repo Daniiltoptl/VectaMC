@@ -22,7 +22,6 @@ use vecta_registry::stat::vanilla_stat_types;
 use vecta_registry::{
     REGISTRY, init_vanilla_registry, vanilla_blocks, vanilla_custom_stats, vanilla_items,
 };
-use tokio::fs;
 
 fn temp_storage_root(name: &str) -> PathBuf {
     let suffix = SystemTime::now()

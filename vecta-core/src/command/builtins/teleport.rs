@@ -4,9 +4,8 @@ use std::{slice, sync::Arc};
 
 use glam::DVec3;
 use text_components::TextComponent;
-use vecta_math::wrap_degrees;
 use vecta_protocol::packets::game::{CSetCamera, RelativeMovement};
-use vecta_utils::{BlockPos, Identifier, translations};
+use vecta_utils::{Identifier, translations};
 
 use super::super::{
     brigadier::{CommandNodeBuilder, CommandSyntaxError},

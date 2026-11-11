@@ -34,7 +34,6 @@ use vecta_utils::{
 use crate::block_entity::{BlockEntity, BlockEntityBase};
 use crate::entity::entities::ExperienceOrbEntity;
 use crate::inventory::container::Container;
-use vecta_utils::nbt::NbtValueInput as _;
 use crate::inventory::lock::{ContainerRef, SharedContainer};
 use crate::world::World;
 

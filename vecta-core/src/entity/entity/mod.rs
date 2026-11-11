@@ -11,8 +11,7 @@ use crate::entity::shearable::Shearable;
 use crate::scoreboard::{ScoreHolder, Scoreboard};
 use rand::{RngExt, rng};
 use vecta_math::DEGREE_90;
-use vecta_utils::nbt::NbtValueInput as _;
-use vecta_utils::nbt::{NbtNumeric, nbt_collection_values};
+use vecta_utils::nbt::nbt_collection_values;
 
 /// Vanilla `Entity.refreshDimensions` small-entity limit: only entities at most
 /// this wide and tall (in blocks) get their position fudged after growing.

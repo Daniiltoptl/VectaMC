@@ -13,7 +13,6 @@ use vecta_registry::RegistryExt;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::{REGISTRY, RegistryEntry};
 use vecta_utils::BlockPos;
-use uuid::Uuid;
 
 use super::generated_entities::{register_entity_factories, register_spawn_rules};
 use super::{

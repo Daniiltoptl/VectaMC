@@ -1,9 +1,9 @@
 use glam::DVec3;
+use text_components::TextComponent;
 use vecta_registry::data_components::vanilla_components::CUSTOM_NAME;
 use vecta_registry::vanilla_game_rules::ENTITY_DROPS;
 use vecta_registry::{vanilla_damage_types, vanilla_entities, vanilla_items};
 use vecta_utils::{ChunkPos, Downcast as _, WorldAabb};
-use text_components::TextComponent;
 
 use super::VehicleEntity;
 use crate::entity::entities::ItemEntity;

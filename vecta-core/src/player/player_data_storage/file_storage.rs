@@ -16,12 +16,11 @@ use crate::player::{KnownPlayers, Player};
 use rustc_hash::FxHashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use vecta_utils::Identifier;
-use vecta_utils::locks::{AsyncMutex, SyncMutex};
 use tokio::io::AsyncWriteExt;
 use tokio::sync::OwnedMutexGuard as OwnedAsyncMutexGuard;
 use tokio::{fs, io};
 use uuid::Uuid;
+use vecta_utils::Identifier;
 use vecta_utils::locks::{AsyncMutex, SyncMutex};
 
 pub(crate) struct FilePlayerDataStorage {

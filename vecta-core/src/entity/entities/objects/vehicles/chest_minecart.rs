@@ -9,7 +9,6 @@ use simdnbt::owned::{NbtCompound, NbtTag};
 use vecta_macros::entity_behavior;
 use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
-use vecta_registry::vanilla_game_rules::MOB_GRIEFING;
 use vecta_registry::vanilla_items;
 use vecta_utils::Identifier;
 use vecta_utils::axis::Axis;

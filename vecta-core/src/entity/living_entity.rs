@@ -11,8 +11,8 @@ use super::*;
 use crate::behavior::{BLOCK_BEHAVIORS, InventoryTickContext, MOB_EFFECT_BEHAVIORS};
 use crate::entity::consume_effect::apply_consume_effect;
 use crate::entity::damage::RecentDamageSource;
-use crate::world::random::with_loot_source;
 use crate::entity::pushing::EntityPush;
+use crate::world::random::with_loot_source;
 
 const BED_SLEEP_POSITION_OFFSET: f64 = 0.125;
 

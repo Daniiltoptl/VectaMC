@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use text_components::TextComponent;
 use vecta_macros::item_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
 use vecta_registry::data_components::components::EntityData;
@@ -12,7 +13,6 @@ use vecta_registry::stat::vanilla_stat_types;
 use vecta_registry::{vanilla_game_events, vanilla_game_rules};
 use vecta_utils::types::Difficulty;
 use vecta_utils::{BlockPos, translations};
-use text_components::TextComponent;
 
 use crate::behavior::item_utils::get_player_pov_hit_result;
 use crate::behavior::{

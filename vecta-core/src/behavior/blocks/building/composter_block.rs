@@ -41,7 +41,7 @@ use crate::{
     inventory::container::Container,
     inventory::prelude::ContainerRef,
     player::Player,
-    world::{LevelReader, World, game_event::GameEventContext},
+    world::{World, game_event::GameEventContext},
 };
 
 /// Vanilla composter behavior required by analog signal readers.

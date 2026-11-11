@@ -10,7 +10,7 @@ use simdnbt::owned::{NbtCompound, NbtList};
 use vecta_math::DEGREE_360;
 use vecta_registry::data_components::components::EntityData;
 use vecta_registry::entity_type::{EntityTypeRef, MobCategory};
-use vecta_registry::loot_table::{LootContext, LootTableRef};
+use vecta_registry::loot_table::{LootContext, LootTableRef, loot_context_params};
 use vecta_registry::{
     REGISTRY, RegistryExt, level_events, vanilla_game_events, vanilla_game_rules,
 };
@@ -483,7 +483,7 @@ impl BaseSpawner {
                     let _ = mob.finalize_spawn(world, EntitySpawnReason::Spawner, None);
                 }
                 if let Some(equipment) = &next_spawn_data.equipment {
-                    equip_from_table(mob, equipment);
+                    equip_from_table(world, mob, equipment);
                 }
             }
 
@@ -625,20 +625,29 @@ fn random_spawn_position<R: Rng + ?Sized>(
     )
 }
 
-fn equip_from_table(mob: &dyn Mob, equipment: &EquipmentTable) {
+/// Vanilla `Mob.equip(EquipmentTable)`: the `EQUIPMENT` loot table rolled with
+/// seed `0`, i.e. on the level random.
+fn equip_from_table(world: &World, mob: &dyn Mob, equipment: &EquipmentTable) {
     let Some(table): Option<LootTableRef> = REGISTRY.loot_tables.by_key(&equipment.loot_table)
     else {
         return;
     };
 
-    let mut random = rng();
     let mob_equipment = living_loot_equipment(mob);
     let entity_ref = entity_loot_ref(mob.as_entity_event_source(), Some(&mob_equipment));
-    let mut context = LootContext::new(&mut random)
-        .with_origin(mob.position().x, mob.position().y, mob.position().z)
-        .with_this_entity(entity_ref);
+    let position = mob.position();
+    let items = world.random().with_loot(table, 0, |rng| {
+        let mut context = LootContext::new(rng)
+            .with_parameter(
+                loot_context_params::ORIGIN,
+                (position.x, position.y, position.z),
+            )
+            .with_parameter(loot_context_params::THIS_ENTITY, entity_ref)
+            .with_data(world);
+        table.get_random_items(&mut context)
+    });
     let mut inserted = [false; EquipmentSlot::ALL.len()];
-    for mut item in table.get_random_items(&mut context) {
+    for mut item in items {
         if item.is_empty() {
             continue;
         }

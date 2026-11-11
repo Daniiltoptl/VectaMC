@@ -1946,6 +1946,8 @@ fn a_broken_held_item_awards_the_break_stat_and_clears_the_hand() {
         1,
         "`onEquippedItemBroken` awards the break statistic"
     );
+}
+
 #[test]
 fn player_melee_attack_plays_sound_packets() {
     init_vanilla_registry();

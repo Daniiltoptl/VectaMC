@@ -70,7 +70,8 @@ impl BucketItem {
         let is_water_bucket = fluid_block == &vanilla_blocks::WATER;
         let behavior = BLOCK_BEHAVIORS.get_behavior(block);
         let is_liquid_container = state.is_liquid_container();
-        let may_replace = state.can_be_replaced_by_fluid(fluid_block);
+        let may_replace =
+            state.can_be_replaced_by_fluid(fluid_block.default_state().get_fluid_state().fluid_id);
         let can_place_liquid = may_replace
             || (is_liquid_container
                 && behavior.can_place_liquid_with_player(

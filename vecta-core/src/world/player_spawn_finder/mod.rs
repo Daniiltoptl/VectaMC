@@ -2,10 +2,10 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use glam::DVec3;
+use tokio::time::sleep;
 use vecta_registry::vanilla_entities;
 use vecta_registry::vanilla_game_rules::RESPAWN_RADIUS;
 use vecta_utils::{BlockPos, ChunkPos, WorldAabb, types::GameType};
-use tokio::time::sleep;
 
 use crate::behavior::BlockCollisionContext;
 use crate::chunk::chunk_request::{ChunkRequestHandle, ChunkRequestState, ChunkTicketKind};

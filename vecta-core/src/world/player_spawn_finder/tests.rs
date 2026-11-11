@@ -1,9 +1,9 @@
+use tokio::runtime::Builder;
 use vecta_registry::dimension_type::DimensionTypeRef;
 use vecta_registry::{
     init_vanilla_registry, vanilla_blocks, vanilla_dimension_types, vanilla_game_rules,
 };
 use vecta_utils::types::UpdateFlags;
-use tokio::runtime::Builder;
 
 use super::*;
 use crate::behavior::init_behaviors;

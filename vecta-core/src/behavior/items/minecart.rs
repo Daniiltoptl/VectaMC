@@ -102,6 +102,7 @@ mod tests {
     use std::sync::Arc;
 
     use glam::DVec3;
+    use text_components::TextComponent;
     use vecta_registry::blocks::{
         BlockRef,
         block_state_ext::BlockStateExt as _,
@@ -113,7 +114,6 @@ mod tests {
     use vecta_registry::{vanilla_blocks, vanilla_entities, vanilla_items};
     use vecta_utils::types::{GameType, InteractionHand, UpdateFlags};
     use vecta_utils::{BlockPos, ChunkPos, Direction, WorldAabb};
-    use text_components::TextComponent;
 
     use crate::behavior::{BlockHitResult, InteractionResult};
     use crate::bootstrap::init_globals;

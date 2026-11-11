@@ -5,10 +5,9 @@ use std::env;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use vecta_utils::{ChunkPos, Identifier, SectionPos};
 use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
-use vecta_utils::{ChunkPos, SectionPos};
+use vecta_utils::{ChunkPos, Identifier, SectionPos};
 
 use crate::chunk::chunk_pyramid::GENERATION_PYRAMID;
 use crate::chunk::chunk_request::{
