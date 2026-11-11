@@ -31,6 +31,14 @@ pub trait MenuKind: ErasedType + Send + Sync {
     /// Extra cleanup on close beyond [`Menu::removed`].
     fn removed(&mut self, _behavior: &mut MenuBehavior, _player: &Player) {}
 
+    /// The crafting grid this menu exposes to recipe placement, if any.
+    ///
+    /// Mirrors vanilla `RecipeBookMenu`: only crafting menus answer, so the
+    /// place-recipe packet is ignored for every other menu.
+    fn crafting_parts(&self) -> Option<crate::inventory::recipe_book::CraftingParts> {
+        None
+    }
+
     /// Applies a rename from the client (anvil-style text input) and recomputes
     /// any result. No-op for kinds without a rename input.
     fn on_rename(&mut self, _behavior: &mut MenuBehavior, _name: String, _player: &Player) {}

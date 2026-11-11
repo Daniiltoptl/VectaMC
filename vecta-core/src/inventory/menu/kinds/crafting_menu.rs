@@ -11,6 +11,7 @@ use std::sync::Arc;
 use crate::inventory::container::CraftingContainer;
 use crate::inventory::container::ResultContainer;
 use crate::inventory::prelude::*;
+use crate::inventory::recipe_book::CraftingParts;
 use crate::inventory::slots::CraftingHandler;
 use crate::player::player_inventory::PlayerInventory;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -55,6 +56,7 @@ pub fn crafting(inventory: Shared<PlayerInventory>, container_id: u8, block_pos:
     builder.build(CraftingKind {
         result_container,
         result,
+        grid,
         block_pos,
         handler,
     })
@@ -66,6 +68,8 @@ pub struct CraftingKind {
     result_container: Shared<ResultContainer>,
     /// The result (slot 0).
     result: Section,
+    /// The 3x3 grid (slots 1-9).
+    grid: Section,
     /// The crafting table block position.
     block_pos: BlockPos,
     handler: CraftingHandler,
@@ -82,6 +86,13 @@ impl MenuKind for CraftingKind {
     /// Prevents taking from the result slot during pickup-all.
     fn can_take_item_for_pick_all(&self, _carried: &ItemStack, slot_index: usize) -> bool {
         !self.result.contains(slot_index)
+    }
+
+    fn crafting_parts(&self) -> Option<CraftingParts> {
+        Some(CraftingParts {
+            handler: self.handler.clone(),
+            grid: self.grid,
+        })
     }
 
     /// Returns true if the block is still a crafting table and the player is in

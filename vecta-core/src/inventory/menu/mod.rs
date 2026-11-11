@@ -28,12 +28,14 @@ use std::mem;
 
 use vecta_registry::{
     equipment::EquipmentSlot, item_stack::ItemStack, menu_type::MenuTypeRef,
-    mob_effect::MobEffectRef,
+    mob_effect::MobEffectRef, recipe::UntypedRecipeRef,
 };
 use vecta_utils::{Downcast as _, types::GameType};
 
 use crate::inventory::container::CraftingContainer;
 use crate::inventory::menu::kinds::InventoryKind;
+use crate::inventory::recipe_book::PostPlaceAction;
+use crate::inventory::slots::ResultHandler as _;
 use crate::{
     behavior::items::BundleItem,
     entity::LivingEntity,
@@ -165,6 +167,37 @@ impl Menu {
         let Self { behavior, kind, .. } = self;
         let mut guard = behavior.lock_all_containers();
         kind.click_menu_button(behavior, &mut guard, player, button_id)
+    }
+
+    /// Vanilla `RecipeBookMenu.handlePlacement` for the open menu: fills the
+    /// crafting grid from the player's inventory and reports whether the client
+    /// should show the ghost recipe instead.
+    pub fn handle_placement(
+        &mut self,
+        player: &Player,
+        recipe: UntypedRecipeRef,
+        use_max_items: bool,
+        allow_dropping_items_to_clear: bool,
+    ) -> PostPlaceAction {
+        let Some(parts) = self.kind.crafting_parts() else {
+            return PostPlaceAction::Nothing;
+        };
+
+        let mut guard = self
+            .behavior
+            .lock_all_containers_with(ContainerRef::from(Arc::clone(&player.inventory)));
+        let action = crate::inventory::recipe_book::handle_placement(
+            &mut guard,
+            player,
+            &parts,
+            recipe,
+            use_max_items,
+            allow_dropping_items_to_clear,
+        );
+        // Vanilla `finishPlacingRecipe`: the output must describe the grid that
+        // placement left behind, not the recipe the client asked for.
+        parts.handler.update_result(&mut guard);
+        action
     }
 
     /// Called when the menu is closed. Hands the carried item and input sections

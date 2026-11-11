@@ -48,6 +48,18 @@ impl Ingredient {
         matches!(self, Self::Empty)
     }
 
+    /// Vanilla `Ingredient.acceptsItem`: item-only membership test without
+    /// looking at stack components.
+    #[must_use]
+    pub fn accepts_item(&self, item: ItemRef) -> bool {
+        match self {
+            Self::Empty => false,
+            Self::Item(candidate) => *candidate == item,
+            Self::Tag(tag) => REGISTRY.items.is_in_tag(item, tag),
+            Self::Choice(items) => items.contains(&item),
+        }
+    }
+
     /// Returns all items that could satisfy this ingredient (for recipe book display).
     #[must_use]
     pub fn get_items(&self) -> Vec<ItemRef> {

@@ -1,11 +1,13 @@
 use std::sync::LazyLock;
 
 use vecta_registry::item_stack::ItemStack;
+use vecta_registry::items::ItemRef;
 use vecta_utils::types::InteractionHand;
 
 use crate::inventory::{
     container::Container,
     equipment::{EntityEquipment, EquipmentSlot},
+    recipe_book::StackedItemContents,
 };
 
 use super::core::PlayerInventory;
@@ -35,6 +37,116 @@ pub(crate) const fn armor_equipment(index: usize) -> EquipmentSlot {
 }
 
 impl PlayerInventory {
+    /// Vanilla `Inventory.isUsableForCrafting`: damaged, enchanted and renamed
+    /// stacks are never consumed by recipe placement.
+    #[must_use]
+    pub fn is_usable_for_crafting(stack: &ItemStack) -> bool {
+        !stack.is_damaged()
+            && !stack.is_enchanted()
+            && stack
+                .get(vecta_registry::data_components::vanilla_components::CUSTOM_NAME)
+                .is_none()
+    }
+
+    /// Vanilla `Inventory.fillStackedContents`.
+    pub fn fill_stacked_contents(&self, contents: &mut StackedItemContents) {
+        for item in &self.items {
+            contents.account_simple_stack(item);
+        }
+    }
+
+    /// Vanilla `Inventory.findSlotMatchingCraftingIngredient`.
+    #[must_use]
+    pub fn find_slot_matching_crafting_ingredient(
+        &self,
+        item: ItemRef,
+        existing_item: &ItemStack,
+    ) -> Option<usize> {
+        self.items.iter().position(|candidate| {
+            !candidate.is_empty()
+                && candidate.item == item
+                && Self::is_usable_for_crafting(candidate)
+                && (existing_item.is_empty()
+                    || ItemStack::is_same_item_same_components(existing_item, candidate))
+        })
+    }
+
+    /// Vanilla `Inventory.getSlotWithRemainingSpace`: the selected slot and the
+    /// offhand are preferred before the rest of the inventory.
+    #[must_use]
+    pub fn slot_with_remaining_space(&self, stack: &ItemStack) -> Option<usize> {
+        for slot in [self.selected as usize, Self::SLOT_OFFHAND] {
+            if Self::has_remaining_space_for_item(self.get_item(slot), stack) {
+                return Some(slot);
+            }
+        }
+
+        (0..self.get_container_size())
+            .find(|slot| Self::has_remaining_space_for_item(self.get_item(*slot), stack))
+    }
+
+    /// Vanilla `Inventory.getAmountOfFreeSlotsInInventory`: empty main slots.
+    #[must_use]
+    pub fn amount_of_free_slots(&self) -> usize {
+        self.items[..Self::INVENTORY_SIZE]
+            .iter()
+            .filter(|item| item.is_empty())
+            .count()
+    }
+
+    /// Vanilla `Inventory.placeItemBackInInventory`: fills stacks with room and
+    /// then empty main slots, leaving whatever does not fit in `stack` so the
+    /// caller can drop it.
+    ///
+    /// Vanilla's slot search also visits equipment indices; Vecta keeps the
+    /// main inventory as the destination so a returned grid item can never be
+    /// lost to a failing equipment placement.
+    pub fn place_item_back_in_inventory(&mut self, stack: &mut ItemStack) {
+        while !stack.is_empty() {
+            let Some(slot) = self
+                .slot_with_remaining_space(stack)
+                .filter(|slot| *slot < Self::INVENTORY_SIZE || *slot == Self::SLOT_OFFHAND)
+                .or_else(|| self.get_free_slot().map(usize::from))
+            else {
+                return;
+            };
+
+            let space = self.get_max_stack_size_for_item(stack) - self.get_item(slot).count();
+            let mut part = stack.split(space);
+            let leftover = self.add_resource_to_slot(slot, &mut part);
+            if leftover > 0 {
+                stack.set_count(stack.count() + leftover);
+                return;
+            }
+        }
+    }
+
+    fn has_remaining_space_for_item(slot_item: &ItemStack, new_item: &ItemStack) -> bool {
+        !slot_item.is_empty()
+            && ItemStack::is_same_item_same_components(slot_item, new_item)
+            && slot_item.is_stackable()
+            && slot_item.count() < slot_item.max_stack_size()
+    }
+
+    /// Vanilla `Inventory.addResource(slot, stack)`: returns how many items
+    /// could not be added.
+    fn add_resource_to_slot(&mut self, slot: usize, stack: &mut ItemStack) -> i32 {
+        let count = stack.count();
+        if self.get_item(slot).is_empty() {
+            self.set_item(slot, stack.copy_with_count(0));
+        }
+
+        let space = self.get_max_stack_size_for_item(stack) - self.get_item(slot).count();
+        let to_add = i32::min(count, space);
+        if to_add == 0 {
+            return count;
+        }
+
+        stack.shrink(to_add);
+        self.get_item_mut(slot).grow(to_add);
+        count - to_add
+    }
+
     /// Applies vanilla `ItemUtils.createFilledResult` to a held item.
     ///
     /// Mutates the held stack and inventory, returning only the result stack that

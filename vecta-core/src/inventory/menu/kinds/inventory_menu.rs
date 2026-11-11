@@ -16,6 +16,7 @@ use vecta_utils::locks::{IntoShared, Shared};
 
 use crate::inventory::container::{CraftingContainer, ResultContainer};
 use crate::inventory::prelude::*;
+use crate::inventory::recipe_book::CraftingParts;
 use crate::inventory::slots::{ArmorSlot, CraftingHandler};
 use crate::player::Player;
 use crate::player::player_inventory::{PlayerInventory, armor_equipment};
@@ -168,6 +169,13 @@ impl InventoryKind {
 }
 
 impl MenuKind for InventoryKind {
+    fn crafting_parts(&self) -> Option<CraftingParts> {
+        Some(CraftingParts {
+            handler: self.handler.clone(),
+            grid: self.grid,
+        })
+    }
+
     /// Handles shift-click for a slot, including armor/offhand auto-equip.
     ///
     /// Always returns `Some`: the item originally in the slot, or empty if

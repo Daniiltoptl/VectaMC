@@ -468,3 +468,280 @@ mod crafted_result {
         }
     }
 }
+
+/// Recipe placement from a player's recipe book (vanilla `ServerPlaceRecipe`).
+mod recipe_placement {
+    use std::sync::Arc;
+
+    use glam::DVec3;
+    use text_components::TextComponent;
+
+    use crate::{
+        behavior::init_behaviors,
+        entity::{Entity as _, entities::ItemEntity},
+        inventory::{
+            container::{Container as _, CraftingContainer},
+            lock::ContainerId,
+            menu::{Menu, kinds::CraftingKind},
+            recipe_book::PostPlaceAction,
+        },
+        player::Player,
+        test_support::{TestPlayerBuilder, TestWorld, fresh_test_world, insert_ready_full_chunk},
+    };
+    use vecta_registry::{
+        REGISTRY, data_components::vanilla_components::CUSTOM_NAME, init_vanilla_registry,
+        item_stack::ItemStack, recipe::UntypedRecipeRef, vanilla_blocks, vanilla_entities,
+        vanilla_items, vanilla_recipes,
+    };
+    use vecta_utils::Identifier;
+    use vecta_utils::locks::Shared;
+    use vecta_utils::types::UpdateFlags;
+    use vecta_utils::{BlockPos, ChunkPos, Downcast as _, WorldAabb};
+
+    struct Fixture {
+        world: TestWorld,
+        player: Arc<Player>,
+        menu: Menu,
+        grid: Shared<CraftingContainer>,
+        result: ContainerId,
+    }
+
+    impl Fixture {
+        fn set_inventory(&self, slot: usize, stack: ItemStack) {
+            self.player.inventory.lock().set_item(slot, stack);
+        }
+
+        fn inventory_item(&self, slot: usize) -> ItemStack {
+            self.player.inventory.lock().get_item(slot).clone()
+        }
+
+        fn grid_item(&self, slot: usize) -> ItemStack {
+            self.grid.lock().get_item(slot).clone()
+        }
+
+        fn place(
+            &mut self,
+            recipe: UntypedRecipeRef,
+            use_max_items: bool,
+            allow_dropping_items_to_clear: bool,
+        ) -> PostPlaceAction {
+            let player = Arc::clone(&self.player);
+            self.menu.handle_placement(
+                &player,
+                recipe,
+                use_max_items,
+                allow_dropping_items_to_clear,
+            )
+        }
+
+        fn preview(&self) -> ItemStack {
+            self.menu
+                .behavior()
+                .lock_all_containers()
+                .get(self.result)
+                .expect("result container is registered with the menu")
+                .get_item(0)
+                .clone()
+        }
+
+        fn dropped_items(&self) -> Vec<ItemStack> {
+            self.world
+                .world
+                .get_entities_in_aabb_matching(
+                    &WorldAabb::new(-2.0, 62.0, -2.0, 2.0, 68.0, 2.0),
+                    |entity| entity.entity_type() == &vanilla_entities::ITEM,
+                )
+                .into_iter()
+                .map(|entity| {
+                    let Some(item) = entity.as_ref().downcast_ref::<ItemEntity>() else {
+                        panic!("dropped entity should retain its concrete item type");
+                    };
+                    item.get_item()
+                })
+                .collect()
+        }
+    }
+
+    fn fixture(name: &'static str) -> Fixture {
+        init_vanilla_registry();
+        init_behaviors();
+        let world_fixture = fresh_test_world(name);
+        let pos = BlockPos::new(0, 64, 0);
+        insert_ready_full_chunk(&world_fixture.world, ChunkPos::from_block_pos(pos));
+        assert!(world_fixture.world.set_block(
+            pos,
+            vanilla_blocks::CRAFTING_TABLE.default_state(),
+            UpdateFlags::UPDATE_ALL,
+        ));
+        let player = TestPlayerBuilder::new(Arc::clone(&world_fixture.world), name, 1).build();
+        player.base().set_position_local(DVec3::new(0.5, 64.0, 0.5));
+        let menu = super::crafting(Arc::clone(&player.inventory), 1, pos);
+        let Some(kind) = menu.kind().downcast_ref::<CraftingKind>() else {
+            panic!("crafting builder should create a crafting menu");
+        };
+        let grid = kind.handler.crafting_container();
+        let result = kind.handler.result_id();
+        Fixture {
+            world: world_fixture,
+            player,
+            menu,
+            grid,
+            result,
+        }
+    }
+
+    fn by_key(key: &Identifier) -> UntypedRecipeRef {
+        let Some(found) = REGISTRY.recipes.by_key(key) else {
+            panic!("recipe {key} must be registered");
+        };
+        found
+    }
+
+    #[test]
+    fn placing_takes_the_ingredient_from_the_player_inventory() {
+        let mut fixture = fixture("PlaceFromInv");
+        fixture.set_inventory(0, ItemStack::new(&vanilla_items::OAK_LOG));
+
+        let action = fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false);
+
+        assert_eq!(action, PostPlaceAction::Nothing);
+        assert!(fixture.grid_item(0).is(&vanilla_items::OAK_LOG));
+        assert_eq!(fixture.grid_item(0).count(), 1);
+        assert!(fixture.inventory_item(0).is_empty());
+    }
+
+    #[test]
+    fn placing_with_max_items_uses_the_whole_stack() {
+        let mut fixture = fixture("PlaceMaxItems");
+        fixture.set_inventory(0, ItemStack::with_count(&vanilla_items::OAK_LOG, 3));
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false),
+            PostPlaceAction::Nothing
+        );
+        assert_eq!(fixture.grid_item(0).count(), 1);
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), true, false),
+            PostPlaceAction::Nothing
+        );
+        assert_eq!(fixture.grid_item(0).count(), 3);
+        assert!(fixture.inventory_item(0).is_empty());
+    }
+
+    #[test]
+    fn a_shaped_recipe_lands_in_its_centered_grid_position() {
+        let mut fixture = fixture("PlaceShaped");
+        fixture.set_inventory(0, ItemStack::new(&vanilla_items::COAL));
+        fixture.set_inventory(1, ItemStack::new(&vanilla_items::STICK));
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::TORCH.key()), false, false),
+            PostPlaceAction::Nothing
+        );
+
+        // The 1x2 torch pattern is centered horizontally: coal above stick in
+        // the middle column.
+        assert!(fixture.grid_item(1).is(&vanilla_items::COAL));
+        assert!(fixture.grid_item(4).is(&vanilla_items::STICK));
+        assert!(fixture.grid_item(0).is_empty());
+        assert_eq!(fixture.preview().count(), 4);
+    }
+
+    #[test]
+    fn placement_never_uses_a_renamed_stack() {
+        let mut fixture = fixture("PlaceRenamed");
+        let mut log = ItemStack::new(&vanilla_items::OAK_LOG);
+        log.set(CUSTOM_NAME, TextComponent::plain("Lucky log"));
+        fixture.set_inventory(0, log);
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false),
+            PostPlaceAction::PlaceGhostRecipe
+        );
+        assert!(fixture.grid_item(0).is_empty());
+        assert!(fixture.inventory_item(0).is(&vanilla_items::OAK_LOG));
+    }
+
+    #[test]
+    fn a_failed_placement_returns_the_previous_grid() {
+        let mut fixture = fixture("PlaceFailed");
+        fixture
+            .grid
+            .lock()
+            .set_item(0, ItemStack::new(&vanilla_items::DIRT));
+        fixture.set_inventory(0, ItemStack::new(&vanilla_items::OAK_LOG));
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false),
+            PostPlaceAction::Nothing
+        );
+
+        assert!(fixture.grid_item(0).is(&vanilla_items::OAK_LOG));
+        assert!(
+            (0..36).any(|slot| fixture.inventory_item(slot).is(&vanilla_items::DIRT)),
+            "the dirt from the old grid goes back to the inventory"
+        );
+    }
+
+    #[test]
+    fn a_grid_that_cannot_be_emptied_blocks_placement() {
+        let mut fixture = fixture("PlaceBlocked");
+        // Every main slot is occupied by something the log cannot merge with.
+        for slot in 0..36 {
+            fixture.set_inventory(slot, ItemStack::with_count(&vanilla_items::DIRT, 64));
+        }
+        fixture
+            .grid
+            .lock()
+            .set_item(0, ItemStack::new(&vanilla_items::STONE));
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false),
+            PostPlaceAction::Nothing
+        );
+        assert!(
+            fixture.grid_item(0).is(&vanilla_items::STONE),
+            "without room for the old grid nothing is touched"
+        );
+        assert!(fixture.dropped_items().is_empty());
+    }
+
+    #[test]
+    fn a_full_inventory_drops_returned_grid_items_instead_of_overwriting() {
+        let mut fixture = fixture("PlaceFullInv");
+        for slot in 0..36 {
+            fixture.set_inventory(slot, ItemStack::with_count(&vanilla_items::DIRT, 64));
+        }
+        fixture
+            .grid
+            .lock()
+            .set_item(0, ItemStack::new(&vanilla_items::STONE));
+
+        assert_eq!(
+            fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), true, true),
+            PostPlaceAction::PlaceGhostRecipe
+        );
+
+        assert!(fixture.grid_item(0).is_empty());
+        let dropped = fixture.dropped_items();
+        assert_eq!(dropped.len(), 1);
+        assert!(dropped[0].is(&vanilla_items::STONE));
+        assert!(
+            (0..36).all(|slot| fixture.inventory_item(slot).is(&vanilla_items::DIRT)),
+            "no occupied slot may be overwritten"
+        );
+    }
+
+    #[test]
+    fn the_output_describes_the_grid_placement_left_behind() {
+        let mut fixture = fixture("PlaceOutput");
+        fixture.set_inventory(0, ItemStack::new(&vanilla_items::OAK_LOG));
+
+        fixture.place(by_key(vanilla_recipes::OAK_PLANKS.key()), false, false);
+
+        let preview = fixture.preview();
+        assert!(preview.is(&vanilla_items::OAK_PLANKS));
+        assert_eq!(preview.count(), 4);
+    }
+}
