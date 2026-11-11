@@ -34,6 +34,7 @@ use crate::{
     player::Player,
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 const DAMAGE_MOVEMENT_THRESHOLD: f64 = 0.003;
 
@@ -234,7 +235,7 @@ impl Bonemealable for SweetBerryBushBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let new_age = (state.get_value(AGE) + 1).min(3);

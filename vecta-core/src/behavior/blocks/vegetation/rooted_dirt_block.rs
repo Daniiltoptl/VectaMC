@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{BlockRef, block_state_ext::BlockStateExt},
@@ -12,6 +11,7 @@ use crate::{
     behavior::{BlockBehavior, BlockPlaceContext, blocks::vegetation::bonemealable::Bonemealable},
     world::{LevelReader, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `RootedDirtBlock` bonemeal behavior
 #[block_behavior]
@@ -51,7 +51,7 @@ impl Bonemealable for RootedDirtBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(

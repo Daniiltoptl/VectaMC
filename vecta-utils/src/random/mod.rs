@@ -75,6 +75,81 @@ pub trait Random {
     }
 }
 
+/// The object-safe subset of [`Random`] used when a callback needs draws from a
+/// shared stream but cannot borrow it mutably for the whole call.
+///
+/// Vanilla hands `level.getRandom()` into callbacks such as
+/// `BonemealableBlock.performBonemeal` that also write to the world, so the
+/// owner of the stream must release it between draws. A `&mut dyn RandomAccess`
+/// lets such a handle lock per draw while [`Random`] itself stays generic
+/// (`fork` returns `Self` and is not object safe).
+#[expect(
+    missing_docs,
+    reason = "method names mirror `Random` and are self-explanatory"
+)]
+pub trait RandomAccess {
+    fn next_i32(&mut self) -> i32;
+
+    fn next_i32_bounded(&mut self, bound: i32) -> i32;
+
+    fn next_i32_between(&mut self, min: i32, max: i32) -> i32 {
+        self.next_i32_bounded(max - min + 1) + min
+    }
+
+    fn next_i32_between_exclusive(&mut self, min: i32, max: i32) -> i32 {
+        min + self.next_i32_bounded(max - min)
+    }
+
+    fn next_i64(&mut self) -> i64;
+
+    fn next_f32(&mut self) -> f32;
+
+    fn next_f64(&mut self) -> f64;
+
+    fn next_bool(&mut self) -> bool;
+}
+
+/// Vanilla `Util.shuffle` for the object-safe [`RandomAccess`].
+///
+/// # Panics
+///
+/// Panics when `items` is longer than Java's `int` range.
+pub fn shuffle<T>(items: &mut [T], random: &mut dyn RandomAccess) {
+    let Ok(size) = i32::try_from(items.len()) else {
+        panic!("shuffle length {} exceeds Java's int range", items.len());
+    };
+    for remaining in (2..=size).rev() {
+        let swap_to = random.next_i32_bounded(remaining) as usize;
+        items.swap(remaining as usize - 1, swap_to);
+    }
+}
+
+impl RandomAccess for RandomSource {
+    fn next_i32(&mut self) -> i32 {
+        Random::next_i32(self)
+    }
+
+    fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+        Random::next_i32_bounded(self, bound)
+    }
+
+    fn next_i64(&mut self) -> i64 {
+        Random::next_i64(self)
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        Random::next_f32(self)
+    }
+
+    fn next_f64(&mut self) -> f64 {
+        Random::next_f64(self)
+    }
+
+    fn next_bool(&mut self) -> bool {
+        Random::next_bool(self)
+    }
+}
+
 /// A trait for positional random number generators.
 #[enum_dispatch]
 #[expect(missing_docs, reason = "method names are self-explanatory")]

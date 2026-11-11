@@ -1,4 +1,3 @@
-use rand::{Rng, rng};
 use std::sync::Arc;
 use vecta_registry::{
     REGISTRY,
@@ -19,6 +18,7 @@ use crate::{
     },
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::{RandomAccess, RandomSource, legacy_random::LegacyRandom};
 
 /// Shared behavior for growing plant blocks.
 pub struct GrowingPlantBodyBlock {
@@ -120,7 +120,10 @@ impl BlockBehavior for GrowingPlantBodyBlock {
             && neighbor_state.get_block() != self.block
             && neighbor_state.get_block() != head_block
         {
-            let mut rng = rng();
+            // Vanilla hands `level.getRandom()` to `Block.updateShape`; the
+            // behavior trait carries no random yet, so the converted head draws
+            // its age from a standalone legacy stream with vanilla's age range.
+            let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(rand::random()));
             return (self.update_head_after_converted_from_body)(
                 state,
                 GrowingPlantHeadBlock::get_head_state(self.head_block, &mut rng),
@@ -166,7 +169,7 @@ impl Bonemealable for GrowingPlantBodyBlock {
         &self,
         _state: BlockStateId,
         _world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
         true
@@ -176,7 +179,7 @@ impl Bonemealable for GrowingPlantBodyBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let Some(head_pos) = self.get_head_pos(world, pos, state.get_block()) else {

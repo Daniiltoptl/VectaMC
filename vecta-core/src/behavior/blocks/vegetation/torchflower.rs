@@ -19,6 +19,7 @@ use crate::{
     },
     world::{LevelReader, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for the Torchflower Block
 #[block_behavior]
@@ -69,7 +70,7 @@ impl CropLike for TorchflowerCropBlock {
 }
 
 impl Bonemealable for TorchflowerCropBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn rand::Rng) -> u8 {
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn RandomAccess) -> u8 {
         1
     }
 
@@ -86,7 +87,7 @@ impl Bonemealable for TorchflowerCropBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: vecta_utils::BlockPos,
     ) {
         self.default_perform_bonemeal(state, world, rng, pos);

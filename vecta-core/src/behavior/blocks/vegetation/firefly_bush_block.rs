@@ -1,4 +1,3 @@
-use rand::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::vanilla_block_tags::BlockTag;
@@ -14,6 +13,7 @@ use crate::behavior::{block::BlockBehavior, blocks::vegetation::bonemealable::Bo
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::{BlockRef, default_surviving_state, survives_on_tag};
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `FireflyBushBlock` survival.
 #[block_behavior]
@@ -67,10 +67,10 @@ impl Bonemealable for FireflyBushBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
-        let Some(block_pos) = find_spreadable_neighbor_pos(world, pos, state) else {
+        let Some(block_pos) = find_spreadable_neighbor_pos(world, pos, state, rng) else {
             return;
         };
         world.set_block(

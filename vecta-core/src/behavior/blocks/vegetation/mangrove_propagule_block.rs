@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::{Rng, RngExt};
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{
@@ -22,6 +21,7 @@ use crate::worldgen::feature::FeatureDecorationRunner;
 use crate::worldgen::feature::no_nested_features;
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Mangrove propagule block behavior.
 #[block_behavior]
@@ -70,9 +70,9 @@ impl MangrovePropaguleBlock {
         world: &Arc<World>,
         pos: BlockPos,
         state: BlockStateId,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
     ) -> bool {
-        let feature = if rng.random::<f32>() < TALL_MANGROVE_CHANCE {
+        let feature = if rng.next_f32() < TALL_MANGROVE_CHANCE {
             &*vanilla_configured_features::TALL_MANGROVE
         } else {
             &*vanilla_configured_features::MANGROVE
@@ -87,7 +87,7 @@ impl MangrovePropaguleBlock {
         };
         world.set_block(pos, replacement, UpdateFlags::UPDATE_NONE);
 
-        let mut worldgen_random = WorldgenRandom::from_seed(rng.random());
+        let mut worldgen_random = WorldgenRandom::from_seed(rng.next_i64() as u64);
         let mut level = Arc::clone(world);
         let placed = FeatureDecorationRunner::place_tree_feature(
             &mut level,
@@ -109,7 +109,12 @@ impl MangrovePropaguleBlock {
         placed
     }
 
-    fn advance_tree(world: &Arc<World>, pos: BlockPos, state: BlockStateId, rng: &mut dyn Rng) {
+    fn advance_tree(
+        world: &Arc<World>,
+        pos: BlockPos,
+        state: BlockStateId,
+        rng: &mut dyn RandomAccess,
+    ) {
         if state.get_value(STAGE) == 0 {
             world.set_block(pos, state.set_value(STAGE, 1), UpdateFlags::UPDATE_NONE);
         } else {
@@ -121,11 +126,11 @@ impl MangrovePropaguleBlock {
         state: BlockStateId,
         world: &Arc<World>,
         pos: BlockPos,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
     ) {
         if state.get_value(HANGING) {
             Self::advance_hanging(state, world, pos);
-        } else if rng.random_range(0..RANDOM_GROWTH_BOUND) == 0 {
+        } else if rng.next_i32_bounded(RANDOM_GROWTH_BOUND as i32) == 0 {
             Self::advance_tree(world, pos, state, rng);
         }
     }
@@ -174,7 +179,12 @@ impl BlockBehavior for MangrovePropaguleBlock {
     }
 
     fn random_tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        Self::random_tick_with_rng(state, world, pos, &mut rand::rng());
+        Self::random_tick_with_rng(
+            state,
+            world,
+            pos,
+            &mut crate::world::LevelRandomSource::new(world.random()),
+        );
     }
 
     fn as_bonemealable(&self) -> Option<&dyn Bonemealable> {
@@ -200,21 +210,21 @@ impl Bonemealable for MangrovePropaguleBlock {
         &self,
         state: BlockStateId,
         _world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
         if state.get_value(HANGING) {
             return state.get_value(AGE) < MAX_AGE;
         }
 
-        rng.random::<f32>() < BONEMEAL_SUCCESS_CHANCE
+        rng.next_f32() < BONEMEAL_SUCCESS_CHANCE
     }
 
     fn perform_bonemeal(
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         if state.get_value(HANGING) {
@@ -227,12 +237,10 @@ impl Bonemealable for MangrovePropaguleBlock {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-
-    use rand::{SeedableRng, TryRng, rngs::StdRng};
     use vecta_registry::item_stack::ItemStack;
     use vecta_registry::{init_vanilla_registry, vanilla_items};
     use vecta_utils::ChunkPos;
+    use vecta_utils::random::{RandomAccess, RandomSource, legacy_random::LegacyRandom};
 
     use super::*;
     use crate::behavior::init_behaviors;
@@ -241,20 +249,29 @@ mod tests {
     #[derive(Default)]
     struct ZeroRng;
 
-    impl TryRng for ZeroRng {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-            Ok(0)
+    impl RandomAccess for ZeroRng {
+        fn next_i32(&mut self) -> i32 {
+            0
         }
 
-        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-            Ok(0)
+        fn next_i32_bounded(&mut self, _bound: i32) -> i32 {
+            0
         }
 
-        fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
-            dst.fill(0);
-            Ok(())
+        fn next_i64(&mut self) -> i64 {
+            0
+        }
+
+        fn next_f32(&mut self) -> f32 {
+            0.0
+        }
+
+        fn next_f64(&mut self) -> f64 {
+            0.0
+        }
+
+        fn next_bool(&mut self) -> bool {
+            false
         }
     }
 
@@ -422,7 +439,7 @@ mod tests {
             .set_value(AGE, MAX_AGE);
         assert!(world.set_block(pos, state, UpdateFlags::UPDATE_NONE));
         let placed = (0..64).any(|seed| {
-            let mut rng = StdRng::seed_from_u64(seed);
+            let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(seed));
             MangrovePropaguleBlock::grow_tree(world, pos, state, &mut rng)
         });
 

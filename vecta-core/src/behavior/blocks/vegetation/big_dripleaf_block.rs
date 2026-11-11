@@ -1,4 +1,4 @@
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -21,6 +21,7 @@ use crate::entity::{Entity, InsideBlockEffectCollector, projectile::Projectile};
 use crate::world::game_event::GameEventContext;
 use crate::world::tick_scheduler::TickPriority;
 use crate::world::{ClipHitResult, LevelReader, ScheduledTickAccess, SignalGetter as _, World};
+use vecta_utils::random::RandomAccess;
 
 const TILT: &EnumProperty<Tilt> = &BlockStateProperties::TILT;
 const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
@@ -133,11 +134,11 @@ impl BigDripleafBlock {
     /// Used for bonemeal functionality on small dripleaf
     pub fn place_with_random_height(
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         stem_bottom_pos: BlockPos,
         facing: Direction,
     ) {
-        let desired_height = rng.random_range(2..5);
+        let desired_height = rng.next_i32_between(2, 5);
         let mut pos = stem_bottom_pos;
         let mut height = 0;
 
@@ -322,7 +323,7 @@ impl Bonemealable for BigDripleafBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let above_pos = pos.above();

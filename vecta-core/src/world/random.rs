@@ -11,12 +11,55 @@ use vecta_registry::loot_table::LootTable;
 use vecta_utils::{
     Identifier,
     locks::{SyncMutex, SyncRwLock},
-    random::{RandomSource, legacy_random::LegacyRandom},
+    random::{Random, RandomAccess, RandomSource, legacy_random::LegacyRandom},
 };
 
 use crate::server::random_sequences::RandomSequences;
 
 use crate::world::World;
+
+/// A handle to `Level.random` that locks the stream for one draw at a time.
+///
+/// Vanilla passes `level.getRandom()` into callbacks that also write to the
+/// world, so the non-reentrant level lock cannot be held across the whole call.
+/// Each draw here takes and releases the lock on its own, and the methods use
+/// the vanilla generator algorithms rather than `rand`'s.
+pub(crate) struct LevelRandomSource<'a> {
+    level: &'a LevelRandom,
+}
+
+impl<'a> LevelRandomSource<'a> {
+    pub(crate) const fn new(level: &'a LevelRandom) -> Self {
+        Self { level }
+    }
+}
+
+impl RandomAccess for LevelRandomSource<'_> {
+    fn next_i32(&mut self) -> i32 {
+        self.level.with_level(Random::next_i32)
+    }
+
+    fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+        self.level
+            .with_level(|rng| Random::next_i32_bounded(rng, bound))
+    }
+
+    fn next_i64(&mut self) -> i64 {
+        self.level.with_level(Random::next_i64)
+    }
+
+    fn next_f32(&mut self) -> f32 {
+        self.level.with_level(Random::next_f32)
+    }
+
+    fn next_f64(&mut self) -> f64 {
+        self.level.with_level(Random::next_f64)
+    }
+
+    fn next_bool(&mut self) -> bool {
+        self.level.with_level(Random::next_bool)
+    }
+}
 
 /// The random streams one loaded world hands out.
 pub struct LevelRandom {
@@ -115,7 +158,11 @@ mod tests {
         let table = empty_table(Some(Identifier::vanilla_static("chests/simple_dungeon")));
         let roll = |seed: i64| {
             LevelRandom::new(9_999).with_loot(&table, seed, |rng| {
-                (rng.next_i32(), rng.next_i32(), rng.next_f32())
+                (
+                    Random::next_i32(rng),
+                    Random::next_i32(rng),
+                    Random::next_f32(rng),
+                )
             })
         };
 

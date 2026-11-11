@@ -1,4 +1,3 @@
-use rand::{Rng, RngExt};
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_protocol::packets::game::SoundSource;
@@ -9,7 +8,7 @@ use vecta_registry::items::item::BlockHitResult;
 use vecta_registry::{
     sound_events, vanilla_blocks, vanilla_game_events, vanilla_items, vanilla_loot_tables,
 };
-use vecta_utils::random::Random as _;
+use vecta_utils::random::Random;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
 
@@ -28,6 +27,7 @@ use crate::world::game_event::GameEventContext;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `CaveVinesBlock` (head) survival.
 #[block_behavior]
@@ -69,8 +69,8 @@ impl CaveVinesBlock {
         body_state.set_value(BERRIES, head_state.get_value(BERRIES))
     }
 
-    fn update_grow_into_state(state: BlockStateId, rng: &mut dyn Rng) -> BlockStateId {
-        state.set_value(BERRIES, rng.random::<f32>() < 0.11)
+    fn update_grow_into_state(state: BlockStateId, rng: &mut dyn RandomAccess) -> BlockStateId {
+        state.set_value(BERRIES, rng.next_f32() < 0.11)
     }
 
     /// Shared behavior use block between cave vine block and plant
@@ -95,7 +95,9 @@ impl CaveVinesBlock {
         for item in items {
             world.pop_resource(pos, item);
         }
-        let pitch = world.random().with_level(|rng| rng.next_f32() * 0.4 + 0.8);
+        let pitch = world
+            .random()
+            .with_level(|rng| Random::next_f32(rng) * 0.4 + 0.8);
         world.play_sound(
             &sound_events::BLOCK_CAVE_VINES_PICK_BERRIES,
             SoundSource::Blocks,
@@ -187,7 +189,7 @@ impl Bonemealable for CaveVinesBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(
@@ -204,11 +206,41 @@ impl Bonemealable for CaveVinesBlock {
 
 #[cfg(test)]
 mod tests {
-    use rand::{SeedableRng as _, rngs::StdRng};
+    use RandomAccess;
+    use rand::{RngExt as _, SeedableRng as _, rngs::StdRng};
     use vecta_registry::init_vanilla_registry;
 
     use super::*;
     use crate::test_support::TestLevel;
+
+    /// Keeps the previous test rolls for a seeded `StdRng`.
+    struct RandAdapter(StdRng);
+
+    impl RandomAccess for RandAdapter {
+        fn next_i32(&mut self) -> i32 {
+            self.0.random()
+        }
+
+        fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+            self.0.random_range(0..bound)
+        }
+
+        fn next_i64(&mut self) -> i64 {
+            self.0.random::<u64>() as i64
+        }
+
+        fn next_f32(&mut self) -> f32 {
+            self.0.random()
+        }
+
+        fn next_f64(&mut self) -> f64 {
+            self.0.random()
+        }
+
+        fn next_bool(&mut self) -> bool {
+            self.0.random()
+        }
+    }
 
     #[test]
     fn head_conversion_preserves_berries() {
@@ -238,7 +270,7 @@ mod tests {
         init_vanilla_registry();
 
         let state = vanilla_blocks::CAVE_VINES.default_state();
-        let mut rng = StdRng::seed_from_u64(1);
+        let mut rng = RandAdapter(StdRng::seed_from_u64(1));
         let berry_states = (0..256)
             .filter(|_| CaveVinesBlock::update_grow_into_state(state, &mut rng).get_value(BERRIES))
             .count();

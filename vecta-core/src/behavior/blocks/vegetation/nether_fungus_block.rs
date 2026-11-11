@@ -1,6 +1,5 @@
 use std::sync::{Arc, LazyLock};
 
-use rand::{Rng, RngExt};
 use vecta_macros::block_behavior;
 use vecta_registry::REGISTRY;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -15,6 +14,7 @@ use crate::world::{LevelReader, World};
 use crate::worldgen::feature::FeatureDecorationRunner;
 
 use super::{BlockRef, default_surviving_state, survives_on_tag};
+use vecta_utils::random::RandomAccess;
 
 const BONEMEAL_SUCCESS_CHANCE: f32 = 0.4;
 
@@ -77,23 +77,23 @@ impl Bonemealable for NetherFungusBlock {
         &self,
         _state: BlockStateId,
         _world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
-        rng.random::<f32>() < BONEMEAL_SUCCESS_CHANCE
+        rng.next_f32() < BONEMEAL_SUCCESS_CHANCE
     }
 
     fn perform_bonemeal(
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let ConfiguredFeatureKind::HugeFungus(config) = &self.feature.kind else {
             return;
         };
-        let mut worldgen_random = WorldgenRandom::from_seed(rng.random());
+        let mut worldgen_random = WorldgenRandom::from_seed(rng.next_i64() as u64);
         FeatureDecorationRunner::place_planted_huge_fungus_feature(
             world,
             &REGISTRY,
@@ -106,9 +106,8 @@ impl Bonemealable for NetherFungusBlock {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-
-    use rand::{SeedableRng, TryRng, rngs::StdRng};
+    use RandomAccess;
+    use rand::{RngExt, SeedableRng, rngs::StdRng};
     use vecta_registry::{
         init_vanilla_registry, vanilla_block_tags::BlockTag, vanilla_blocks,
         vanilla_configured_features,
@@ -124,20 +123,58 @@ mod tests {
 
     struct FixedRng(u64);
 
-    impl TryRng for FixedRng {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-            Ok(self.0 as u32)
+    impl RandomAccess for FixedRng {
+        fn next_i32(&mut self) -> i32 {
+            self.0 as i32
         }
 
-        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-            Ok(self.0)
+        fn next_i32_bounded(&mut self, _bound: i32) -> i32 {
+            0
         }
 
-        fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
-            dst.fill(self.0 as u8);
-            Ok(())
+        fn next_i64(&mut self) -> i64 {
+            self.0 as i64
+        }
+
+        fn next_f32(&mut self) -> f32 {
+            (self.0 as u32 >> 8) as f32 / (1_u32 << 24) as f32
+        }
+
+        fn next_f64(&mut self) -> f64 {
+            (self.0 >> 11) as f64 / (1_u64 << 53) as f64
+        }
+
+        fn next_bool(&mut self) -> bool {
+            false
+        }
+    }
+
+    /// Keeps the previous test rolls for a seeded `StdRng`.
+    struct RandAdapter(StdRng);
+
+    impl RandomAccess for RandAdapter {
+        fn next_i32(&mut self) -> i32 {
+            self.0.random()
+        }
+
+        fn next_i32_bounded(&mut self, bound: i32) -> i32 {
+            self.0.random_range(0..bound)
+        }
+
+        fn next_i64(&mut self) -> i64 {
+            self.0.random::<u64>() as i64
+        }
+
+        fn next_f32(&mut self) -> f32 {
+            self.0.random()
+        }
+
+        fn next_f64(&mut self) -> f64 {
+            self.0.random()
+        }
+
+        fn next_bool(&mut self) -> bool {
+            self.0.random()
         }
     }
 
@@ -226,7 +263,12 @@ mod tests {
             let state = fungus.default_state();
             assert!(world.set_block(pos, state, UpdateFlags::UPDATE_NONE));
 
-            behavior.perform_bonemeal(state, world, &mut StdRng::seed_from_u64(1), pos);
+            behavior.perform_bonemeal(
+                state,
+                world,
+                &mut RandAdapter(StdRng::seed_from_u64(1)),
+                pos,
+            );
 
             assert_eq!(world.get_block_state(pos).get_block(), stem);
             assert_eq!(world.get_block_state(pos.above_n(3)).get_block(), stem);

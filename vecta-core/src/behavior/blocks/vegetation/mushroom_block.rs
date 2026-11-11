@@ -1,6 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
-use rand::{Rng, RngExt};
+use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::Direction;
@@ -20,6 +20,7 @@ use super::BlockRef;
 use vecta_utils::random::worldgen_random::WorldgenRandom;
 
 use crate::worldgen::feature::FeatureDecorationRunner;
+use vecta_utils::random::RandomAccess;
 
 const SPREAD_CHANCE: u32 = 25; //
 const SPREAD_ATTEMPTS: usize = 4; //
@@ -51,12 +52,12 @@ impl MushroomBlock {
         world: &Arc<World>,
         pos: BlockPos,
         state: BlockStateId,
-        random: &mut dyn Rng,
+        random: &mut dyn RandomAccess,
     ) -> bool {
         let configured_feature = &**self.feature;
         world.remove_block(pos, false);
 
-        let mut worldgen_random = WorldgenRandom::from_seed(random.random());
+        let mut worldgen_random = WorldgenRandom::from_seed(random.next_i64() as u64);
         let placed = match &configured_feature.kind {
             ConfiguredFeatureKind::HugeBrownMushroom(config) => {
                 FeatureDecorationRunner::place_huge_brown_mushroom_feature(
@@ -187,17 +188,17 @@ impl Bonemealable for MushroomBlock {
         &self,
         _state: BlockStateId,
         _world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
-        rng.random::<f32>() < BONEMEAL_SUCCESS_CHANCE
+        rng.next_f32() < BONEMEAL_SUCCESS_CHANCE
     }
 
     fn perform_bonemeal(
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.grow_mushroom(world, pos, state, rng);

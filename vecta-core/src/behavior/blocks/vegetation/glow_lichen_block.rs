@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::properties::Direction;
 use vecta_utils::{BlockPos, BlockStateId};
@@ -12,6 +11,7 @@ use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::multiface_block::MultifaceSpreader;
 use super::{BlockRef, MultifaceBlock};
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla glow lichen behavior.
 #[block_behavior]
@@ -79,7 +79,7 @@ impl Bonemealable for GlowLichenBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.spreader

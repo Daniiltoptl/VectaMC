@@ -249,7 +249,7 @@ items,cherry_stairs,BlockItem,yes,audit_existing_implementation
 items,cherry_trapdoor,BlockItem,yes,audit_existing_implementation
 items,cherry_wood,BlockItem,yes,audit_existing_implementation
 items,chest,BlockItem,yes,audit_existing_implementation
-items,chest_minecart,MinecartItem,no,check_specialization_or_shared_path
+items,chest_minecart,MinecartItem,yes,audit_existing_implementation
 items,chicken,Item,no,generic_or_separate_path
 items,chicken_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,chipped_anvil,BlockItem,yes,audit_existing_implementation
@@ -301,7 +301,7 @@ items,cod,Item,no,generic_or_separate_path
 items,cod_bucket,MobBucketItem,no,check_specialization_or_shared_path
 items,cod_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,command_block,GameMasterBlockItem,no,check_specialization_or_shared_path
-items,command_block_minecart,MinecartItem,no,check_specialization_or_shared_path
+items,command_block_minecart,MinecartItem,yes,audit_existing_implementation
 items,comparator,BlockItem,yes,audit_existing_implementation
 items,compass,CompassItem,yes,audit_existing_implementation
 items,composter,BlockItem,yes,audit_existing_implementation
@@ -571,7 +571,7 @@ items,friend_pottery_sherd,Item,no,generic_or_separate_path
 items,frog_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,frogspawn,PlaceOnWaterBlockItem,yes,audit_existing_implementation
 items,furnace,BlockItem,yes,audit_existing_implementation
-items,furnace_minecart,MinecartItem,no,check_specialization_or_shared_path
+items,furnace_minecart,MinecartItem,yes,audit_existing_implementation
 items,ghast_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
 items,ghast_tear,Item,no,generic_or_separate_path
 items,gilded_blackstone,BlockItem,yes,audit_existing_implementation
@@ -673,7 +673,7 @@ items,honey_bottle,Item,no,generic_or_separate_path
 items,honeycomb,HoneycombItem,yes,audit_existing_implementation
 items,honeycomb_block,BlockItem,yes,audit_existing_implementation
 items,hopper,BlockItem,yes,audit_existing_implementation
-items,hopper_minecart,MinecartItem,no,check_specialization_or_shared_path
+items,hopper_minecart,MinecartItem,yes,audit_existing_implementation
 items,horn_coral,BlockItem,yes,audit_existing_implementation
 items,horn_coral_block,BlockItem,yes,audit_existing_implementation
 items,horn_coral_fan,StandingAndWallBlockItem,yes,audit_existing_implementation
@@ -873,7 +873,7 @@ items,melon,BlockItem,yes,audit_existing_implementation
 items,melon_seeds,BlockItem,yes,audit_existing_implementation
 items,melon_slice,Item,no,generic_or_separate_path
 items,milk_bucket,Item,no,generic_or_separate_path
-items,minecart,MinecartItem,no,check_specialization_or_shared_path
+items,minecart,MinecartItem,yes,audit_existing_implementation
 items,miner_pottery_sherd,Item,no,generic_or_separate_path
 items,mojang_banner_pattern,Item,no,generic_or_separate_path
 items,mooshroom_spawn_egg,SpawnEggItem,yes,audit_existing_implementation
@@ -1448,7 +1448,7 @@ items,tide_armor_trim_smithing_template,SmithingTemplateItem,no,check_specializa
 items,tinted_glass,BlockItem,yes,audit_existing_implementation
 items,tipped_arrow,TippedArrowItem,yes,audit_existing_implementation
 items,tnt,BlockItem,yes,audit_existing_implementation
-items,tnt_minecart,MinecartItem,no,check_specialization_or_shared_path
+items,tnt_minecart,MinecartItem,yes,audit_existing_implementation
 items,torch,StandingAndWallBlockItem,yes,audit_existing_implementation
 items,torchflower,BlockItem,yes,audit_existing_implementation
 items,torchflower_seeds,BlockItem,yes,audit_existing_implementation
@@ -2688,7 +2688,7 @@ blocks,soul_sand,SoulSandBlock,yes,audit_existing_implementation
 blocks,soul_soil,Block,no,generic_or_separate_path
 blocks,soul_torch,TorchBlock,yes,audit_existing_implementation
 blocks,soul_wall_torch,WallTorchBlock,yes,audit_existing_implementation
-blocks,spawner,SpawnerBlock,no,check_specialization_or_shared_path
+blocks,spawner,SpawnerBlock,yes,audit_existing_implementation
 blocks,sponge,SpongeBlock,yes,audit_existing_implementation
 blocks,spore_blossom,SporeBlossomBlock,yes,audit_existing_implementation
 blocks,spruce_button,ButtonBlock,yes,audit_existing_implementation
@@ -2946,7 +2946,7 @@ blocks,zombie_wall_head,WallSkullBlock,yes,audit_existing_implementation
 entities,acacia_boat,Boat,no,check_specialization_or_shared_path
 entities,acacia_chest_boat,ChestBoat,no,check_specialization_or_shared_path
 entities,allay,Allay,no,check_specialization_or_shared_path
-entities,area_effect_cloud,AreaEffectCloud,no,check_specialization_or_shared_path
+entities,area_effect_cloud,AreaEffectCloud,yes,audit_existing_implementation
 entities,armadillo,Armadillo,no,check_specialization_or_shared_path
 entities,armor_stand,ArmorStand,no,check_specialization_or_shared_path
 entities,arrow,Arrow,no,check_specialization_or_shared_path
@@ -3023,7 +3023,7 @@ entities,jungle_boat,Boat,no,check_specialization_or_shared_path
 entities,jungle_chest_boat,ChestBoat,no,check_specialization_or_shared_path
 entities,leash_knot,LeashFenceKnotEntity,yes,audit_existing_implementation
 entities,lightning_bolt,LightningBolt,no,check_specialization_or_shared_path
-entities,lingering_potion,ThrownLingeringPotion,no,check_specialization_or_shared_path
+entities,lingering_potion,ThrownLingeringPotion,yes,audit_existing_implementation
 entities,llama,Llama,no,check_specialization_or_shared_path
 entities,llama_spit,LlamaSpit,no,check_specialization_or_shared_path
 entities,magma_cube,MagmaCube,no,check_specialization_or_shared_path
@@ -3031,7 +3031,7 @@ entities,mangrove_boat,Boat,no,check_specialization_or_shared_path
 entities,mangrove_chest_boat,ChestBoat,no,check_specialization_or_shared_path
 entities,mannequin,Mannequin,no,check_specialization_or_shared_path
 entities,marker,Marker,yes,audit_existing_implementation
-entities,minecart,Minecart,no,check_specialization_or_shared_path
+entities,minecart,Minecart,yes,audit_existing_implementation
 entities,mooshroom,MushroomCow,yes,audit_existing_implementation
 entities,mule,Mule,no,check_specialization_or_shared_path
 entities,nautilus,Nautilus,no,check_specialization_or_shared_path
@@ -3069,13 +3069,13 @@ entities,small_fireball,SmallFireball,no,check_specialization_or_shared_path
 entities,sniffer,Sniffer,no,check_specialization_or_shared_path
 entities,snow_golem,SnowGolem,no,check_specialization_or_shared_path
 entities,snowball,Snowball,yes,audit_existing_implementation
-entities,spawner_minecart,MinecartSpawner,no,check_specialization_or_shared_path
+entities,spawner_minecart,MinecartSpawner,yes,audit_existing_implementation
 entities,spectral_arrow,SpectralArrow,no,check_specialization_or_shared_path
 entities,spider,Spider,no,check_specialization_or_shared_path
 entities,splash_potion,ThrownSplashPotion,yes,audit_existing_implementation
 entities,spruce_boat,Boat,no,check_specialization_or_shared_path
 entities,spruce_chest_boat,ChestBoat,no,check_specialization_or_shared_path
-entities,squid,Squid,no,check_specialization_or_shared_path
+entities,squid,Squid,yes,audit_existing_implementation
 entities,stray,Stray,no,check_specialization_or_shared_path
 entities,strider,Strider,no,check_specialization_or_shared_path
 entities,sulfur_cube,SulfurCube,no,check_specialization_or_shared_path

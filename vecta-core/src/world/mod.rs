@@ -162,6 +162,7 @@ pub(crate) use explosion::{ExplosionBlockReader, ImmutableExplosionBlockCalculat
 pub use level_reader::{LevelAccessor, LevelReader, ScheduledTickAccess};
 pub(crate) use loot_data::DomainLootData;
 pub use player_index::{PlayerAreaMap, PlayerMap};
+pub(crate) use random::LevelRandomSource;
 pub use raycast::{ClipBlockShape, ClipFluid, ClipHitResult, RaytraceAction};
 #[cfg(test)]
 pub(crate) use signal_getter::get_best_neighbor_signal;

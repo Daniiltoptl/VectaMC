@@ -31,6 +31,7 @@ use super::crop_block::{
     ADJACENT_FARMLAND_SPEED_DIVISOR, CROP_GROWTH_CHANCE_BASE, CROWDED_CROP_SPEED_DIVISOR,
     MIN_CROP_LIGHT_LEVEL,
 };
+use vecta_utils::random::RandomAccess;
 
 const HALF_PROPERTY: &EnumProperty<DoubleBlockHalf> = &BlockStateProperties::DOUBLE_BLOCK_HALF;
 const AGE: &IntProperty = &BlockStateProperties::AGE_4;
@@ -267,7 +268,7 @@ impl Bonemealable for PitcherCropBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         if let Some((lower_state, lower_pos)) = Self::get_lower_half(state, world, pos) {

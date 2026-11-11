@@ -1,6 +1,5 @@
 use std::{ops::Not, sync::Arc};
 
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -17,6 +16,7 @@ use crate::{
     behavior::{BlockBehavior, BlockPlaceContext, blocks::vegetation::bonemealable::Bonemealable},
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for the Bamboo Stalk Block
 #[block_behavior]
@@ -66,7 +66,7 @@ impl BambooStalkBlock {
         world: &Arc<World>,
         pos: BlockPos,
         state: BlockStateId,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         height: i32,
     ) {
         let state_below = world.get_block_state(pos.below());
@@ -96,9 +96,10 @@ impl BambooStalkBlock {
             state.get_value(AGE) == 1 || state_two_below.get_block() == &vanilla_blocks::BAMBOO,
         );
 
-        let new_stage = u8::from(
-            height == MAX_BAMBOO_HEIGHT - 1 || (height >= 11 && rng.random::<f32>() < 0.25),
-        );
+        let new_stage = u8::from({
+            let thick = height >= 11 && rng.next_f32() < 0.25;
+            thick || height == MAX_BAMBOO_HEIGHT - 1
+        });
 
         world.set_block(
             pos.above(),
@@ -123,8 +124,8 @@ impl BambooStalkBlock {
 }
 
 impl Bonemealable for BambooStalkBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn rand::Rng) -> u8 {
-        1 + rng.random_range(0..2)
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn RandomAccess) -> u8 {
+        1 + rng.next_i32_bounded(2) as u8
     }
 
     fn is_valid_bonemeal_target(
@@ -146,7 +147,7 @@ impl Bonemealable for BambooStalkBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let above = Self::stalk_segments_above(world, pos);
@@ -224,8 +225,8 @@ impl BlockBehavior for BambooStalkBlock {
         if state.get_value(STAGE) != 0 {
             return;
         }
-        let mut rng = rand::rng();
-        if rng.random_range(0..3) == 0
+        let mut rng = crate::world::LevelRandomSource::new(world.random());
+        if rng.next_i32_bounded(3) == 0
             && world.get_block_state(pos.above()).is_air()
             && world.raw_brightness(pos.above(), 0) >= 9
         {

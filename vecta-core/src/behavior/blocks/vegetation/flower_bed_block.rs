@@ -3,7 +3,6 @@ use crate::behavior::blocks::vegetation::segmentable_block::{
     segmentable_can_be_replaced, segmentable_get_state_for_placement,
 };
 use crate::world::{ScheduledTickAccess, World};
-use rand::prelude::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::REGISTRY;
@@ -20,6 +19,7 @@ use crate::behavior::blocks::vegetation::bonemealable::Bonemealable;
 use crate::world::LevelReader;
 
 use super::{BlockRef, survives_on_tag, vegetation_block::survival_update_shape};
+use vecta_utils::random::RandomAccess;
 
 const SEGMENT_PROPERTY: &IntProperty = &BlockStateProperties::FLOWER_AMOUNT;
 
@@ -85,7 +85,7 @@ impl Bonemealable for FlowerBedBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let amount = state.get_value(SEGMENT_PROPERTY);

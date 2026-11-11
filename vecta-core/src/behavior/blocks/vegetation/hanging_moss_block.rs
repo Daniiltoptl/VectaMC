@@ -6,7 +6,6 @@ use crate::behavior::blocks::vegetation::bonemealable::{BonemealAction, Bonemeal
 use crate::behavior::context::BlockPlaceContext;
 use crate::world::LevelReader;
 use crate::world::{ScheduledTickAccess, World};
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty};
@@ -14,6 +13,7 @@ use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
 
 use super::{BlockRef, default_surviving_state};
+use vecta_utils::random::RandomAccess;
 
 const TIP: &BoolProperty = &BlockStateProperties::TIP;
 
@@ -104,7 +104,7 @@ impl Bonemealable for HangingMossBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let tip_pos = self.get_tip(world, pos).below();

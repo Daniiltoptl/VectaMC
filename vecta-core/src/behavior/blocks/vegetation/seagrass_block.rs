@@ -16,6 +16,7 @@ use crate::behavior::context::BlockPlaceContext;
 use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess, World};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for seagrass blocks.
 #[block_behavior]
@@ -109,7 +110,7 @@ impl Bonemealable for SeagrassBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let lower_state = vanilla_blocks::TALL_SEAGRASS

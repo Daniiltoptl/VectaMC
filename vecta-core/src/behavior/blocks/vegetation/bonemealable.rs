@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use rand::{Rng, RngExt};
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_utils::{BlockPos, BlockStateId, Direction, types::UpdateFlags};
 
@@ -11,11 +10,12 @@ use crate::{
     behavior::blocks::vegetation::crop_block::CropLike,
     world::{LevelReader, World},
 };
+use vecta_utils::random::{RandomAccess, shuffle};
 
 /// Blocks that react to bonemeal.
 pub trait Bonemealable {
     /// Returns the age increase from bonemeal.
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn Rng) -> u8 {
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn RandomAccess) -> u8 {
         0
     }
 
@@ -32,7 +32,7 @@ pub trait Bonemealable {
         &self,
         _state: BlockStateId,
         _world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
         true
@@ -43,7 +43,7 @@ pub trait Bonemealable {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     );
 
@@ -83,22 +83,17 @@ pub fn has_spreadable_neighbor_pos(
     get_spreadable_neighbor_pos(Direction::HORIZONTAL, world, pos, block_to_place).is_some()
 }
 
-/// Vanilla spreadable-neighbor target selection.
+/// Vanilla spreadable-neighbor target selection. Vanilla draws from
+/// `level.getRandom()`, which the caller already holds.
 pub fn find_spreadable_neighbor_pos(
     world: &World,
     pos: BlockPos,
     block_to_place: BlockStateId,
+    rng: &mut dyn RandomAccess,
 ) -> Option<BlockPos> {
     let mut directions = Direction::HORIZONTAL;
-    shuffle_directions(&mut directions, &mut rand::rng());
+    shuffle(&mut directions, rng);
     get_spreadable_neighbor_pos(directions, world, pos, block_to_place)
-}
-
-fn shuffle_directions(directions: &mut [Direction; 4], random: &mut impl Rng) {
-    for i in (1..directions.len()).rev() {
-        let j = random.random_range(0..=i);
-        directions.swap(i, j);
-    }
 }
 
 fn get_spreadable_neighbor_pos(
@@ -128,7 +123,7 @@ pub(crate) trait CropBonemealExt: CropLike + Bonemealable {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let new_age = self

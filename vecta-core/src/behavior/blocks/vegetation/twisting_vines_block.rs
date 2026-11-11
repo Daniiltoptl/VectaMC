@@ -8,7 +8,6 @@ use crate::behavior::{
     },
 };
 use crate::world::{LevelReader, ScheduledTickAccess, World};
-use rand::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -16,6 +15,7 @@ use vecta_registry::vanilla_blocks;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `TwistingVinesBlock` (head) survival.
 #[block_behavior]
@@ -97,7 +97,7 @@ impl Bonemealable for TwistingVinesBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.base.perform_bonemeal(state, world, rng, pos);

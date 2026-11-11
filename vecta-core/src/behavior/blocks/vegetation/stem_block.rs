@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::{Rng, RngExt};
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -26,6 +25,7 @@ use crate::{
     block_entity::SharedBlockEntity,
     world::{LevelAccessor, LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 const AGE: &IntProperty = &BlockStateProperties::AGE_7;
 const FACING: &EnumProperty<Direction> = &BlockStateProperties::HORIZONTAL_FACING;
@@ -77,7 +77,7 @@ impl StemBlock {
         state: BlockStateId,
         world: &dyn LevelAccessor,
         pos: BlockPos,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
     ) {
         if world.raw_brightness(pos, 0) < 9 {
             return;
@@ -85,7 +85,7 @@ impl StemBlock {
 
         let growth_speed = crop_growth_speed(self.block, world, pos);
         let growth_chance = (CROP_GROWTH_CHANCE_BASE / growth_speed) as u32 + 1;
-        if rng.random_range(0..growth_chance) != 0 {
+        if rng.next_i32_bounded(growth_chance as i32) != 0 {
             return;
         }
 
@@ -99,7 +99,8 @@ impl StemBlock {
             return;
         }
 
-        let direction = Direction::HORIZONTAL[rng.random_range(0..Direction::HORIZONTAL.len())];
+        let direction = Direction::HORIZONTAL
+            [rng.next_i32_bounded(Direction::HORIZONTAL.len() as i32) as usize];
         let fruit_pos = pos.relative(direction);
         if !world.get_block_state(fruit_pos).is_air()
             || !world
@@ -128,11 +129,11 @@ impl StemBlock {
         &self,
         state: BlockStateId,
         world: &dyn LevelAccessor,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let age = state.get_value(AGE);
-        let new_age = Self::age_after_bonemeal(age, rng.random_range(2..=5));
+        let new_age = Self::age_after_bonemeal(age, rng.next_i32_between(2, 5) as u8);
         let new_state = state.set_value(AGE, new_age);
         world.set_block_state(pos, new_state, UpdateFlags::UPDATE_CLIENTS);
 
@@ -164,7 +165,12 @@ impl BlockBehavior for StemBlock {
     }
 
     fn random_tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        self.random_tick_with_rng(state, world, pos, &mut rand::rng());
+        self.random_tick_with_rng(
+            state,
+            world,
+            pos,
+            &mut crate::world::LevelRandomSource::new(world.random()),
+        );
     }
 
     fn get_clone_item_stack(
@@ -189,8 +195,8 @@ impl Vegetation for StemBlock {
 }
 
 impl super::bonemealable::Bonemealable for StemBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn Rng) -> u8 {
-        rng.random_range(2..=5)
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn RandomAccess) -> u8 {
+        rng.next_i32_between(2, 5) as u8
     }
 
     fn is_valid_bonemeal_target(
@@ -206,7 +212,7 @@ impl super::bonemealable::Bonemealable for StemBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.perform_bonemeal_with_rng(state, world, rng, pos);
@@ -215,9 +221,7 @@ impl super::bonemealable::Bonemealable for StemBlock {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::Infallible;
-
-    use rand::TryRng;
+    use RandomAccess;
     use vecta_registry::{
         init_vanilla_registry, vanilla_block_tags::BlockTag, vanilla_blocks, vanilla_items,
     };
@@ -230,20 +234,29 @@ mod tests {
     #[derive(Default)]
     struct ZeroRng;
 
-    impl TryRng for ZeroRng {
-        type Error = Infallible;
-
-        fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
-            Ok(0)
+    impl RandomAccess for ZeroRng {
+        fn next_i32(&mut self) -> i32 {
+            0
         }
 
-        fn try_next_u64(&mut self) -> Result<u64, Self::Error> {
-            Ok(0)
+        fn next_i32_bounded(&mut self, _bound: i32) -> i32 {
+            0
         }
 
-        fn try_fill_bytes(&mut self, dst: &mut [u8]) -> Result<(), Self::Error> {
-            dst.fill(0);
-            Ok(())
+        fn next_i64(&mut self) -> i64 {
+            0
+        }
+
+        fn next_f32(&mut self) -> f32 {
+            0.0
+        }
+
+        fn next_f64(&mut self) -> f64 {
+            0.0
+        }
+
+        fn next_bool(&mut self) -> bool {
+            false
         }
     }
 

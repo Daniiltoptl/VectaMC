@@ -4,7 +4,6 @@ use crate::behavior::{
 };
 use crate::entity::ai::path::PathComputationType;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
-use rand::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_protocol::packets::game::SoundSource;
@@ -18,6 +17,7 @@ use vecta_registry::{
     },
     vanilla_blocks,
 };
+use vecta_utils::random::RandomAccess;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId};
 
@@ -140,7 +140,7 @@ impl Bonemealable for ShelfMushroomBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(

@@ -1,4 +1,3 @@
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId, Direction};
@@ -17,6 +16,7 @@ use crate::behavior::{
 };
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 use std::sync::Arc;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `BushBlock` survival.
 #[block_behavior]
@@ -69,10 +69,10 @@ impl Bonemealable for BushBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
-        let Some(block_pos) = find_spreadable_neighbor_pos(world, pos, state) else {
+        let Some(block_pos) = find_spreadable_neighbor_pos(world, pos, state, rng) else {
             return;
         };
         world.set_block(

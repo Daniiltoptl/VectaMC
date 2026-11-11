@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt as _;
@@ -13,9 +12,7 @@ use vecta_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 use crate::behavior::blocks::vegetation::bonemealable::{BonemealAction, Bonemealable};
 use crate::behavior::{BlockBehavior, BlockPlaceContext};
 use crate::world::{LevelReader, World};
-
-/// Chance to pick `Warped Nylium` when both nylium types are nearby.
-const WARPED_VS_CRIMSON_CHANCE: f64 = 0.5;
+use vecta_utils::random::RandomAccess;
 
 /// Netherrack block behavior.
 #[block_behavior]
@@ -67,7 +64,7 @@ impl Bonemealable for NetherrackBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let mut found_warped = false;
@@ -86,7 +83,7 @@ impl Bonemealable for NetherrackBlock {
             }
         }
         let new_state = if found_warped && found_crimson {
-            if rng.random_bool(WARPED_VS_CRIMSON_CHANCE) {
+            if rng.next_bool() {
                 vanilla_blocks::WARPED_NYLIUM.default_state()
             } else {
                 vanilla_blocks::CRIMSON_NYLIUM.default_state()

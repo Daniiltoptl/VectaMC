@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -11,7 +10,7 @@ use vecta_registry::entity_type::EntityTypeRef;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::vanilla_block_tags::BlockTag;
 use vecta_registry::{vanilla_entities, vanilla_game_rules, vanilla_items};
-use vecta_utils::random::Random as _;
+use vecta_utils::random::Random;
 use vecta_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 
 use crate::behavior::block::BlockBehavior;
@@ -24,6 +23,7 @@ use crate::behavior::context::BlockPlaceContext;
 use crate::block_entity::SharedBlockEntity;
 use crate::entity::{Entity, InsideBlockEffectCollector};
 use crate::world::{LevelReader, ScheduledTickAccess, World};
+use vecta_utils::random::RandomAccess;
 
 const MOISTURE: &IntProperty = &BlockStateProperties::MOISTURE;
 
@@ -154,7 +154,7 @@ pub(crate) trait CropLike {
             let growth_chance = (CROP_GROWTH_CHANCE_BASE / growth_speed) as i32 + 1;
             let roll = world
                 .random()
-                .with_level(|rng| rng.next_i32_bounded(growth_chance));
+                .with_level(|rng| Random::next_i32_bounded(rng, growth_chance));
 
             if roll == 0 {
                 let new_state = self.get_state_for_age(age + 1);
@@ -208,15 +208,15 @@ impl CropLike for CropBlock {
 }
 
 impl Bonemealable for CropBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn rand::Rng) -> u8 {
-        rng.random_range(2..=5)
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn RandomAccess) -> u8 {
+        rng.next_i32_between(2, 5) as u8
     }
 
     fn perform_bonemeal(
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.default_perform_bonemeal(state, world, rng, pos);

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -19,6 +18,7 @@ use crate::{
     },
     world::{LevelReader, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for the Beetroots Block
 #[block_behavior]
@@ -59,8 +59,8 @@ impl CropLike for BeetrootBlock {
 }
 
 impl Bonemealable for BeetrootBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn rand::Rng) -> u8 {
-        rng.random_range(2..=5) / 3
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn RandomAccess) -> u8 {
+        (rng.next_i32_between(2, 5) / 3) as u8
     }
 
     fn is_valid_bonemeal_target(
@@ -76,7 +76,7 @@ impl Bonemealable for BeetrootBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: vecta_utils::BlockPos,
     ) {
         self.default_perform_bonemeal(state, world, rng, pos);

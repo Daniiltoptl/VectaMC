@@ -1,4 +1,3 @@
-use rand::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -20,6 +19,7 @@ use crate::world::{LevelReader, ScheduledTickAccess};
 use crate::{behavior::block::BlockBehavior, world::World};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `CaveVinesPlantBlock` (body) survival.
 #[block_behavior]
@@ -126,7 +126,7 @@ impl Bonemealable for CaveVinesPlantBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(

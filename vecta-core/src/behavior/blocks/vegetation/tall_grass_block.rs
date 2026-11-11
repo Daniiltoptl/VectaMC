@@ -26,6 +26,7 @@ use crate::{
     },
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for short grass and fern blocks.
 #[block_behavior]
@@ -101,7 +102,7 @@ impl Bonemealable for TallGrassBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         DoublePlantBlock::place_at(

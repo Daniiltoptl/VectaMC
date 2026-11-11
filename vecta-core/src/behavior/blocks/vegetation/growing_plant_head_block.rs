@@ -1,4 +1,3 @@
-use rand::{Rng, RngExt, rng};
 use std::sync::Arc;
 use vecta_registry::{
     blocks::{
@@ -18,8 +17,9 @@ use crate::{
             growing_plant_block,
         },
     },
-    world::{LevelAccessor, LevelReader, ScheduledTickAccess, World},
+    world::{LevelAccessor, LevelRandomSource, LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Shared behavior for growing plant head blocks.
 pub(crate) struct GrowingPlantHeadBlock {
@@ -29,8 +29,8 @@ pub(crate) struct GrowingPlantHeadBlock {
     grow_per_tick_probability: f64,
     body_block: BlockRef,
     update_body_after_converted_from_head: fn(BlockStateId, BlockStateId) -> BlockStateId,
-    update_grow_into_state: fn(BlockStateId, &mut dyn Rng) -> BlockStateId,
-    get_blocks_to_grow_when_bonemealed: Option<fn(&mut dyn Rng) -> i32>,
+    update_grow_into_state: fn(BlockStateId, &mut dyn RandomAccess) -> BlockStateId,
+    get_blocks_to_grow_when_bonemealed: Option<fn(&mut dyn RandomAccess) -> i32>,
     can_grow_into: fn(BlockStateId) -> bool,
 }
 const AGE: &IntProperty = &BlockStateProperties::AGE_25;
@@ -55,7 +55,7 @@ impl GrowingPlantHeadBlock {
         schedule_fluid_ticks: bool,
         grow_per_tick_probability: f64,
         body_block: BlockRef,
-        get_blocks_to_grow_when_bonemealed: Option<fn(&mut dyn Rng) -> i32>,
+        get_blocks_to_grow_when_bonemealed: Option<fn(&mut dyn RandomAccess) -> i32>,
         can_grow_into: fn(BlockStateId) -> bool,
     ) -> Self {
         Self {
@@ -86,7 +86,7 @@ impl GrowingPlantHeadBlock {
     #[must_use]
     pub const fn with_update_grow_into_state(
         mut self,
-        update: fn(BlockStateId, &mut dyn Rng) -> BlockStateId,
+        update: fn(BlockStateId, &mut dyn RandomAccess) -> BlockStateId,
     ) -> Self {
         self.update_grow_into_state = update;
         self
@@ -112,21 +112,21 @@ impl GrowingPlantHeadBlock {
         body_state
     }
 
-    fn unchanged_grown_state(state: BlockStateId, _rng: &mut dyn Rng) -> BlockStateId {
+    fn unchanged_grown_state(state: BlockStateId, _rng: &mut dyn RandomAccess) -> BlockStateId {
         state
     }
 
-    pub fn get_head_state(block: BlockRef, rng: &mut dyn Rng) -> BlockStateId {
+    pub fn get_head_state(block: BlockRef, rng: &mut dyn RandomAccess) -> BlockStateId {
         block
             .default_state()
-            .set_value(AGE, rng.random_range(0..MAX_AGE))
+            .set_value(AGE, rng.next_i32_bounded(i32::from(MAX_AGE)) as u8)
     }
 
     fn state_for_placement(
         &self,
         world: &dyn LevelReader,
         pos: BlockPos,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
     ) -> BlockStateId {
         let growth_direction_state = world.get_block_state(pos.relative(self.growth_direction));
         let growth_direction_block = growth_direction_state.get_block();
@@ -149,8 +149,8 @@ impl BlockBehavior for GrowingPlantHeadBlock {
         )
     }
     fn random_tick(&self, state: BlockStateId, world: &Arc<World>, pos: BlockPos) {
-        let mut rng = rng();
-        if state.get_value(AGE) < MAX_AGE && rng.random::<f64>() < self.grow_per_tick_probability {
+        let mut rng = LevelRandomSource::new(world.random());
+        if state.get_value(AGE) < MAX_AGE && rng.next_f64() < self.grow_per_tick_probability {
             let growth_pos = pos.relative(self.growth_direction);
             if (self.can_grow_into)(world.get_block_state(growth_pos)) {
                 let grown_state = (self.update_grow_into_state)(Self::cycle_age(state), &mut rng);
@@ -204,7 +204,11 @@ impl BlockBehavior for GrowingPlantHeadBlock {
         }
     }
     fn get_state_for_placement(&self, context: &BlockPlaceContext<'_>) -> Option<BlockStateId> {
-        Some(self.state_for_placement(context.world, context.place_pos(), &mut rng()))
+        Some(self.state_for_placement(
+            context.world,
+            context.place_pos(),
+            &mut LevelRandomSource::new(context.world.random()),
+        ))
     }
     fn as_bonemealable(&self) -> Option<&dyn Bonemealable> {
         Some(self)
@@ -241,7 +245,7 @@ impl Bonemealable for GrowingPlantHeadBlock {
         &self,
         _state: BlockStateId,
         _world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         _pos: BlockPos,
     ) -> bool {
         true
@@ -251,7 +255,7 @@ impl Bonemealable for GrowingPlantHeadBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let mut forward_pos = pos.relative(self.growth_direction);
@@ -285,8 +289,8 @@ impl Bonemealable for GrowingPlantHeadBlock {
 
 #[cfg(test)]
 mod tests {
-    use rand::{SeedableRng as _, rngs::StdRng};
     use vecta_registry::{init_vanilla_registry, vanilla_blocks};
+    use vecta_utils::random::{RandomSource, legacy_random::LegacyRandom};
 
     use super::*;
     use crate::{behavior::blocks::CaveVinesBlock, test_support::TestLevel};
@@ -308,7 +312,7 @@ mod tests {
             BlockPos::ZERO.below(),
             vanilla_blocks::CAVE_VINES.default_state(),
         );
-        let mut rng = StdRng::seed_from_u64(1);
+        let mut rng = RandomSource::Legacy(LegacyRandom::from_seed(1));
 
         let state = behavior.state_for_placement(&level, BlockPos::ZERO, &mut rng);
 

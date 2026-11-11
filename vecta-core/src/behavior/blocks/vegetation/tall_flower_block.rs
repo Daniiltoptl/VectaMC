@@ -12,6 +12,7 @@ use crate::behavior::context::{BlockPlaceContext, PlacementSource};
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::{BlockRef, DoublePlantBlock};
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for two-block-tall flowers.
 #[block_behavior]
@@ -80,7 +81,7 @@ impl Bonemealable for TallFlowerBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         if let Some(item) = REGISTRY.items.by_key(&self.base.block.key) {

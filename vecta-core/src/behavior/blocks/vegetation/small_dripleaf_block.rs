@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{
@@ -18,6 +17,7 @@ use crate::fluid::{FluidStateExt, fluid_state_to_block, get_fluid_state_from_blo
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::{BlockRef, DoublePlantBlock};
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `SmallDripleafBlock` survival.
 #[block_behavior]
@@ -124,7 +124,7 @@ impl Bonemealable for SmallDripleafBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         if state.get_value(HALF) == DoubleBlockHalf::Lower {

@@ -1,4 +1,3 @@
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty, EnumProperty};
@@ -17,6 +16,7 @@ use crate::world::{LevelReader, ScheduledTickAccess, World};
 use std::sync::Arc;
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 const WATERLOGGED: &BoolProperty = &BlockStateProperties::WATERLOGGED;
 const FACING: &EnumProperty<Direction> = &BlockStateProperties::FACING;
@@ -129,7 +129,7 @@ impl Bonemealable for BigDripleafStemBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let forward_pos = get_top_connected_block(

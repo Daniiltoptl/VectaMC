@@ -2,8 +2,6 @@
 //!
 use std::sync::Arc;
 
-use rand::Rng;
-
 use crate::{
     behavior::{
         BlockBehavior, BlockPlaceContext, block::schedule_water_tick_if_waterlogged,
@@ -24,6 +22,7 @@ use vecta_registry::{
 use vecta_utils::{BlockPos, BlockStateId, types::UpdateFlags};
 
 use super::MangrovePropaguleBlock;
+use vecta_utils::random::RandomAccess;
 
 const DISTANCE: &IntProperty = &BlockStateProperties::DISTANCE;
 const PERSISTENT: &BoolProperty = &BlockStateProperties::PERSISTENT;
@@ -276,7 +275,7 @@ impl Bonemealable for MangroveLeavesBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::{Rng, RngExt};
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{
@@ -21,6 +20,7 @@ use crate::entity::ai::path::PathComputationType;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `SeaPickleBlock` survival.
 #[block_behavior]
@@ -125,7 +125,7 @@ impl Bonemealable for SeaPickleBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let mut z_span = 1;
@@ -140,15 +140,17 @@ impl Bonemealable for SeaPickleBlock {
                     let position = BlockPos::new(x_start + x, start_y, pos.z() - z_offset + z);
 
                     if position != pos
-                        && rng.random_range(0..6) == 0
+                        && rng.next_i32_bounded(6) == 0
                         && world.get_block_state(position).get_block() == &vanilla_blocks::WATER
                     {
                         let below_state = world.get_block_state(position.below());
 
                         if below_state.get_block().has_tag(&BlockTag::CORAL_BLOCKS) {
-                            let sea_pickle_state = vanilla_blocks::SEA_PICKLE
-                                .default_state()
-                                .set_value(PICKLES, rng.random_range(0..MAX_PICKLES) + 1);
+                            let sea_pickle_state =
+                                vanilla_blocks::SEA_PICKLE.default_state().set_value(
+                                    PICKLES,
+                                    (rng.next_i32_bounded(i32::from(MAX_PICKLES)) + 1) as u8,
+                                );
 
                             world.set_block(position, sea_pickle_state, UpdateFlags::UPDATE_ALL);
                         }

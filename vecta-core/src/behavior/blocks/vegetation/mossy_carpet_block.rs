@@ -6,7 +6,6 @@ use crate::behavior::blocks::MultifaceBlock;
 use crate::behavior::blocks::vegetation::bonemealable::Bonemealable;
 use crate::behavior::context::BlockPlaceContext;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -14,6 +13,7 @@ use vecta_registry::blocks::properties::{
     BlockStateProperties, BoolProperty, Direction, EnumProperty, WallSide,
 };
 use vecta_registry::vanilla_blocks;
+use vecta_utils::random::RandomAccess;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{BlockPos, BlockStateId};
 
@@ -239,7 +239,7 @@ impl Bonemealable for MossyCarpetBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         let topper = Self::create_topper_with_side_chance(world, pos, true);

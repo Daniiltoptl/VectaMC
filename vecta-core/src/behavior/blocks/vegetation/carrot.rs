@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::RngExt;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -19,6 +18,7 @@ use crate::{
     },
     world::{LevelReader, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for Carrots
 #[block_behavior]
@@ -55,8 +55,8 @@ impl CropLike for CarrotBlock {
 }
 
 impl Bonemealable for CarrotBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn rand::Rng) -> u8 {
-        rng.random_range(2..=5)
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, rng: &mut dyn RandomAccess) -> u8 {
+        rng.next_i32_between(2, 5) as u8
     }
     fn is_valid_bonemeal_target(
         &self,
@@ -71,7 +71,7 @@ impl Bonemealable for CarrotBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn rand::Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.default_perform_bonemeal(state, world, rng, pos);

@@ -1,4 +1,3 @@
-use rand::{Rng, RngExt};
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::{BlockStateProperties, BoolProperty, Direction};
@@ -15,6 +14,7 @@ use crate::fluid::get_fluid_state_from_block;
 use crate::world::{LevelAccessor, LevelReader, ScheduledTickAccess};
 
 use super::BlockRef;
+use vecta_utils::random::{RandomAccess, shuffle};
 
 /// Behavior for vanilla multiface blocks.
 #[block_behavior]
@@ -239,10 +239,10 @@ impl MultifaceSpreader {
         state: BlockStateId,
         world: &W,
         pos: BlockPos,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
     ) -> Option<MultifaceSpreadPos> {
         let mut faces = Direction::ALL;
-        Self::shuffle_directions(&mut faces, rng);
+        shuffle(&mut faces, rng);
 
         for starting_face in faces {
             if !MultifaceBlock::has_face(state, starting_face) {
@@ -250,7 +250,7 @@ impl MultifaceSpreader {
             }
 
             let mut spread_directions = Direction::ALL;
-            Self::shuffle_directions(&mut spread_directions, rng);
+            shuffle(&mut spread_directions, rng);
             for spread_direction in spread_directions {
                 if let Some(spread_pos) = self.spread_from_face_toward_direction(
                     state,
@@ -334,13 +334,6 @@ impl MultifaceSpreader {
                 spread_pos.pos,
                 spread_pos.face,
             )
-    }
-
-    fn shuffle_directions(directions: &mut [Direction; 6], rng: &mut dyn Rng) {
-        for i in (1..directions.len()).rev() {
-            let j = rng.random_range(0..=i);
-            directions.swap(i, j);
-        }
     }
 }
 

@@ -10,7 +10,6 @@ use crate::behavior::context::BlockPlaceContext;
 use crate::block_entity::SharedBlockEntity;
 use crate::world::{LevelReader, ScheduledTickAccess, World};
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::blocks::properties::Direction;
@@ -21,6 +20,7 @@ use vecta_registry::{vanilla_blocks, vanilla_items};
 use vecta_utils::{BlockPos, BlockStateId};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `KelpBlock` survival and fluid state.
 #[block_behavior]
@@ -51,7 +51,7 @@ impl KelpBlock {
         state.get_block() == &vanilla_blocks::WATER
     }
 
-    fn get_blocks_to_grow_when_bonemealed(_rng: &mut dyn Rng) -> i32 {
+    fn get_blocks_to_grow_when_bonemealed(_rng: &mut dyn RandomAccess) -> i32 {
         1
     }
     pub(crate) fn kelp_can_survive(world: &dyn LevelReader, pos: BlockPos) -> bool {
@@ -151,7 +151,7 @@ impl Bonemealable for KelpBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.base.perform_bonemeal(state, world, rng, pos);

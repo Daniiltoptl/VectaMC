@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::{
     blocks::{
@@ -22,6 +21,7 @@ use crate::{
     entity::ai::path::PathComputationType,
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 const MAX_AGE: u8 = 2;
 const AGE: &IntProperty = &BlockStateProperties::AGE_2;
@@ -145,7 +145,7 @@ impl Bonemealable for CocoaBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         world.set_block(

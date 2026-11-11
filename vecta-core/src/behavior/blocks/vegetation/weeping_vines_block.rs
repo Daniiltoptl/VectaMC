@@ -1,4 +1,3 @@
-use rand::Rng;
 use std::sync::Arc;
 use vecta_macros::block_behavior;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
@@ -15,6 +14,7 @@ use crate::world::{LevelReader, World};
 use crate::{behavior::block::BlockBehavior, world::ScheduledTickAccess};
 
 use super::BlockRef;
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `WeepingVinesBlock` (head) survival.
 #[block_behavior]
@@ -96,7 +96,7 @@ impl Bonemealable for WeepingVinesBlock {
         &self,
         state: BlockStateId,
         world: &Arc<World>,
-        rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         self.base.perform_bonemeal(state, world, rng, pos);

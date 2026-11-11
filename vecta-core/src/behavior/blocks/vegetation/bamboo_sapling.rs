@@ -20,6 +20,7 @@ use crate::{
     block_entity::SharedBlockEntity,
     world::{LevelReader, ScheduledTickAccess, World},
 };
+use vecta_utils::random::RandomAccess;
 
 /// Behavior for the Bamboo Sapling Block
 #[block_behavior]
@@ -49,7 +50,7 @@ impl BambooSaplingBlock {
 }
 
 impl Bonemealable for BambooSaplingBlock {
-    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn rand::Rng) -> u8 {
+    fn get_bonemeal_age_increase(&self, _world: &Arc<World>, _rng: &mut dyn RandomAccess) -> u8 {
         1
     }
 
@@ -67,7 +68,7 @@ impl Bonemealable for BambooSaplingBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn rand::Rng,
+        _rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         Self::grow(world, pos);

@@ -1,6 +1,5 @@
 use std::sync::Arc;
 
-use rand::Rng;
 use vecta_macros::block_behavior;
 use vecta_registry::{vanilla_block_tags::BlockTag, vanilla_blocks};
 use vecta_utils::{BlockPos, BlockStateId, Direction, types::UpdateFlags};
@@ -17,6 +16,7 @@ use crate::world::{LevelReader, ScheduledTickAccess, World};
 use super::{
     BlockRef, default_surviving_state, survives_on_tag, vegetation_block::survival_update_shape,
 };
+use vecta_utils::random::RandomAccess;
 
 /// Vanilla `TallDryGrassBlock` survival
 #[block_behavior]
@@ -72,13 +72,14 @@ impl Bonemealable for TallDryGrassBlock {
         &self,
         _state: BlockStateId,
         world: &Arc<World>,
-        _rng: &mut dyn Rng,
+        rng: &mut dyn RandomAccess,
         pos: BlockPos,
     ) {
         if let Some(spread_pos) = find_spreadable_neighbor_pos(
             world,
             pos,
             vanilla_blocks::SHORT_DRY_GRASS.default_state(),
+            rng,
         ) {
             world.set_block(
                 spread_pos,
