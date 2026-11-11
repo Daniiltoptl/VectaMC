@@ -2,7 +2,7 @@ use crate::entity::DEFAULT_MAX_AIR_SUPPLY;
 use crate::permission::PermissionSet;
 use crate::player::KnownPlayer;
 use crate::player::advancement::progress::AdvancementProgress;
-use crate::player::player_data::PersistentStat;
+use crate::player::player_data::{PersistentRecipeBook, PersistentStat};
 use crate::player::player_data_storage::file_storage::FilePlayerDataStorage;
 use crate::player::player_data_storage::known_players::{
     KnownPlayersFile, decode_known_players_file, encode_known_players_file,
@@ -18,6 +18,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 use tokio::fs;
+use vecta_registry::recipe::{RecipeBookSettings, RecipeBookType, ServerRecipeBook};
 use vecta_registry::stat::vanilla_stat_types;
 use vecta_registry::{
     REGISTRY, init_vanilla_registry, vanilla_blocks, vanilla_custom_stats, vanilla_items,
@@ -72,6 +73,11 @@ fn sample_player_file(data_version: i32) -> PlayerDataFile {
         respawn_config: None,
         ender_pearls: Vec::new(),
         ender_items: Vec::new(),
+        recipe_book: RecipeBookFile {
+            settings: [true, false, false, true, false, false, false, true],
+            known: vec!["minecraft:baked_potato".to_owned()],
+            highlight: vec!["minecraft:iron_pickaxe".to_owned()],
+        },
     }
 }
 
@@ -448,6 +454,15 @@ fn player_file_roundtrip_preserves_domain_world_data() {
         PLAYER_STORAGE_VERSION
     );
     assert_eq!(decoded.world, "lobby:void");
+    assert_eq!(
+        decoded.recipe_book.settings,
+        [true, false, false, true, false, false, false, true]
+    );
+    assert_eq!(decoded.recipe_book.known, vec!["minecraft:baked_potato"]);
+    assert_eq!(
+        decoded.recipe_book.highlight,
+        vec!["minecraft:iron_pickaxe"]
+    );
     assert_eq!(decoded.game_mode, 2);
     assert_eq!(decoded.selected_slot, 4);
     assert_eq!(decoded.experience_level, 7);
@@ -469,6 +484,53 @@ fn player_file_roundtrip_preserves_absent_previous_game_mode() {
         .expect("player file should convert");
 
     assert_eq!(persistent.prev_game_mode, None);
+}
+
+#[test]
+fn stored_recipe_book_restores_settings_and_drops_unknown_recipes() {
+    init_vanilla_registry();
+
+    let mut settings = RecipeBookSettings::default();
+    settings.set_book_setting(RecipeBookType::Crafting, true, true);
+    settings.set_book_setting(RecipeBookType::BlastFurnace, false, true);
+
+    // A save from a version that knew both recipes; one of them is gone now.
+    let saved = PersistentRecipeBook {
+        settings: [true, true, false, false, false, true, false, false],
+        known: vec![
+            "minecraft:oak_planks".to_owned(),
+            "vecta:removed_recipe".to_owned(),
+        ],
+        highlight: vec![
+            "vecta:removed_recipe".to_owned(),
+            "minecraft:oak_planks".to_owned(),
+        ],
+    };
+
+    let mut book = ServerRecipeBook::default();
+    saved.apply_to_book(&mut book);
+
+    let planks = "minecraft:oak_planks"
+        .parse::<Identifier>()
+        .expect("valid key");
+    let removed = "vecta:removed_recipe"
+        .parse::<Identifier>()
+        .expect("valid key");
+    assert!(book.contains(&planks));
+    assert!(!book.contains(&removed));
+    assert!(book.is_highlighted(&planks));
+    assert!(!book.is_highlighted(&removed));
+    assert_eq!(book.book_settings(), &settings);
+
+    // Re-saving keeps only what the registry validated, so the removed key is
+    // not written back on the next logout.
+    let resaved = PersistentRecipeBook::from_book(&book);
+    assert_eq!(resaved.known, vec!["minecraft:oak_planks".to_owned()]);
+    assert_eq!(resaved.highlight, vec!["minecraft:oak_planks".to_owned()]);
+    assert_eq!(
+        resaved.settings,
+        [true, true, false, false, false, true, false, false]
+    );
 }
 
 #[test]

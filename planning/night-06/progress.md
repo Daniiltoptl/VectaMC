@@ -799,3 +799,27 @@ clippy exit 0; audit 3105/49/227; python 4 OK.
 Остаток G033/G034+: персистенция книги в playerdata (PlayerDataFile
 строгой версии, отдельный срез), award/forget senders (критерии разбора —
 advancements/commands), G034 place recipe.
+
+### Сеанс 12 (агент A) — срез 0: персистенция recipe book
+
+Доведена незакоммиченная работа прошлого исполнителя, сверена с Java
+`ServerPlayer.readAdditionalSaveData`/`addAdditionalSaveData` (строка
+`recipeBook` = `ServerRecipeBook.Packed.CODEC`, load через `loadUntrusted` с
+валидатором `recipeManager.byKey(id).isPresent()`).
+
+- `PersistentPlayerData.recipe_book: PersistentRecipeBook` (settings[8] в
+  порядке `RecipeBookSettings.STREAM_CODEC`, known, highlight).
+- `from_book` = `ServerRecipeBook::pack`; `apply_to_book` строит
+  `RecipeBookSettings`, начинает с чистой книги (как Java: данные грузятся в
+  только что созданную книгу) и зовёт `load_untrusted` с валидатором
+  `REGISTRY.recipes.by_key`.
+- `PlayerDataFile.recipe_book: RecipeBookFile`, `PLAYER_STORAGE_VERSION` 9→10,
+  `PLAYER_DATA_VERSION` 6→7 (формат payload менялся).
+- Тесты: storage round-trip сохраняет settings/known/highlight;
+  `stored_recipe_book_restores_settings_and_drops_unknown_recipes` — известный
+  `minecraft:oak_planks` восстановлен, неизвестный `vecta:removed_recipe`
+  отброшен и не пишется обратно.
+- Проверки: fmt OK; narrow player_data_storage 27 passed; workspace — все
+  test-бинарники `test result: ok`, 0 failed (точный total — в отчёте сеанса);
+  clippy exit 0 (только предсуществующий manifest warning про mimalloc);
+  audit 3105/49/222; python 4 OK.

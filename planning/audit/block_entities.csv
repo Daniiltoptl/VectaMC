@@ -13,7 +13,7 @@ chest,no,chest copper_chest exposed_copper_chest oxidized_copper_chest waxed_cop
 chiseled_bookshelf,yes,chiseled_bookshelf
 command_block,no,chain_command_block command_block repeating_command_block
 comparator,yes,comparator
-conduit,no,conduit
+conduit,yes,conduit
 copper_golem_statue,no,copper_golem_statue exposed_copper_golem_statue oxidized_copper_golem_statue waxed_copper_golem_statue waxed_exposed_copper_golem_statue waxed_oxidized_copper_golem_statue waxed_weathered_copper_golem_statue weathered_copper_golem_statue
 crafter,no,crafter
 creaking_heart,no,creaking_heart
@@ -31,7 +31,7 @@ hopper,no,hopper
 jigsaw,no,jigsaw
 jukebox,yes,jukebox
 lectern,yes,lectern
-mob_spawner,no,spawner
+mob_spawner,yes,spawner
 piston,yes,moving_piston
 potent_sulfur,yes,potent_sulfur
 sculk_catalyst,no,sculk_catalyst

@@ -21,7 +21,7 @@ use self::permissions::set_permission_subject;
 use super::PlayerRespawnConfig;
 use super::player_data::{
     PLAYER_DATA_VERSION, PersistentAbilities, PersistentEnderPearl, PersistentPlayerData,
-    PersistentRootVehicle, PersistentSlot,
+    PersistentRecipeBook, PersistentRootVehicle, PersistentSlot,
 };
 use crate::chunk_saver::PersistentEntity;
 use crate::config::StorageSelection;
@@ -38,7 +38,7 @@ use vecta_utils::{BlockPos, Identifier};
 
 const PLAYER_MAGIC: [u8; 4] = *b"STLP";
 const GLOBAL_MAGIC: [u8; 4] = *b"STLG";
-const PLAYER_STORAGE_VERSION: u16 = 9;
+const PLAYER_STORAGE_VERSION: u16 = 10;
 const GLOBAL_STORAGE_VERSION: u16 = 1;
 const GLOBAL_PLAYER_DATA_VERSION: i32 = 1;
 
@@ -92,6 +92,15 @@ struct PlayerDataFile {
     respawn_config: Option<RespawnConfigFile>,
     ender_pearls: Vec<EnderPearlFile>,
     ender_items: Vec<SlotFile>,
+    recipe_book: RecipeBookFile,
+}
+
+#[derive(SchemaWrite, SchemaRead)]
+struct RecipeBookFile {
+    /// Tab settings in vanilla `RecipeBookSettings.STREAM_CODEC` order.
+    settings: [bool; 8],
+    known: Vec<String>,
+    highlight: Vec<String>,
 }
 
 #[derive(SchemaWrite, SchemaRead)]
@@ -369,6 +378,11 @@ impl PlayerDataFile {
                     item_nbt: item_to_nbt_bytes(&slot.item).unwrap_or_default(),
                 })
                 .collect(),
+            recipe_book: RecipeBookFile {
+                settings: data.recipe_book.settings,
+                known: data.recipe_book.known.clone(),
+                highlight: data.recipe_book.highlight.clone(),
+            },
         })
     }
 
@@ -455,6 +469,11 @@ impl PlayerDataFile {
             },
             stats: Vec::new(),
             advancements: Vec::new(),
+            recipe_book: PersistentRecipeBook {
+                settings: self.recipe_book.settings,
+                known: self.recipe_book.known,
+                highlight: self.recipe_book.highlight,
+            },
         })
     }
 }

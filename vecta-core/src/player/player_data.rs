@@ -3,7 +3,11 @@
 //! This module defines the data format for saving and loading player state.
 
 use rustc_hash::FxHashSet;
+use vecta_registry::REGISTRY;
 use vecta_registry::item_stack::ItemStack;
+use vecta_registry::recipe::{
+    Packed as RecipeBookPacked, RecipeBookSettings, RecipeBookType, ServerRecipeBook,
+};
 use vecta_registry::stat::Stat;
 use vecta_utils::Identifier;
 use vecta_utils::types::GameType;
@@ -26,7 +30,7 @@ use crate::{
 
 /// Current data version for player saves.
 /// Increment when making breaking changes to the format.
-pub const PLAYER_DATA_VERSION: i32 = 6;
+pub const PLAYER_DATA_VERSION: i32 = 7;
 
 /// Persistent player data saved by Vecta's storage backend.
 ///
@@ -132,6 +136,100 @@ pub struct PersistentPlayerData {
 
     /// Persisted advancement progress keyed by advancement identifier.
     pub advancements: Vec<(Identifier, AdvancementProgress)>,
+    /// Vanilla `ServerRecipeBook.Packed`: recipe book tab settings and the
+    /// known/highlight recipe keys.
+    pub recipe_book: PersistentRecipeBook,
+}
+
+/// Persisted recipe book (vanilla `ServerRecipeBook.Packed` codec content).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct PersistentRecipeBook {
+    /// Tab settings in vanilla `RecipeBookSettings.STREAM_CODEC` order:
+    /// crafting, furnace, blast furnace, smoker — open then filtering.
+    pub settings: [bool; 8],
+    /// Known recipe keys (`recipes`).
+    pub known: Vec<String>,
+    /// Highlighted recipe keys (`toBeDisplayed`).
+    pub highlight: Vec<String>,
+}
+
+impl PersistentRecipeBook {
+    /// Snapshots the live book of a player.
+    #[must_use]
+    pub fn from_book(book: &ServerRecipeBook) -> Self {
+        let packed = book.pack();
+        let tab = |book_type: RecipeBookType| {
+            let settings = packed.settings.get(book_type);
+            [settings.open, settings.filtering]
+        };
+        let [crafting_open, crafting_filtering] = tab(RecipeBookType::Crafting);
+        let [furnace_open, furnace_filtering] = tab(RecipeBookType::Furnace);
+        let [blast_open, blast_filtering] = tab(RecipeBookType::BlastFurnace);
+        let [smoker_open, smoker_filtering] = tab(RecipeBookType::Smoker);
+        Self {
+            settings: [
+                crafting_open,
+                crafting_filtering,
+                furnace_open,
+                furnace_filtering,
+                blast_open,
+                blast_filtering,
+                smoker_open,
+                smoker_filtering,
+            ],
+            known: packed
+                .known
+                .iter()
+                .map(vecta_utils::Identifier::to_string)
+                .collect(),
+            highlight: packed
+                .highlight
+                .iter()
+                .map(vecta_utils::Identifier::to_string)
+                .collect(),
+        }
+    }
+
+    /// Restores the packed book into a player's live book, dropping keys the
+    /// recipe registry no longer knows (vanilla `loadUntrusted`).
+    pub fn apply_to_book(&self, book: &mut ServerRecipeBook) {
+        let mut settings = RecipeBookSettings::default();
+        for (index, book_type) in [
+            RecipeBookType::Crafting,
+            RecipeBookType::Furnace,
+            RecipeBookType::BlastFurnace,
+            RecipeBookType::Smoker,
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            settings.set_book_setting(
+                book_type,
+                self.settings[index * 2],
+                self.settings[index * 2 + 1],
+            );
+        }
+
+        // `load_untrusted` only inserts, so start from a pristine book like
+        // vanilla, which loads packed data right after constructing one.
+        *book = ServerRecipeBook::default();
+        book.load_untrusted(
+            &RecipeBookPacked {
+                settings,
+                known: self
+                    .known
+                    .iter()
+                    .filter_map(|key| key.parse().ok())
+                    .collect(),
+                highlight: self
+                    .highlight
+                    .iter()
+                    .filter_map(|key| key.parse().ok())
+                    .collect(),
+            },
+            |key| REGISTRY.recipes.by_key(key).is_some(),
+        );
+    }
 }
 
 /// A vanilla `RootVehicle` tree persisted with player data.
@@ -287,6 +385,7 @@ impl PersistentPlayerData {
             ender_items,
             stats,
             advancements,
+            recipe_book: PersistentRecipeBook::from_book(&player.recipe_book.lock()),
         }
     }
 
@@ -517,6 +616,10 @@ impl PersistentPlayerData {
         }
         player.set_score(self.score);
         player.set_seen_credits(self.seen_credits);
+
+        // Recipe book
+        self.recipe_book
+            .apply_to_book(&mut player.recipe_book.lock());
 
         // Statistics
         {
