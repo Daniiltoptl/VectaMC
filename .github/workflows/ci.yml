@@ -31,7 +31,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Install Linux linker
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y lld
+        run: bash scripts/ci_install_lld.sh
       - name: Check server
         shell: bash
         run: set -o pipefail; cargo check --locked --workspace 2>&1 | tee ci-check.log
@@ -53,7 +53,8 @@ jobs:
           toolchain: nightly-2026-10-14
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
-      - run: sudo apt-get update && sudo apt-get install -y lld
+      - name: Install Linux linker
+        run: bash scripts/ci_install_lld.sh
       - name: Format
         run: set -o pipefail; cargo fmt --all --check 2>&1 | tee ci-fmt.log
       - name: Clippy
