@@ -41,7 +41,7 @@ use crate::{
     inventory::container::Container,
     inventory::prelude::ContainerRef,
     player::Player,
-    world::{LevelReader, World, game_event::GameEventContext},
+    world::{World, game_event::GameEventContext},
 };
 
 /// Vanilla composter behavior required by analog signal readers.
@@ -287,7 +287,7 @@ impl BlockBehavior for ComposterBlock {
     fn get_analog_output_signal(
         &self,
         state: BlockStateId,
-        _world: &dyn LevelReader,
+        _world: &World,
         _pos: BlockPos,
         _direction: Direction,
     ) -> i32 {

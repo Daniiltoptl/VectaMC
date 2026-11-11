@@ -19,6 +19,8 @@ use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::vanilla_loot_tables;
 use vecta_registry::{DyeColor, REGISTRY, TaggedRegistryExt, sound_events, vanilla_items};
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtNumeric as _;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::random::legacy_random::LegacyRandom;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, BlockStateId, Downcast as _, DowncastType, DowncastTypeKey};
@@ -31,9 +33,10 @@ use crate::entity::ai::goal::{
 use crate::entity::damage::DamageSource;
 use crate::entity::living_entity::shearing_loot_items;
 use crate::entity::{
-    AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
-    EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
-    PathfinderMob, SharedEntity, Shearable, SpawnGroupData, sync_dirty_mob_effects,
+    AgeableMob, AgeableMobBase, Animal, AnimalBase, DefaultEntityPush, Entity, EntityBase,
+    EntityBaseLoad, EntityPose, EntitySpawnReason, EntitySyncedData, LivingEntity,
+    LivingEntityBase, Mob, MobBase, PathfinderMob, SharedEntity, Shearable, SpawnGroupData,
+    SpawnRule, sync_dirty_mob_effects,
 };
 use crate::inventory::recipe_manager;
 use crate::physics::MoveResult;
@@ -60,7 +63,7 @@ const SHEARED_BIT: i8 = 0x10;
 const ATE_AGE_UP_SECONDS: i32 = 60;
 
 /// Vanilla sheep entity.
-#[entity_behavior(class = "Sheep")]
+#[entity_behavior(class = "Sheep", spawn_rule)]
 pub struct SheepEntity {
     base: EntityBase,
     entity_type: EntityTypeRef,
@@ -77,6 +80,11 @@ unsafe impl DowncastType for SheepEntity {
 }
 
 impl SheepEntity {
+    /// Vanilla `SpawnPlacements` predicate: `Animal.checkAnimalSpawnRules`.
+    pub(crate) const SPAWN_RULE: SpawnRule = |entity_type, level, spawn_reason, pos, random| {
+        <Self as Animal>::check_animal_spawn_rules(entity_type, level, spawn_reason, pos, random)
+    };
+
     /// Creates a new sheep entity.
     #[must_use]
     pub fn new(entity_type: EntityTypeRef, id: i32, position: DVec3, world: Weak<World>) -> Self {
@@ -301,8 +309,17 @@ impl Shearable for SheepEntity {
         SheepEntity::shear(self, world.as_ref(), sound_source, tool);
     }
 }
+impl DefaultEntityPush for SheepEntity {}
 
 impl Entity for SheepEntity {
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        Some(self)
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }
@@ -357,8 +374,10 @@ impl Entity for SheepEntity {
         self.load_mob(nbt);
         self.load_ageable_mob(nbt);
         self.load_animal(nbt);
-        self.set_sheared(nbt.byte("Sheared").is_some_and(|value| value != 0));
-        self.set_color(DyeColor::by_id(i32::from(nbt.byte("Color").unwrap_or(0))));
+        self.set_sheared(nbt.byte_value("Sheared").is_some_and(|value| value != 0));
+        self.set_color(DyeColor::by_id(i32::from(
+            nbt.get("Color").and_then(|tag| tag.codec_i8()).unwrap_or(0),
+        )));
     }
 }
 

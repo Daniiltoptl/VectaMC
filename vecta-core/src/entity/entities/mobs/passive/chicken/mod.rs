@@ -26,6 +26,7 @@ use vecta_registry::{
     REGISTRY, RegistryExt, RegistryReference, TaggedRegistryExt, sound_events, vanilla_game_events,
 };
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::random::legacy_random::LegacyRandom;
 use vecta_utils::types::InteractionHand;
 use vecta_utils::{BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier};
@@ -38,10 +39,10 @@ use crate::entity::ai::goal::{
 use crate::entity::ai::path::PathType;
 use crate::entity::damage::DamageSource;
 use crate::entity::{
-    AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
-    EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
-    PathfinderMob, SharedEntity, SpawnGroupData, entity_loot_ref, living_loot_equipment,
-    position_rider_default, sync_dirty_mob_effects,
+    AgeableMob, AgeableMobBase, Animal, AnimalBase, DefaultEntityPush, Entity, EntityBase,
+    EntityBaseLoad, EntityPose, EntitySpawnReason, EntitySyncedData, LivingEntity,
+    LivingEntityBase, Mob, MobBase, PathfinderMob, SharedEntity, SpawnGroupData, SpawnRule,
+    entity_loot_ref, living_loot_equipment, position_rider_default, sync_dirty_mob_effects,
 };
 use crate::physics::MoveResult;
 use crate::player::Player;
@@ -123,7 +124,7 @@ impl ChickenState {
 }
 
 /// Vanilla chicken entity.
-#[entity_behavior(class = "Chicken")]
+#[entity_behavior(class = "Chicken", spawn_rule)]
 pub struct ChickenEntity {
     base: EntityBase,
     entity_type: EntityTypeRef,
@@ -141,6 +142,11 @@ unsafe impl DowncastType for ChickenEntity {
 }
 
 impl ChickenEntity {
+    /// Vanilla `SpawnPlacements` predicate: `Animal.checkAnimalSpawnRules`.
+    pub(crate) const SPAWN_RULE: SpawnRule = |entity_type, level, spawn_reason, pos, random| {
+        <Self as Animal>::check_animal_spawn_rules(entity_type, level, spawn_reason, pos, random)
+    };
+
     /// Creates a new chicken at runtime.
     #[must_use]
     pub fn new(entity_type: EntityTypeRef, id: i32, position: DVec3, world: Weak<World>) -> Self {
@@ -404,7 +410,17 @@ impl ChickenEntity {
     }
 }
 
+impl DefaultEntityPush for ChickenEntity {}
+
 impl Entity for ChickenEntity {
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        Some(self)
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }
@@ -482,8 +498,11 @@ impl Entity for ChickenEntity {
         self.load_ageable_mob(nbt);
         self.load_animal(nbt);
 
-        self.set_chicken_jockey(nbt.byte("IsChickenJockey").is_some_and(|value| value != 0));
-        if let Some(egg_time) = nbt.int("EggLayTime") {
+        self.set_chicken_jockey(
+            nbt.byte_value("IsChickenJockey")
+                .is_some_and(|value| value != 0),
+        );
+        if let Some(egg_time) = nbt.int_value("EggLayTime") {
             self.set_egg_time(egg_time);
         }
         if let Some(variant) = nbt.string("variant")

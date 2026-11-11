@@ -4,11 +4,14 @@ use vecta_utils::nbt::{NbtNumeric, nbt_list_values};
 
 use super::*;
 use crate::entity::block_attached_entity::BlockAttachedEntity;
+use crate::entity::entities::objects::vehicles::AbstractMinecart;
 use crate::entity::leash::Leashable;
+use crate::entity::pushing::EntityPush;
 use crate::entity::shearable::Shearable;
 use crate::scoreboard::{ScoreHolder, Scoreboard};
 use rand::{RngExt, rng};
 use vecta_math::DEGREE_90;
+use vecta_utils::nbt::nbt_collection_values;
 
 /// Vanilla `Entity.refreshDimensions` small-entity limit: only entities at most
 /// this wide and tall (in blocks) get their position fudged after growing.
@@ -45,20 +48,35 @@ fn landing_particle_position(entity_position: DVec3, landing_pos: BlockPos) -> D
     )
 }
 
-pub(super) fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
-    let values = read_nbt_collection(nbt, key)?;
-    let [x, y, z, ..] = values.as_slice() else {
+pub(crate) fn nbt_dvec3(tag: &NbtTag) -> Option<DVec3> {
+    let values = nbt_collection_values(tag)?;
+    let values = values
+        .iter()
+        .filter_map(NbtNumeric::codec_f64)
+        .collect::<Vec<_>>();
+    let &[x, y, z, ..] = values.as_slice() else {
         return None;
     };
-    Some(DVec3::new(x.codec_f64()?, y.codec_f64()?, z.codec_f64()?))
+    Some(DVec3::new(x, y, z))
 }
 
-fn read_nbt_rotation(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<(f32, f32)> {
-    let values = read_nbt_collection(nbt, key)?;
-    let [yaw, pitch, ..] = values.as_slice() else {
+pub(crate) fn read_nbt_dvec3(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<DVec3> {
+    nbt_dvec3(&nbt.get(key)?.to_owned())
+}
+
+pub(crate) fn read_nbt_rotation(
+    nbt: &BorrowedNbtCompoundView<'_, '_>,
+    key: &str,
+) -> Option<(f32, f32)> {
+    let values = nbt_collection_values(&nbt.get(key)?.to_owned())?;
+    let values = values
+        .iter()
+        .filter_map(NbtNumeric::codec_f32)
+        .collect::<Vec<_>>();
+    let &[yaw, pitch, ..] = values.as_slice() else {
         return None;
     };
-    Some((yaw.codec_f32()?, pitch.codec_f32()?))
+    Some((yaw, pitch))
 }
 
 fn read_nbt_collection(nbt: &BorrowedNbtCompoundView<'_, '_>, key: &str) -> Option<Vec<NbtTag>> {
@@ -150,7 +168,7 @@ pub(super) fn load_value_or<T>(reset: bool, value: Option<T>, default: T) -> Opt
     }
 }
 
-fn sanitize_nbt_motion(motion: DVec3) -> DVec3 {
+pub(crate) fn sanitize_nbt_motion(motion: DVec3) -> DVec3 {
     let sanitize = |value: f64| {
         if value.abs() > MAX_ENTITY_MOTION_COMPONENT {
             0.0
@@ -513,8 +531,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     }
 
     /// Returns whether vanilla fluid currents can push this entity.
+    ///
+    /// The extractor flattens vanilla's per-subclass overrides into one flag.
+    /// Entities with extra conditions still override, as `Player` does.
     fn is_pushed_by_fluid(&self) -> bool {
-        true
+        self.entity_type().flags.is_pushed_by_fluid
     }
 
     /// Applies bubble-column surface push velocity, dispatching to the
@@ -762,6 +783,13 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         self.base().stop_riding();
     }
 
+    /// Dismounts every passenger from this entity.
+    fn eject_passengers(&self) {
+        for passenger in self.passengers().into_iter().rev() {
+            passenger.stop_riding();
+        }
+    }
+
     /// Starts riding `entity_to_ride` if vanilla boarding rules allow it.
     fn start_riding(&self, entity_to_ride: &SharedEntity) -> bool {
         let Some(world) = self.level() else {
@@ -878,10 +906,9 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         )
     }
 
-    /// Returns this vehicle's passenger attachment point.
-    ///
-    /// Mirrors vanilla `Entity.getPassengerAttachmentPoint` for the base entity class.
-    fn passenger_attachment_point(&self, passenger: &dyn Entity) -> DVec3 {
+    /// Returns this vehicle's passenger attachment point for this entity's dimensions and
+    /// seat index, rotated by the vehicle's yaw.
+    fn default_passenger_attachment_point(&self, passenger: &dyn Entity) -> DVec3 {
         let dimensions = self.base().dimensions();
         let passenger_index = self.passenger_index(passenger).unwrap_or_default();
         dimensions.attachments.get_clamped(
@@ -890,6 +917,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
             self.rotation().0,
             dimensions,
         )
+    }
+
+    /// Returns the vehicle-relative position where this passenger attaches to.
+    fn passenger_attachment_point(&self, passenger: &dyn Entity) -> DVec3 {
+        self.default_passenger_attachment_point(passenger)
     }
 
     /// Returns the world position where `passenger` should ride this vehicle.
@@ -958,8 +990,20 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
             && !self.is_passenger_of_same_vehicle(other)
     }
 
+    /// Opts this entity into the [`DefaultEntityPush`] fast path. It is read under the
+    /// entity manager lock, so it must give the same answer for the entity's whole
+    /// lifetime and have no side effects.
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        None
+    }
+
     /// Adds an impulse to this entity's velocity and marks velocity for sync.
     fn push_impulse(&self, impulse: DVec3) {
+        if self.as_default_entity_push().is_some() {
+            self.base().push_impulse(impulse);
+            return;
+        }
+
         if !impulse.is_finite() {
             return;
         }
@@ -970,29 +1014,30 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
 
     /// Applies vanilla entity-to-entity push separation.
     fn push_entity(&self, entity: &dyn Entity) {
+        if self
+            .as_living_entity()
+            .is_some_and(LivingEntity::is_sleeping)
+        {
+            return;
+        }
+
         if self.is_passenger_of_same_vehicle(entity) || entity.no_physics() || self.no_physics() {
             return;
         }
 
-        let mut x = entity.position().x - self.position().x;
-        let mut z = entity.position().z - self.position().z;
-        let mut distance = x.abs().max(z.abs());
-        if distance < 0.01 {
-            return;
-        }
+        let other_position = entity.position();
+        let position = self.position();
 
-        distance = distance.sqrt();
-        x /= distance;
-        z /= distance;
-        let scale = (1.0 / distance).min(1.0) * 0.05;
-        x *= scale;
-        z *= scale;
+        let Some(impulse) = EntityPush::impulse(position, other_position) else {
+            return;
+        };
 
         if !self.is_vehicle() && self.is_pushable() {
-            self.push_impulse(DVec3::new(-x, 0.0, -z));
+            self.push_impulse(DVec3::new(-impulse.x, 0.0, -impulse.z));
         }
+
         if !entity.is_vehicle() && entity.is_pushable() {
-            entity.push_impulse(DVec3::new(x, 0.0, z));
+            entity.push_impulse(impulse);
         }
     }
 
@@ -1696,6 +1741,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         try_as_dyn::<Self, dyn Leashable>(self)
     }
 
+    /// Returns this entity as an `AbstractMinecart` if it has `AbstractMinecart` behavior.
+    fn as_abstract_minecart(&self) -> Option<&dyn AbstractMinecart> {
+        try_as_dyn::<Self, dyn AbstractMinecart>(self)
+    }
+
     /// Returns true for entities that implement vanilla animal behavior.
     fn is_animal(&self) -> bool {
         self.as_animal().is_some()
@@ -1866,8 +1916,8 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         false
     }
 
-    /// Returns the movement vector vanilla exposes for block-contact logic.
-    fn known_movement(&self) -> DVec3 {
+    /// Returns vanilla's base known movement before entity-specific adjustments.
+    fn default_known_movement(&self) -> DVec3 {
         if let Some(controller) = self.controlling_passenger()
             && !self.is_removed()
             && controller.entity_type() == &vanilla_entities::PLAYER
@@ -1876,6 +1926,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         }
 
         self.velocity()
+    }
+
+    /// Returns the movement vector vanilla exposes for block-contact logic.
+    fn known_movement(&self) -> DVec3 {
+        self.default_known_movement()
     }
 
     /// Returns the base-tick displacement vanilla exposes as `getKnownSpeed`.
@@ -1934,6 +1989,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     fn direction_yaw(&self) -> Direction {
         let (yaw, _) = self.rotation();
         Direction::from_yaw(yaw)
+    }
+
+    /// Returns the horizontal direction used for movement-dependent behavior.
+    fn motion_direction(&self) -> Direction {
+        self.direction_yaw()
     }
 
     /// Rotates this entity to face a fixed position.
@@ -2183,6 +2243,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         true
     }
 
+    /// Ignites this entity in lava.
+    fn lava_ignite(&self) {
+        self.apply_inside_block_effect(InsideBlockEffectType::LavaIgnite);
+    }
+
     /// Applies vanilla lava-contact damage after lava ignition effects.
     fn lava_hurt(&self) {
         if self.fire_immune() {
@@ -2319,6 +2384,26 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
     /// Returns true if this entity is currently touching water.
     fn is_in_water(&self) -> bool {
         self.fluid_contact().water_height() > 0.0
+    }
+
+    /// Returns true if rain falls at this entity's feet or at the top of its bounding box.
+    fn is_in_rain(&self) -> bool {
+        let Some(world) = self.level() else {
+            return false;
+        };
+
+        let pos = self.block_position();
+        world.is_raining_at(pos)
+            || world.is_raining_at(BlockPos::new(
+                pos.x(),
+                self.bounding_box().max_y().floor() as i32,
+                pos.z(),
+            ))
+    }
+
+    /// Returns true if this entity is touching water or standing in rain.
+    fn is_in_water_or_rain(&self) -> bool {
+        self.is_in_water() || self.is_in_rain()
     }
 
     /// Returns true if this entity is currently touching lava.
@@ -2610,6 +2695,19 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         apply_effects_from_block_movements(entity, &movements);
     }
 
+    /// What vanilla's `/teleport` does once an entity has moved: unless it is gliding, it ends up
+    /// on the ground without vertical motion.
+    fn land_after_teleport(&self) {
+        if self
+            .as_living_entity()
+            .is_none_or(|living| !living.is_fall_flying())
+        {
+            let velocity = self.velocity();
+            self.set_velocity(DVec3::new(velocity.x, 0.0, velocity.z));
+            self.set_on_ground(true);
+        }
+    }
+
     /// Sets whether the entity is on the ground.
     fn set_on_ground(&self, on_ground: bool) {
         let ground_contact = self.ground_contact_after_movement(on_ground, None);
@@ -2764,7 +2862,7 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         clippy::float_cmp,
         reason = "intentional: vanilla checks static block speed factors against 1.0"
     )]
-    fn block_speed_factor(&self) -> f32 {
+    fn default_block_speed_factor(&self) -> f32 {
         let Some(world) = self.level() else {
             return 1.0;
         };
@@ -2795,6 +2893,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
             .get_block()
             .config
             .speed_factor
+    }
+
+    /// Returns the block speed factor applied after movement.
+    fn block_speed_factor(&self) -> f32 {
+        self.default_block_speed_factor()
     }
 
     /// Returns the jump-height multiplier from the block at this entity's
@@ -3548,7 +3651,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         clippy::too_many_lines,
         reason = "keeps vanilla movement phases in order"
     )]
-    fn move_entity(self: Arc<Self>, mover_type: MoverType, delta: DVec3) -> Option<MoveResult> {
+    fn default_move_entity(
+        self: Arc<Self>,
+        mover_type: MoverType,
+        delta: DVec3,
+    ) -> Option<MoveResult> {
         let world = self.level()?;
         if self.no_physics() {
             return self.move_without_physics(delta);
@@ -3683,6 +3790,11 @@ pub trait Entity: EntityEventSource + ErasedType + Send + Sync + 'static {
         ));
 
         Some(result)
+    }
+
+    /// Moves the entity with collision detection.
+    fn move_entity(self: Arc<Self>, mover_type: MoverType, delta: DVec3) -> Option<MoveResult> {
+        self.default_move_entity(mover_type, delta)
     }
 
     /// Applies vanilla fall-distance bookkeeping after accepted movement.

@@ -255,7 +255,7 @@ impl BlockBehavior for CopperChestBlock {
     fn get_analog_output_signal(
         &self,
         state: BlockStateId,
-        world: &dyn LevelReader,
+        world: &World,
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {
@@ -338,7 +338,7 @@ impl BlockBehavior for WeatheringCopperChestBlock {
     fn get_analog_output_signal(
         &self,
         state: BlockStateId,
-        world: &dyn LevelReader,
+        world: &World,
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {

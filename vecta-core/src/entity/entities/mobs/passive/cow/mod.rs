@@ -35,9 +35,10 @@ use crate::entity::ai::goal::{
 };
 use crate::entity::damage::DamageSource;
 use crate::entity::{
-    AgeableMob, AgeableMobBase, Animal, AnimalBase, Entity, EntityBase, EntityBaseLoad, EntityPose,
-    EntitySpawnReason, EntitySyncedData, LivingEntity, LivingEntityBase, Mob, MobBase,
-    PathfinderMob, SharedEntity, SpawnGroupData, sync_dirty_mob_effects,
+    AgeableMob, AgeableMobBase, Animal, AnimalBase, DefaultEntityPush, Entity, EntityBase,
+    EntityBaseLoad, EntityPose, EntitySpawnReason, EntitySyncedData, LivingEntity,
+    LivingEntityBase, Mob, MobBase, PathfinderMob, SharedEntity, SpawnGroupData, SpawnRule,
+    sync_dirty_mob_effects,
 };
 use crate::physics::MoveResult;
 use crate::player::Player;
@@ -57,7 +58,7 @@ const COW_BABY_DIMENSIONS: EntityDimensions = EntityDimensions::new_with_attachm
 );
 const DEFAULT_STEP_HEIGHT: f32 = 0.6;
 
-#[entity_behavior(class = "Cow")]
+#[entity_behavior(class = "Cow", spawn_rule)]
 /// Vanilla cow entity with synced variant and sound-variant state.
 pub struct CowEntity {
     base: EntityBase,
@@ -75,6 +76,11 @@ unsafe impl DowncastType for CowEntity {
 }
 
 impl CowEntity {
+    /// Vanilla `SpawnPlacements` predicate: `Animal.checkAnimalSpawnRules`.
+    pub(crate) const SPAWN_RULE: SpawnRule = |entity_type, level, spawn_reason, pos, random| {
+        <Self as Animal>::check_animal_spawn_rules(entity_type, level, spawn_reason, pos, random)
+    };
+
     /// Creates a new cow at runtime.
     #[must_use]
     pub fn new(entity_type: EntityTypeRef, id: i32, position: DVec3, world: Weak<World>) -> Self {
@@ -227,7 +233,17 @@ impl CowEntity {
     }
 }
 
+impl DefaultEntityPush for CowEntity {}
+
 impl Entity for CowEntity {
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        Some(self)
+    }
+
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }

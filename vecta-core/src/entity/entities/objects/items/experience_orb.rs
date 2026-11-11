@@ -14,12 +14,14 @@ use vecta_registry::fluid::FluidStateExt as _;
 use vecta_registry::vanilla_entities;
 use vecta_registry::vanilla_entity_data::ExperienceOrbEntityData;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtNumeric as _;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{BlockPos, ChunkPos, Downcast as _, DowncastType, DowncastTypeKey, WorldAabb};
 
 use crate::entity::damage::DamageSource;
 use crate::entity::{
-    Entity, EntityBase, EntityBaseLoad, EntityMovementEmission, EntitySyncedData, LivingEntity,
-    RemovalReason, SharedEntity, next_entity_id,
+    DefaultEntityPush, Entity, EntityBase, EntityBaseLoad, EntityMovementEmission,
+    EntitySyncedData, LivingEntity, RemovalReason, SharedEntity, next_entity_id,
 };
 use crate::fluid::get_fluid_state;
 use crate::physics::{MoverType, WorldCollisionProvider};
@@ -458,7 +460,17 @@ impl ExperienceOrbEntity {
     }
 }
 
+impl DefaultEntityPush for ExperienceOrbEntity {}
+
 impl Entity for ExperienceOrbEntity {
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
+    fn as_default_entity_push(&self) -> Option<&dyn DefaultEntityPush> {
+        Some(self)
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }
@@ -587,16 +599,16 @@ impl Entity for ExperienceOrbEntity {
 
     fn load_additional(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         let mut state = self.state.lock();
-        state.health = i32::from(nbt.short("Health").unwrap_or(DEFAULT_HEALTH as i16));
-        state.age = i32::from(nbt.short("Age").unwrap_or(0));
-        if let Some(count) = nbt.int("Count")
+        state.health = i32::from(nbt.short_value("Health").unwrap_or(DEFAULT_HEALTH as i16));
+        state.age = i32::from(nbt.short_value("Age").unwrap_or(0));
+        if let Some(count) = nbt.get("Count").and_then(|tag| tag.codec_i32())
             && count > 0
         {
             state.count = count;
         }
         drop(state);
 
-        self.set_value(i32::from(nbt.short("Value").unwrap_or(0)));
+        self.set_value(i32::from(nbt.short_value("Value").unwrap_or(0)));
     }
 }
 

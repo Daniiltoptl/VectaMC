@@ -4,10 +4,12 @@
 //! including player inventories, chests, barrels, furnaces, etc.
 
 mod crafting;
+mod helper;
 mod result;
 mod simple;
 
 pub use crafting::CraftingContainer;
+pub use helper::load_all_items;
 pub use result::ResultContainer;
 pub use simple::SimpleContainer;
 
@@ -320,7 +322,7 @@ pub trait Container: ErasedType + Send + Sync {
 /// Removes or counts matching items in one stack using vanilla `/clear` semantics.
 pub(crate) fn clear_or_count_matching_stack(
     stack: &mut ItemStack,
-    predicate: &dyn Fn(&ItemStack) -> bool,
+    predicate: &(impl Fn(&ItemStack) -> bool + ?Sized),
     amount_to_remove: i32,
     counting_only: bool,
 ) -> i32 {
@@ -333,7 +335,7 @@ pub(crate) fn clear_or_count_matching_stack(
 
 fn matching_item_count(
     stack: &ItemStack,
-    predicate: &dyn Fn(&ItemStack) -> bool,
+    predicate: &(impl Fn(&ItemStack) -> bool + ?Sized),
     amount_to_remove: i32,
     counting_only: bool,
 ) -> i32 {

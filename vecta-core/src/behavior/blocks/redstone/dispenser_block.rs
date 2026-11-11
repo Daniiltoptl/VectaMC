@@ -355,7 +355,7 @@ impl BlockBehavior for DispenserBlock {
     fn get_analog_output_signal(
         &self,
         _state: BlockStateId,
-        world: &dyn LevelReader,
+        world: &World,
         pos: BlockPos,
         _direction: Direction,
     ) -> i32 {

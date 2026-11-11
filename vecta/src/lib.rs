@@ -92,6 +92,12 @@ impl VectaServer {
     ) -> Result<Self, VectaServerError> {
         log::info!("Starting VectaMC Server ({GIT_HASH_SHORT})");
 
+        if vecta_config.server.simulation_distance < 4 {
+            tracing::warn!(
+                "Simulation distance is lesser than 4, this can result in incorrect or alternate behavior!"
+            );
+        }
+
         let permission_group_store = vecta_config.permission_group_store();
         let server_port = vecta_config.server.server_port;
         let worlds_config = vecta_config.worlds;

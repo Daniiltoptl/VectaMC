@@ -15,7 +15,7 @@ use vecta_utils::{BlockPos, BlockStateId};
 use crate::behavior::block::{BlockBehavior, BlockEntityCreation};
 use crate::behavior::context::BlockPlaceContext;
 use crate::block_entity::BLOCK_ENTITIES;
-use crate::world::{LevelReader, World};
+use crate::world::World;
 
 /// Behavior for beehive and bee nest blocks.
 // TODO: Implement full vanilla beehive interactions, bee release, smoke/fire handling, loot/data components, and ticking.
@@ -78,7 +78,7 @@ impl BlockBehavior for BeehiveBlock {
     fn get_analog_output_signal(
         &self,
         state: BlockStateId,
-        _world: &dyn LevelReader,
+        _world: &World,
         _pos: BlockPos,
         _direction: Direction,
     ) -> i32 {

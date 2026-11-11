@@ -7,8 +7,7 @@ use vecta_utils::Identifier;
 use vecta_worldgen::structure::StructureGenerationContext;
 
 pub use vecta_worldgen::structure::{
-    FixedStructureBiomeProvider, StructureGenerator, StructureLocateCandidate, StructureLocatePlan,
-    squared_distance,
+    StructureGenerator, StructureLocateCandidate, StructureLocatePlan, squared_distance,
 };
 
 /// Generates structure starts and writes them into the chunk.

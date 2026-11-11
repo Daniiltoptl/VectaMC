@@ -31,14 +31,18 @@ use simdnbt::owned::{NbtList, NbtTag};
 use text_components::TextComponent;
 use vecta_protocol::{
     packet_traits::{CompressionInfo, EncodedPacket},
-    packets::game::{ClickType, HashedStack, SContainerClick, SEditBook, SSetCreativeModeSlot},
+    packets::game::{
+        ClickType, HashedStack, PlayerAction, SContainerClick, SEditBook, SPlayerAction,
+        SSetCreativeModeSlot,
+    },
 };
 use vecta_registry::{
     RegistryEntry, init_vanilla_registry, item_stack::ItemStack, vanilla_blocks, vanilla_entities,
     vanilla_items, vanilla_menu_types, vanilla_mob_effects,
 };
 use vecta_utils::{
-    BlockPos, ChunkPos, Downcast as _, DowncastType, DowncastTypeKey, Identifier, WorldAabb,
+    BlockPos, ChunkPos, Direction, Downcast as _, DowncastType, DowncastTypeKey, Identifier,
+    WorldAabb,
     locks::{IntoShared as _, Shared},
     text::DisplayResolutor,
     types::{GameType, InteractionHand, UpdateFlags},
@@ -1463,6 +1467,36 @@ fn dead_player_container_click_only_resynchronizes() {
             .is(&vanilla_items::STONE)
     );
     assert!(player.inventory_menu.lock().behavior().carried().is_empty());
+}
+
+/// Vanilla rejects these through `markClientUnloadedAfterDeath`; Vecta's death
+/// path keeps the client loaded, so `can_drop_items` is the guard.
+#[test]
+fn dead_player_cannot_drop_selected_item() {
+    init_vanilla_registry();
+    let player = test_player(Arc::clone(test_world()));
+    player
+        .inventory
+        .lock()
+        .set_selected_item(ItemStack::new(&vanilla_items::DIAMOND));
+    player.set_health(0.0);
+
+    for action in [PlayerAction::DropItem, PlayerAction::DropAllItems] {
+        player.handle_player_action(SPlayerAction {
+            action,
+            pos: BlockPos::ZERO,
+            direction: Direction::Down,
+            sequence: 0,
+        });
+    }
+
+    assert!(
+        player
+            .inventory
+            .lock()
+            .get_selected_item()
+            .is(&vanilla_items::DIAMOND)
+    );
 }
 
 #[test]

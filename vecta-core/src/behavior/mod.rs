@@ -95,6 +95,7 @@ use std::sync::OnceLock;
 use vecta_registry::blocks::BlockRef;
 use vecta_registry::blocks::block_state_ext::BlockStateExt;
 use vecta_registry::consume_effect::vanilla_consume_effect_types;
+use vecta_registry::fluid::FluidRef;
 use vecta_registry::vanilla_fluids;
 use vecta_registry::vanilla_mob_effects;
 use vecta_utils::BlockStateId;
@@ -143,7 +144,7 @@ pub trait BlockStateBehaviorExt {
     fn is_liquid_container(&self) -> bool;
 
     /// Returns whether this block state can be replaced by the given fluid block.
-    fn can_be_replaced_by_fluid(&self, fluid_block: BlockRef) -> bool;
+    fn can_be_replaced_by_fluid(&self, fluid: FluidRef) -> bool;
 
     /// Returns whether this block state can be replaced in this placement context.
     fn can_be_replaced(&self, context: &BlockPlaceContext<'_>) -> bool;
@@ -168,10 +169,10 @@ impl BlockStateBehaviorExt for BlockStateId {
         behavior.is_liquid_container(*self)
     }
 
-    fn can_be_replaced_by_fluid(&self, fluid_block: BlockRef) -> bool {
+    fn can_be_replaced_by_fluid(&self, fluid: FluidRef) -> bool {
         let block = self.get_block();
         let behavior = BLOCK_BEHAVIORS.get_behavior(block);
-        behavior.can_be_replaced_by_fluid(*self, fluid_block)
+        behavior.can_be_replaced_by_fluid(*self, fluid)
     }
 
     fn can_be_replaced(&self, context: &BlockPlaceContext<'_>) -> bool {

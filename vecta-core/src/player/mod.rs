@@ -58,7 +58,7 @@ use simdnbt::owned::{NbtCompound, NbtList, NbtTag};
 use sleep_state::PlayerSleepState;
 use std::ptr;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, LazyLock, Weak};
 use std::time::{Duration, Instant};
 use tick_state::PlayerTickState;
 use uuid::Uuid;
@@ -92,7 +92,7 @@ use text_components::resolving::TextResolutor;
 use text_components::translation::TranslatedMessage;
 use text_components::{
     Modifier as _, TextComponent,
-    interactivity::{ClickEvent, HoverEvent},
+    interactivity::{ClickEvent, HoverEvent, Interactivity},
 };
 use text_components::{content::Resolvable, custom::CustomData};
 use vecta_utils::locks::SyncMutex;
@@ -134,7 +134,9 @@ use crate::server::{
     PlayerPacketTransition, Server,
     jobs::{JobPoll, ServerJob, ServerJobContext},
 };
-use crate::world::player_spawn_finder::{PlayerSpawnSearch, PlayerSpawnSearchPoll};
+use crate::world::player_spawn_finder::{
+    POLL_TIME_BUDGET, PlayerSpawnSearch, PlayerSpawnSearchPoll,
+};
 use vecta_registry::vanilla_damage_types;
 
 use vecta_protocol::packets::{
@@ -142,6 +144,7 @@ use vecta_protocol::packets::{
     game::{CContainerClose, CGameEvent, CSystemChat, GameEventType},
 };
 use vecta_registry::RegistryEntry;
+use vecta_registry::damage_type::DeathMessageType;
 use vecta_registry::item_stack::ItemStack;
 use vecta_registry::items::ItemRef;
 use vecta_registry::stat::vanilla_stat_types;
@@ -151,11 +154,18 @@ use vecta_utils::{
 
 use crate::inventory::container::Container;
 
-const RESPAWN_SEARCH_READY_CANDIDATE_BUDGET: usize = 8;
 const HAT_MODEL_PART_MASK: i8 = 0b0100_0000;
 
 const DROP_SPAM_THROTTLER_INCREMENT_STEP: i32 = 20;
 const DROP_SPAM_THROTTLER_THRESHOLD: i32 = 1480;
+
+static INTENTIONAL_GAME_DESIGN_STYLE: LazyLock<Interactivity> = LazyLock::new(|| Interactivity {
+    click: Some(ClickEvent::open_url(
+        "https://bugs.mojang.com/browse/MCPE-28723",
+    )),
+    hover: Some(HoverEvent::show_text("MCPE-28723")),
+    ..Interactivity::new()
+});
 
 use crate::chunk::player_chunk_view::PlayerChunkView;
 use crate::entity::entities::objects::projectiles::FishingHookEntity;
@@ -892,6 +902,41 @@ impl Player {
         }
     }
 
+    fn get_death_message(&self, source: &DamageSource) -> TextComponent {
+        let death_key = format!("death.attack.{}", source.damage_type.message_id);
+        match source.damage_type.death_message_type {
+            DeathMessageType::IntentionalGameDesign => {
+                let mut link = translations::CHAT_SQUARE_BRACKETS
+                    .message([TranslatedMessage {
+                        key: format!("{death_key}.link").into(),
+                        fallback: None,
+                        args: None,
+                    }
+                    .component()])
+                    .component();
+                link.interactions = INTENTIONAL_GAME_DESIGN_STYLE.clone();
+
+                TranslatedMessage {
+                    key: format!("{death_key}.message").into(),
+                    fallback: None,
+                    args: Some(Box::new([self.display_name(), link])),
+                }
+                .component()
+            }
+            DeathMessageType::Default | DeathMessageType::FallVariants => {
+                // TODO: use CombatTracker for killer name items and fall variants
+                TranslatedMessage {
+                    key: death_key.into(),
+                    fallback: None,
+                    args: Some(Box::new([TextComponent::plain(
+                        self.gameprofile.name().to_owned(),
+                    )])),
+                }
+                .component()
+            }
+        }
+    }
+
     /// Vanilla: `ServerPlayer.die()` (does NOT call `super.die()`).
     fn die(&self, source: &DamageSource) {
         if self.is_removed() {
@@ -924,16 +969,7 @@ impl Player {
 
         let show_death_messages = world.get_game_rule(&SHOW_DEATH_MESSAGES);
 
-        // TODO: use CombatTracker for multi-arg messages (killer name, item, etc.)
-        let death_key = format!("death.attack.{}", source.damage_type.message_id);
-        let death_message = TranslatedMessage {
-            key: death_key.into(),
-            fallback: None,
-            args: Some(Box::new([TextComponent::plain(
-                self.gameprofile.name().to_owned(),
-            )])),
-        }
-        .component();
+        let death_message = self.get_death_message(source);
 
         self.send_packet(CPlayerCombatKill {
             player_id: self.id(),
@@ -1309,6 +1345,10 @@ impl Player {
 }
 
 impl Entity for Player {
+    fn is_hard_collision_relevant(&self) -> bool {
+        false
+    }
+
     fn base(&self) -> &EntityBase {
         &self.base
     }
@@ -1800,7 +1840,9 @@ impl LivingEntity for Player {
 
         self.default_tick();
         self.detect_equipment_updates();
-        self.ai_step(entity);
+        if !self.is_removed() {
+            self.ai_step(entity);
+        }
 
         // Vanilla snaps the player back to firstGood after ServerPlayer.doTick().
         if let Err(error) = self.try_set_position(tick_position) {
@@ -1816,7 +1858,6 @@ impl LivingEntity for Player {
         self.living_base.decrement_invulnerable_time();
         self.tick_mob_effects();
         self.tick_active_item_use(entity);
-        // TODO: Tick stats even when the player has been dead for more than 20 ticks.
         self.tick_stats();
 
         if self.get_health() <= 0.0 {

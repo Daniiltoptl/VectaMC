@@ -17,13 +17,14 @@ use vecta_registry::item_stack::ItemStack;
 use vecta_registry::vanilla_block_entity_types;
 use vecta_registry::vanilla_item_tags::ItemTag;
 use vecta_registry::{vanilla_blocks, vanilla_game_events};
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::types::UpdateFlags;
 use vecta_utils::{
     BlockPos, BlockStateId, DowncastType, DowncastTypeKey, Identifier, locks::SyncMutex,
 };
 
 use crate::block_entity::{BlockEntity, BlockEntityBase};
-use crate::inventory::container::Container;
+use crate::inventory::container::{Container, load_all_items};
 use crate::inventory::lock::{ContainerLockGuard, ContainerRef, SharedContainer};
 use crate::world::{LevelReader as _, World, game_event::GameEventContext};
 
@@ -291,25 +292,9 @@ impl BlockEntity for ChiseledBookShelfBlockEntity {
         container.items.fill_with(ItemStack::empty);
         container.state_update_pending = false;
 
-        if let Some(items) = nbt.list(ITEMS_NBT_KEY)
-            && let Some(compounds) = items.compounds()
-        {
-            for compound in compounds {
-                let Some(slot) = compound.byte(ITEM_SLOT_NBT_KEY) else {
-                    continue;
-                };
-                let Ok(slot) = usize::try_from(slot) else {
-                    continue;
-                };
-                if slot < CHISELED_BOOKSHELF_SLOTS
-                    && let Some(item) = ItemStack::from_borrowed_compound(&compound)
-                {
-                    container.items[slot] = item;
-                }
-            }
-        }
+        load_all_items(nbt, &mut container.items);
         container.last_interacted_slot = nbt
-            .int(LAST_INTERACTED_SLOT_NBT_KEY)
+            .int_value(LAST_INTERACTED_SLOT_NBT_KEY)
             .unwrap_or(DEFAULT_LAST_INTERACTED_SLOT);
     }
 

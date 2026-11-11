@@ -31,6 +31,7 @@ use vecta_registry::vanilla_game_rules::{MOB_GRIEFING, PROJECTILES_CAN_BREAK_BLO
 use vecta_registry::{REGISTRY, TaggedRegistryExt as _, vanilla_game_events};
 use vecta_utils::axis::Axis;
 use vecta_utils::locks::SyncMutex;
+use vecta_utils::nbt::NbtValueInput as _;
 use vecta_utils::{BlockPos, WorldAabb};
 
 use crate::behavior::BLOCK_BEHAVIORS;
@@ -665,8 +666,10 @@ pub trait Projectile: Entity + ProjectileEventSource {
     fn load_projectile(&self, nbt: BorrowedNbtCompoundView<'_, '_>) {
         let mut state = self.projectile_base().state.lock();
         state.owner = EntityReference::read(&nbt, "Owner");
-        state.left_owner = nbt.byte("LeftOwner").is_some_and(|value| value != 0);
-        state.has_been_shot = nbt.byte("HasBeenShot").is_some_and(|value| value != 0);
+        state.left_owner = nbt.byte_value("LeftOwner").is_some_and(|value| value != 0);
+        state.has_been_shot = nbt
+            .byte_value("HasBeenShot")
+            .is_some_and(|value| value != 0);
     }
 }
 
