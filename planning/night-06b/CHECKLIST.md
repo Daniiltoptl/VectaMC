@@ -11,8 +11,8 @@
   `triggerEvent`, `getShape`/collision/interaction, `getAnalogOutputSignal`,
   `affectNeighborsAfterRemoval`, а не только основной сценарий.
 - Данные (имена, ID, шансы, веса, теги) — из extracted/generated, а не из памяти.
-  Нет данных: обнови SteelExtractor (`D:\CodexBuilds\SteelExtractor`), скопируй
-  выдумывай. Руками registry/protocol ID не вписывать.
+  Нет данных: это блокер (SteelExtractor только у агента A), не выдумывай.
+  Руками registry/protocol ID не вписывать.
 
 **Арифметика и числа.**
 - Знаки операндов: floorDiv/floorMod — не Евклид; проверяй отрицательный делитель.
